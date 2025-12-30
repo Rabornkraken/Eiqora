@@ -1,77 +1,113 @@
-# Research Report: The "Holistic Synthesis" Engine
+# Research Report: The "Holistic Synthesis" Engine (v2.0)
 
-**Date:** December 16, 2025
-**Topic:** Re-balancing Eiqora's Decision Logic (Fundamentals First, Technicals Second)
-**Status:** Deep Thinking / Revised Plan
+**Date:** December 19, 2025
+**Topic:** Next-Gen Multi-Agent Architecture (The "Council" Approach)
+**Status:** Advanced Design & Architecture Specification
 
-## 1. The Critique: "Technical Tunnel Vision"
+## 1. The Core Philosophy: "The Market is a Complex Adaptive System"
 
-The previous plan (Technical Trade Setups) failed because it ignored the **"Why."**
-It treated a stock like a wiggly line on a chart. It ignored that:
-*   A stock with **massive earnings growth** *should not* be traded like a range-bound utility.
-*   **Insider Buying** sets a "psychological floor" that often overrides technical support levels.
-*   **Sentiment** drives momentum, often invalidating "Overbought" RSI signals.
+The previous iteration correctly identified that technical analysis alone is insufficient. However, it lacked the **environmental context** and **alternative signals** that drive modern markets.
 
-## 2. The Core Insight: "Conviction Dictates Aggression" (With Context)
+We are moving from a "Trader" model to a **"Multi-Agent Council"** model.
+Just as a hedge fund has distinct departments (Macro, Equities, Quant, Risk), our system will have specialized agents that view the market through unique lenses.
 
-The system should not just ask "Where is support?"
-It must ask: **"How badly do we want this asset, and is the price justified?"**
+**The Hierarchy of Truth:**
+1.  **Macro (The Road):** Is the economic environment safe? (Rates, Inflation, GDP).
+2.  **Fundamentals (The Engine):** Is the vehicle (company) powerful and reliable? (Earnings, Moat, Insiders).
+3.  **Sentiment (The Fuel):** Is there gas in the tank? (Hype, Trends, News).
+4.  **Technicals (The Steering):** When exactly do we turn? (Support/Resistance, Momentum).
 
-### The "Conviction-Pricing" Model (Baseline Tendency)
+## 2. The Data Layer ("The Senses")
 
-**CRITICAL NOTE:** These are *baselines*, not hard rules. The Trader Agent must apply judgment. A High Score (90) does **not** justify buying an infinitely expensive stock.
+We will expand beyond simple scraping to a robust multi-source ingestion pipeline.
 
-| Fundamental/Sentiment Score | Insider/Smart Money | Baseline Tendency | Contextual Override (The "AI Judgment") |
+| Domain | Primary Source | Backup/Secondary | Key Metrics |
 | :--- | :--- | :--- | :--- |
-| **High (9-10)** | Buying | **"Chasing Alpha"** | *Override:* If P/E is extreme (>100x) or Macro is crashing, switch to "Wait for Pullback." |
-| **Medium (5-8)** | Neutral | **"Value Hunting"** | *Override:* If sector is hot (AI/Tech), may justify paying a premium over support. |
-| **Low (0-4)** | Selling | **"Deep Value / Avoid"** | *Override:* Only buy if it's a "Cigar Butt" deep value play (trading below book value). |
+| **Macroeconomics** | **FRED (St. Louis Fed)** | Alpha Vantage (Economy) | Federal Funds Rate, CPI (Inflation), GDP Growth, Unemployment, Yield Curve (10Y-2Y). |
+| **Fundamentals** | **Alpha Vantage / Finnhub** | Yahoo Finance (yfinance) | Revenue Growth, EPS Surprise, P/E vs Peers, Free Cash Flow, Debt/Equity. |
+| **Institutional** | **OpenInsider (Scraper)** | SEC EDGAR (CIK) | Cluster Buys, CEO/CFO Purchases, Institutional Ownership Changes (13F). |
+| **Sentiment (Social)**| **Reddit / Twitter (API)** | Google Trends | "Tickers" mentions velocity, Sentiment Polarity, Search Volume Spikes. |
+| **Alternative** | **GitHub / App Store** | SimilarWeb | Code commit frequency (Tech), App Ranking trends (Consumer), Website traffic. |
+| **Technicals** | **Alpha Vantage / Ta-Lib** | Polygon.io | RSI, MACD, Bollinger Bands, Volume Profile, Key Levels. |
 
-## 3. Data Sourcing Strategy: "The Scraper Approach"
+## 3. The Agent Architecture ("The Council")
 
-To avoid expensive APIs, we will implement targeted web scrapers for public financial data.
+Instead of one "Trader" agent, we employ a **Council of Five**, each with Veto power or Weighted Voting.
 
-### A. Smart Money (OpenInsider)
-*   **Source:** `http://openinsider.com/search?q={TICKER}`
-*   **Method:** HTML Parsing (`BeautifulSoup`).
-*   **Target Data:**
-    *   **Table:** Main results table.
-    *   **Filter:** `Trade Type = "P - Purchase"` (Open Market Buy). Ignore Grants/Options.
-    *   **Output:** List of recent Insider Buys (Date, Name, Price, Value).
-    *   **Why:** This proves "Skin in the game."
+### A. Agent 1: The Macro Strategist ("The Weatherman")
+*   **Role:** Determines the **Market Regime**.
+*   **Inputs:** FRED Data (Yield Curve, Inflation), VIX.
+*   **Outputs:** A "Risk-On / Risk-Off" Regime Flag.
+    *   *Example:* "Yield curve inverted + High Inflation = **Recession Regime**. Block all high-beta tech buys. Only allow defensive Staples/Utilities."
 
-### B. Fundamental Anchors (Finviz)
-*   **Source:** `https://finviz.com/quote.ashx?t={TICKER}`
-*   **Method:** HTML Parsing (`BeautifulSoup`).
-*   **Target Data:**
-    *   `Target Price`: Consensus Analyst Target.
-    *   `Recom`: Mean Recommendation (1=Buy, 5=Sell).
-    *   `Insider Own`: Institutional Ownership %.
-    *   **Why:** Provides the "Fair Value" anchors needed to judge if the current price is a discount.
+### B. Agent 2: The Fundamental Analyst ("The Warren Buffett")
+*   **Role:** Assesses the **Quality and Value** of the asset.
+*   **Inputs:** Financial Statements, Earnings Transcripts, OpenInsider.
+*   **Outputs:** A "Quality Score" (0-100) and "Fair Value" estimate.
+    *   *Logic:* "Revenue grew 40% YoY, but Insider Buying is zero and P/E is 150x. Quality is High, but Value is F- (Overpriced). Recommendation: WAIT."
 
-## 4. Revised Agent Roles
+### C. Agent 3: The Sentiment Scout ("The Hype Man")
+*   **Role:** Measures **Crowd Psychology and Momentum**.
+*   **Inputs:** Google Trends, Social Volume, News Sentiment.
+*   **Outputs:** A "Hype Factor" (0-100).
+    *   *Logic:* "Google Trends for 'Product X' are parabolic. Reddit mentions up 500%. Hype is 100/100. Contradicts the Fundamental Analyst? Yes, but momentum plays are valid if stops are tight."
 
-### A. The "Fundamental Scorer" (Bull/Bear Analysts)
-*   **Old Role:** Write a text argument.
-*   **New Role:** Output a **Quality/Conviction Score (0-100)** based on:
-    *   Earnings Growth / Surprise magnitude.
-    *   Competitive Moat.
-    *   Macro Tailwinds.
-    *   *Constraint:* Must justify the score with data.
+### D. Agent 4: The Technical Sniper ("The Chartist")
+*   **Role:** Precision **Entry and Exit Timing**.
+*   **Inputs:** Price Action, Volume, Volatility (ATR).
+*   **Outputs:** "Buy Zone," "Stop Loss Level," "Take Profit Targets."
+    *   *Logic:* "I don't care if the stock is good. Price is at the 200 EMA and RSI is oversold (30). This is a mathematical entry point."
 
-### B. The "Smart Money" Scout (New/Upgraded)
-*   **Role:** Identify the "Insider Floor."
-*   **Logic:** "CEO bought at $150." -> This price is now a **Critical Fundamental Support Level**, likely stronger than any chart line.
+### E. Agent 5: The Risk Manager ("The Guardian")
+*   **Role:** **Portfolio Safety and Position Sizing.**
+*   **Inputs:** Portfolio Correlation, Volatility, Account Equity.
+*   **Authority:** **Absolute Veto Power.**
+    *   *Logic:* "The Council wants to buy NVDA. But we already have 40% exposure to Semis. **VETO.** Trade rejected due to sector concentration risk."
 
-### C. The "Trader" (The Synthesizer)
-*   **Logic:**
-    1.  **Read Conviction:** "Fundamentals are amazing (Score 90)."
-    2.  **Check Smart Money:** "Insiders bought at $145."
-    3.  **Check Technicals:** "Chart support is $140."
-    4.  **Validation (The "No" Check):** "Is P/E > 50? Is RSI > 80?"
-    5.  **Decision:** "Score is 90, so I want to be aggressive. BUT, RSI is 85 (Overbought). I will **not** buy Market. I will place a Limit Order at the Insider Floor ($145) instead of the Technical Support ($140)."
+## 4. The Synthesis Logic ("The Verdict")
 
-## 5. Summary
+How do these agents agree? We use a **Weighted Confidence Score**.
 
-This model ensures that **Fundamentals are the Engine**, **Sentiment is the Fuel**, and **Technicals are just the Steering Wheel.**
-We don't buy *because* of a chart pattern. We buy *because* the company is great, and use the chart only to not overpay. The AI's job is to balance the **Greed** (Score) against the **Fear** (Valuation/Technicals).
+**Scenario: The "Tech Breakout"**
+1.  **Macro:** Neutral (Rates steady). **Weight: 1.0x**
+2.  **Fundamental:** Great earnings, expensive. **Score: 60/100**
+3.  **Sentiment:** Massive Hype (AI boom). **Score: 95/100**
+4.  **Technical:** Breaking out of bull flag. **Score: 90/100**
+
+**Synthesis:**
+*   *Weighted Score* = (Fund * 0.3) + (Sent * 0.3) + (Tech * 0.4) = (18) + (28.5) + (36) = **82.5/100**.
+*   **Risk Manager Check:** "Exposure ok?" -> YES.
+*   **Decision:** **BUY**.
+*   **Execution:** Aggressive entry (Market Buy) because Sentiment/Technicals are driving, not value.
+
+**Scenario: The "Value Trap"**
+1.  **Macro:** Recession Risk High. **Weight: 0.5x on Growth, 1.5x on Safety.**
+2.  **Fundamental:** Cheap (P/E 8), but shrinking revs. **Score: 40/100**
+3.  **Sentiment:** Everyone hates it. **Score: 10/100**
+4.  **Technical:** At support. **Score: 80/100**
+
+**Synthesis:**
+*   Risk-Off Regime punishes low-quality/growth.
+*   Score is dragged down by Sentiment and Fundamentals.
+*   **Decision:** **PASS** (or Short), despite Technical Support.
+
+## 5. Implementation Roadmap
+
+1.  **Phase 1: The Foundation (Data)**
+    *   Implement `FredClient` for Macro data.
+    *   Enhance `FundamentalClient` with Alpha Vantage/Finnhub.
+    *   Build `GoogleTrendsScraper` for sentiment.
+
+2.  **Phase 2: The Agents (Logic)**
+    *   Code the `MacroStrategist` to output Regime flags.
+    *   Update `FundamentalAgent` to use "Intrinsic Value" models (DCF/Comparables).
+    *   Create `RiskManager` with hard concentration limits.
+
+3.  **Phase 3: The Council (Orchestration)**
+    *   Use **LangGraph** to model the state flow:
+        `Macro -> [Fund, Sent, Tech] -> Synthesis -> Risk -> Execution`
+    *   Implement the voting/scoring logic.
+
+## 6. Summary
+
+This "Holistic Engine" mimics a professional investment committee. It balances the **science** of fundamentals with the **art** of sentiment and the **discipline** of risk management. It is designed to survive in all market weathers, not just a bull market.

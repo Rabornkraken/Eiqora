@@ -10,6 +10,15 @@ chromadb
 tiktoken
 python-dotenv
 rich
+ta
+requests
+boto3
+feedparser
+psycopg[binary]
+sqlalchemy
+alembic
+openpyxl
+sentence-transformers
 
 [dev]
 pytest

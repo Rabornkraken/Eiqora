@@ -15,6 +15,15 @@ Requires-Dist: chromadb
 Requires-Dist: tiktoken
 Requires-Dist: python-dotenv
 Requires-Dist: rich
+Requires-Dist: ta
+Requires-Dist: requests
+Requires-Dist: boto3
+Requires-Dist: feedparser
+Requires-Dist: psycopg[binary]
+Requires-Dist: sqlalchemy
+Requires-Dist: alembic
+Requires-Dist: openpyxl
+Requires-Dist: sentence-transformers
 Provides-Extra: dev
 Requires-Dist: pytest; extra == "dev"
 Requires-Dist: black; extra == "dev"

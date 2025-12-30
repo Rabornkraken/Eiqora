@@ -1,0 +1,2 @@
+
+ALTER TABLE `dy_creator` MODIFY COLUMN `gender` VARCHAR(16) DEFAULT NULL COMMENT '性别';

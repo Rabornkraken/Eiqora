@@ -14,6 +14,9 @@ eiqora/core/state.py
 eiqora/domain/__init__.py
 eiqora/domain/scouts/__init__.py
 eiqora/domain/scouts/base.py
+eiqora/domain/scouts/earnings/__init__.py
+eiqora/domain/scouts/earnings/agent.py
+eiqora/domain/scouts/earnings/tools.py
 eiqora/domain/scouts/market/__init__.py
 eiqora/domain/scouts/market/agent.py
 eiqora/domain/scouts/market/tools.py
@@ -21,6 +24,9 @@ eiqora/domain/scouts/news/__init__.py
 eiqora/domain/scouts/news/agent.py
 eiqora/domain/scouts/sentiment/__init__.py
 eiqora/domain/scouts/sentiment/agent.py
+eiqora/domain/scouts/technical/__init__.py
+eiqora/domain/scouts/technical/agent.py
+eiqora/domain/scouts/technical/tools.py
 eiqora/domain/traders/__init__.py
 eiqora/domain/traders/analysts/__init__.py
 eiqora/domain/traders/analysts/bear.py

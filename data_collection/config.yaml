@@ -1,0 +1,102 @@
+project:
+  name: finance-pipeline
+  timezone: "America/New_York"
+
+storage:
+  raw_s3:
+    provider: "minio"
+    endpoint_url: "http://localhost:9000"
+    bucket: "lake"
+    access_key_env: "MINIO_ACCESS_KEY"
+    secret_key_env: "MINIO_SECRET_KEY"
+
+database:
+  url_env: "DATABASE_URL"
+  use_pgvector: true
+  use_fts: true
+
+universe:
+  snapshot_table: "universe_snapshot"
+  member_table: "universe_member"
+  symbols_file: "config/symbols.txt"
+  sources:
+    spy_holdings_xlsx_url: "https://www.ssga.com/library-content/products/fund-data/etfs/us/holdings-daily-us-en-spy.xlsx"
+    wikipedia_sp500_url: "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
+  include_context_symbols: ["SPY","QQQ","IWM","DIA","XLF","XLE","XLK","XLV","XLY","XLP","XLI","XLU","XLB","XLRE"]
+
+market_data:
+  provider: "stooq"
+
+stooq:
+  base_url: "https://stooq.com"
+  daily_endpoint: "/q/d/l/"
+  symbol_suffix: ".us"
+  symbol_map:
+    "BRK.B": "BRK-B"
+
+alpaca:
+  base_url: "https://data.alpaca.markets"
+  key_env: "ALPACA_API_KEY"
+  secret_env: "ALPACA_API_SECRET"
+  bars_endpoint: "/v2/stocks/bars"
+  daily_timeframe: "1Day"
+  daily_backfill_start: "2015-01-01"
+  daily_trailing_rescan_days: 10
+  intraday_enabled: false
+  intraday_timeframe: "5Min"
+  intraday_backfill_days: 120
+  intraday_trailing_rescan_days: 2
+
+sec:
+  user_agent: "Pan/pan@welthfi.com"
+  max_requests_per_second: 8
+  forms: ["8-K","10-Q","10-K","4","13F-HR","13F-HR/A","10-K/A","10-Q/A"]
+  trailing_rescan_days: 365
+  ticker_cik_json_url: "https://www.sec.gov/files/company_tickers.json"
+
+news:
+  yfinance:
+    max_items_per_symbol: 25
+    min_text_chars: 200
+  gdelt:
+    poll_minutes: 15
+    embed_threshold: 0.40
+    min_text_chars: 200
+    max_docs_per_symbol_per_poll: 10
+
+macro:
+  fred:
+    api_key_env: "FRED_API_KEY"
+    series_ids:
+      - DGS2
+      - DGS10
+      - T10Y2Y
+      - FEDFUNDS
+      - SOFR
+      - CPIAUCSL
+      - CPILFESL
+      - PCEPI
+      - PCEPILFE
+      - UNRATE
+      - PAYEMS
+      - ICSA
+      - INDPRO
+      - RSAFS
+      - HOUST
+      - BAA10Y
+
+earnings:
+  alphavantage:
+    api_key_env: "ALPHAVANTAGE_API_KEY"
+    earnings_calendar_endpoint: "https://www.alphavantage.co/query"
+    window_past_days: 30
+    window_future_days: 90
+  nasdaq:
+    earnings_calendar_endpoint: "https://api.nasdaq.com/api/calendar/earnings"
+
+embeddings:
+  enabled: true
+  chunk_tokens: 700
+  overlap_tokens: 80
+  store_in_pgvector: true
+  model: "all-MiniLM-L6-v2"

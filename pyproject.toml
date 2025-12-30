@@ -20,17 +20,31 @@ dependencies = [
     "tiktoken",
     "python-dotenv",
     "rich",
-    "ta"
+    "ta",
+    "requests",
+    "boto3",
+    "feedparser",
+    "psycopg[binary]",
+    "sqlalchemy",
+    "alembic",
+    "openpyxl",
+    "sentence-transformers",
+    "asyncpg",
+    "openai",
+    "numpy",
+    "pandas",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest",
+    "pytest-asyncio",
     "black",
     "isort",
     "mypy"
 ]
 
 [tool.setuptools.packages.find]
-include = ["eiqora*"]
+include = ["eiqora*", "eiqora_v2*"]
 exclude = ["chroma_db*"]
+
