@@ -1,7 +1,11 @@
 """
 Fundamental Agent implementation.
 Provides ticker-level sentiment and fundamental overview.
-Triggers data collection pipelines when data is stale or missing.
+
+READ-ONLY: Does NOT trigger data collection. Reads from pre-populated database tables:
+- document (news articles)
+- earnings_event
+- sec_filing (via CIK join)
 """
 
 from datetime import datetime
@@ -11,13 +15,12 @@ from eiqora_v2.agents.base import BaseAgent
 from eiqora_v2.schemas.fundamental import (
     FundamentalOutput,
     SentimentSummary,
-    EarningsSnapshot,
     SECFilingSummary,
     DataStatus,
 )
 from eiqora_v2.schemas.state import SwingTradeState
-from eiqora_v2.tools.documents import get_documents
-from eiqora_v2.services.collector_orchestrator import ensure_fresh_data
+from eiqora_v2.tools.documents import get_documents, count_recent_documents
+from eiqora_v2.tools.events import get_sec_filings
 from eiqora_v2.tools.db import get_connection
 
 
@@ -25,80 +28,89 @@ class FundamentalAgent(BaseAgent[FundamentalOutput]):
     """
     Fundamental Agent: provides sentiment and fundamental overview.
     
-    1. Checks DB for existing data
-    2. Triggers data collection if data is stale/missing
-    3. Aggregates sentiment from news
-    4. Summarizes SEC filings and earnings
-    5. Returns structured output
+    READ-ONLY - does NOT trigger data collection.
+    Assumes data is pre-populated by BacktestDataCollector or scheduled pipelines.
     
-    Returns error if required data cannot be collected.
+    Reads from:
+    - document table (news)
+    - earnings_event table
+    - sec_filing table
+    
+    Returns structured output with available data, or indicates data is missing.
     """
     
     name = "fundamental"
     output_schema = FundamentalOutput
     
     async def run(self, state: SwingTradeState) -> dict[str, Any]:
-        """
-        Override run to handle data collection before LLM call.
-        """
+        """Read fundamental data from database (no collection)."""
         symbol = state["symbol"]
+        asof_time = state["asof_time"]
+        
+        # Get profile for baseline context (updated weekly)
+        profile = state.get("profile", {})
+        baseline_risks = profile.get("risks", [])
+        baseline_catalysts = profile.get("catalysts", [])
         
         self.logger.info(f"Running {self.name} for {symbol}")
-        
-        # Step 1: Ensure fresh data
-        freshness, errors = await ensure_fresh_data(
-            symbol=symbol,
-            require_news=True,
-            require_sec=False,
-            require_earnings=False,
-        )
-        
-        # Step 2: Generate Deep Profile
-        # This aggregates 3y fundamentals, 1y events, 90d narrative
-        from eiqora_v2.services.profile_generator import ProfileGenerator
-        generator = ProfileGenerator()
+        if profile:
+            self.logger.info(f"  Using profile baseline: {len(baseline_risks)} known risks, {len(baseline_catalysts)} catalysts")
         
         try:
-            # Use get_profile which handles caching (24h validity)
-            profile = await generator.get_profile(symbol)
+            # Step 1: Check what data is available (READ-ONLY)
+            doc_counts = await count_recent_documents(symbol, 168, asof_time)  # 7 days
+            news_count = sum(doc_counts.values())
             
-            # Step 3: Construct Output
-            # Map TickerProfile to FundamentalOutput
-            sentiment_overall = "NEUTRAL"
-            if "bullish" in profile.analyst_sentiment.lower() or "positive" in profile.recent_narrative.lower():
-                sentiment_overall = "POSITIVE"
-            elif "bearish" in profile.analyst_sentiment.lower() or "negative" in profile.recent_narrative.lower():
-                sentiment_overall = "NEGATIVE"
-                
+            # Step 2: Get recent news for sentiment
+            news_docs = await get_documents(symbol, 72, asof_time, limit=20)  # 3 days
+            
+            # Step 3: Get SEC filings
+            sec_filings = await get_sec_filings(symbol, 30, asof_time)
+            
+            # Step 4: Analyze sentiment from news headlines
+            sentiment_overall = await self._analyze_sentiment(news_docs)
+            
+            # Step 5: Check data freshness (but don't trigger collection)
+            news_fresh = news_count > 0
+            news_last_at = news_docs[0]["published_at"] if news_docs else None
+            sec_fresh = len(sec_filings) > 0
+            sec_last_at = sec_filings[0]["filed_at"] if sec_filings else None
+            
+            # Build output (combine profile baseline + fresh data)
             output = FundamentalOutput(
                 symbol=symbol,
                 sentiment=SentimentSummary(
                     overall=sentiment_overall,
-                    news_count=30, # from profile generator limit
-                    key_topics=[profile.recent_narrative[:50]],
-                    notable_headlines=profile.catalysts
+                    news_count=news_count,
+                    key_topics=self._extract_topics(news_docs),
+                    notable_headlines=[d["title"] for d in news_docs[:3]],
+                    baseline_risks=baseline_risks,  # From profile
+                    baseline_catalysts=baseline_catalysts,  # From profile
                 ),
-                earnings=profile.earnings_trajectory[0] if profile.earnings_trajectory else None,
+                earnings=None,  # Would need earnings_event query
                 sec_filings=SECFilingSummary(
-                    recent_filings=[], # TODO: map from profile data
-                    has_8k=any("8-K" in str(e) for e in profile.material_events),
-                    has_10q=any("10-Q" in str(e) for e in profile.material_events),
-                    has_10k=any("10-K" in str(e) for e in profile.material_events)
+                    recent_filings=[
+                        {"form_type": f["form_type"], "filed_at": str(f["filed_at"])}
+                        for f in sec_filings[:5]
+                    ],
+                    has_8k=any(f["form_type"] == "8-K" for f in sec_filings),
+                    has_10q=any(f["form_type"] == "10-Q" for f in sec_filings),
+                    has_10k=any(f["form_type"] == "10-K" for f in sec_filings),
                 ),
                 data_status=DataStatus(
-                    news_fresh=freshness.get("news_fresh", False),
-                    news_last_at=freshness.get("news_last_at"),
-                    sec_fresh=freshness.get("sec_fresh", False),
-                    sec_last_at=freshness.get("sec_last_at"),
-                    earnings_fresh=freshness.get("earnings_fresh", False),
-                    collections_triggered=freshness.get("collections_triggered", []),
-                    collection_errors=errors
+                    news_fresh=news_fresh,
+                    news_last_at=news_last_at,
+                    sec_fresh=sec_fresh,
+                    sec_last_at=sec_last_at,
+                    earnings_fresh=False,
+                    collections_triggered=[],  # NO collections triggered
+                    collection_errors=[],
                 ),
                 analysis_timestamp=datetime.utcnow(),
-                error=None
+                error=None,
             )
             
-            self.logger.info(f"{self.name} completed successfully")
+            self.logger.info(f"{self.name} completed successfully (news={news_count}, sec={len(sec_filings)})")
             return {"fundamental": output.model_dump()}
             
         except Exception as e:
@@ -108,21 +120,56 @@ class FundamentalAgent(BaseAgent[FundamentalOutput]):
                     symbol=symbol,
                     sentiment=SentimentSummary(overall="NEUTRAL", news_count=0),
                     data_status=DataStatus(
-                        news_fresh=freshness.get("news_fresh", False), 
-                        collections_triggered=freshness.get("collections_triggered", []),
-                        collection_errors=errors
+                        news_fresh=False,
+                        collections_triggered=[],
+                        collection_errors=[str(e)],
                     ),
                     analysis_timestamp=datetime.utcnow(),
                     error=str(e),
                 ).model_dump()
             }
-
+    
+    async def _analyze_sentiment(self, news_docs: list[dict]) -> str:
+        """Simple keyword-based sentiment analysis."""
+        if not news_docs:
+            return "NEUTRAL"
+        
+        positive_keywords = ["beat", "surge", "jump", "upgrade", "bullish", "strong", "growth", "record"]
+        negative_keywords = ["miss", "drop", "fall", "downgrade", "bearish", "weak", "decline", "cut"]
+        
+        positive_count = 0
+        negative_count = 0
+        
+        for doc in news_docs:
+            title = (doc.get("title") or "").lower()
+            for kw in positive_keywords:
+                if kw in title:
+                    positive_count += 1
+            for kw in negative_keywords:
+                if kw in title:
+                    negative_count += 1
+        
+        if positive_count > negative_count + 2:
+            return "POSITIVE"
+        elif negative_count > positive_count + 2:
+            return "NEGATIVE"
+        return "NEUTRAL"
+    
+    def _extract_topics(self, news_docs: list[dict]) -> list[str]:
+        """Extract key topics from news titles."""
+        topics = []
+        for doc in news_docs[:5]:
+            title = doc.get("title", "")[:50]
+            if title:
+                topics.append(title)
+        return topics
+    
     async def _gather_data(self, state: SwingTradeState) -> dict[str, Any]:
-        """Unused as run() is overridden."""
+        """Not used - run() is overridden."""
         return {}
     
     def _build_prompt(self, state: SwingTradeState, data: dict[str, Any]) -> str:
-        """Unused as run() is overridden."""
+        """Not used - run() is overridden."""
         return ""
     
     def _build_state_update(self, state: SwingTradeState, result: FundamentalOutput) -> dict[str, Any]:

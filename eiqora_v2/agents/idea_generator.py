@@ -33,6 +33,7 @@ class IdeaGeneratorAgent(BaseAgent[IdeaGeneratorOutput]):
             "facts": state.get("facts"),
             "topdown": state.get("topdown"),
             "triage": state.get("triage", {}),
+            "profile": state.get("profile", {}),  # Baseline thesis
         }
     
     def _build_prompt(self, state: SwingTradeState, data: dict[str, Any]) -> str:
@@ -45,9 +46,18 @@ class IdeaGeneratorAgent(BaseAgent[IdeaGeneratorOutput]):
         facts = data.get("facts")
         topdown = data.get("topdown")
         triage = data.get("triage", {})
+        profile = data.get("profile", {})
+        
+        # Extract profile baseline (updated weekly)
+        bull_case = profile.get("bull_case", [])
+        catalysts = profile.get("catalysts", [])
         
         prompt = f"""
 Generate trade ideas for {symbol} (Sector: {sector}).
+
+PROFILE BASELINE (updated weekly):
+- Bull Case: {', '.join(bull_case[:2]) if bull_case else 'None'}
+- Known Catalysts: {', '.join(catalysts[:2]) if catalysts else 'None'}
 
 CHART ANALYSIS:
 - Setup Type: {chart.get('setup_type', 'NO_SETUP')}

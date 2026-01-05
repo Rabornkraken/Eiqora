@@ -8,7 +8,7 @@ from typing import Any
 from eiqora_v2.agents.base import BaseAgent
 from eiqora_v2.schemas.chart import ChartOutput
 from eiqora_v2.schemas.state import SwingTradeState
-from eiqora_v2.tools.prices import get_prices, get_indicators, get_price_levels
+from eiqora_v2.tools.prices import get_prices, get_indicators, get_price_levels, get_hourly_indicators
 
 
 class ChartAgent(BaseAgent[ChartOutput]):
@@ -28,7 +28,7 @@ class ChartAgent(BaseAgent[ChartOutput]):
     output_schema = ChartOutput
     
     async def _gather_data(self, state: SwingTradeState) -> dict[str, Any]:
-        """Fetch price data and key levels."""
+        """Fetch price data, daily indicators, and hourly indicators."""
         symbol = state["symbol"]
         asof_time = state["asof_time"]
         
@@ -38,8 +38,11 @@ class ChartAgent(BaseAgent[ChartOutput]):
         if len(prices) < 10:
             return {"error": f"Insufficient price data: {len(prices)} bars"}
         
-        # Get indicators
+        # Get daily indicators (trend/setup)
         indicators = await get_indicators(symbol, 60, asof_time)
+        
+        # Get hourly indicators (entry timing)
+        hourly = await get_hourly_indicators(symbol, asof_time.date(), asof_time)
         
         # Get key levels
         levels = await get_price_levels(symbol, 60, asof_time)
@@ -47,12 +50,13 @@ class ChartAgent(BaseAgent[ChartOutput]):
         return {
             "prices": prices[-20:],  # Last 20 bars for prompt
             "indicators": indicators,
+            "hourly": hourly,
             "levels": levels,
             "full_bar_count": len(prices),
         }
     
     def _build_prompt(self, state: SwingTradeState, data: dict[str, Any]) -> str:
-        """Build prompt with price and level data."""
+        """Build prompt with multi-timeframe analysis."""
         symbol = state["symbol"]
         asof_time = state["asof_time"]
         
@@ -60,8 +64,25 @@ class ChartAgent(BaseAgent[ChartOutput]):
         bars_text = self._format_bars(data.get("prices", []))
         
         indicators = data.get("indicators", {})
+        hourly = data.get("hourly", {})
         levels = data.get("levels", {})
         yesterday = levels.get("yesterday", {})
+        
+        # Build hourly section if available
+        hourly_section = ""
+        if not hourly.get("error"):
+            vwap_dist = hourly.get('vwap_distance_pct', 0)
+            vwap_status = "above" if vwap_dist > 0 else "below"
+            hourly_section = f"""
+
+HOURLY TIMING (Entry Precision):
+- VWAP: ${hourly.get('vwap', 0):.2f} (price {vwap_status} by {abs(vwap_dist):.2f}%)
+- Hourly RSI: {hourly.get('rsi_hourly', 50):.1f}
+- Intraday Trend: {hourly.get('intraday_trend', 'NEUTRAL')}
+- Position in Range: {hourly.get('position_in_range', 0.5):.1%} (0%=LOD, 100%=HOD)
+- Today High/Low: ${hourly.get('today_high', 0):.2f} / ${hourly.get('today_low', 0):.2f}
+- Hourly Tags: {', '.join(hourly.get('state_tags', []))}
+"""
         
         return f"""
 Analyze the chart for {symbol} as of {asof_time}.
@@ -79,15 +100,17 @@ KEY LEVELS:
 - 60-Day Low: ${levels.get('low_60d', 0):.2f}
 - 20-Day Range: {levels.get('range_20d_pct', 0):.1%}
 
-INDICATORS:
+DAILY INDICATORS (Setup Identification):
 - Current Price: ${indicators.get('current_price', 0):.2f}
-- MA20: ${indicators.get('ma20', 0):.2f}
-- MA50: ${indicators.get('ma50', 'N/A')}
+- MA20: ${indicators.get('ma20', 0):.2f} | MA50: ${indicators.get('ma50', 'N/A')}
 - Trend: {indicators.get('trend', {})}
-- RV20: {indicators.get('rv20', 0):.4f}
-- Volume Z-Score: {indicators.get('volume_z_20d', 0):.2f}
+- RSI(14): {indicators.get('rsi14', 50):.1f}
+- MACD: {indicators.get('macd', {}).get('histogram', 0):.2f}
+- ADX(14): {indicators.get('adx14', 25):.1f}
+- Bollinger: {indicators.get('bollinger', {}).get('price_position', 'N/A')}
+- State Tags: {', '.join(indicators.get('state_tags', []))}{hourly_section}
 
-Classify the setup type and identify actionable levels.
+Classify the setup type using daily timeframe. Use hourly data to assess entry timing quality.
 If no clear setup exists, use setup_type="NO_SETUP" and direction="NEUTRAL".
 """
     

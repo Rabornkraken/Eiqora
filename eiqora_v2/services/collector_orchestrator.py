@@ -115,19 +115,17 @@ async def trigger_news_collection(symbol: str, sources: list[str] | None = None)
     
     Args:
         symbol: Stock ticker
-        sources: List of sources to trigger ["yfinance", "gdelt"]. Defaults to both.
+        sources: List of sources to trigger ["yfinance"]. Defaults to ["yfinance"].
     
     Returns:
         Tuple of (success, error_message)
     """
-    sources = sources or ["yfinance", "gdelt"]
+    sources = sources or ["yfinance"]
     errors = []
     
     for source in sources:
         if source == "yfinance":
             success, error = await _trigger_yfinance_news(symbol)
-        elif source == "gdelt":
-            success, error = await _trigger_gdelt_news(symbol)
         else:
             logger.warning(f"Unknown news source: {source}")
             continue
@@ -172,42 +170,7 @@ async def _trigger_yfinance_news(symbol: str) -> tuple[bool, str | None]:
         return False, str(e)
 
 
-async def _trigger_gdelt_news(symbol: str) -> tuple[bool, str | None]:
-    """Trigger GDELT news pipeline."""
-    logger.info(f"Triggering GDELT news for {symbol}")
-    
-    try:
-        # GDELT uses environment variables for configuration
-        env = os.environ.copy()
-        env["GDELT_LOOKBACK_HOURS"] = "72"  # 3 days
-        
-        result = subprocess.run(
-            [
-                sys.executable, "-m",
-                "data_collection.pipelines.gdelt",
-                "run",
-                "--limit-symbols", "1",  # Just this symbol
-                "--max-docs", "20",
-            ],
-            cwd=str(PROJECT_ROOT),
-            capture_output=True,
-            text=True,
-            timeout=COLLECTION_TIMEOUT_SECONDS,
-            env=env,
-        )
-        
-        if result.returncode != 0:
-            error = result.stderr[:500] if result.stderr else "Unknown error"
-            logger.error(f"GDELT news failed: {error}")
-            return False, error
-        
-        logger.info(f"GDELT news completed for {symbol}")
-        return True, None
-        
-    except subprocess.TimeoutExpired:
-        return False, "GDELT timed out"
-    except Exception as e:
-        return False, str(e)
+
 
 
 async def trigger_sec_collection(symbol: str) -> tuple[bool, str | None]:

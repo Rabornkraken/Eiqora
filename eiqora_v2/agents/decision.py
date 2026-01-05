@@ -43,6 +43,7 @@ class DecisionAgent(BaseAgent[DecisionOutput]):
             "context": state.get("context", {}),
             "chart": state.get("chart", {}),
             "stats": state.get("stats", []),
+            "profile": state.get("profile", {}),  # Baseline risks
         }
     
     def _build_prompt(self, state: SwingTradeState, data: dict[str, Any]) -> str:
@@ -54,6 +55,11 @@ class DecisionAgent(BaseAgent[DecisionOutput]):
         context = data.get("context", {})
         chart = data.get("chart", {})
         stats = data.get("stats", [])
+        profile = data.get("profile", {})
+        
+        # Extract profile baseline risks
+        baseline_risks = profile.get("risks", [])
+        bear_case = profile.get("bear_case", [])
         
         primary_idea_id = ideas.get("primary_idea_id")
         ideas_list = ideas.get("ideas", [])
@@ -87,6 +93,11 @@ No ideas to evaluate for {symbol}. Return NO_GO decision.
         return f"""
 Make GO/NO_GO decision for {symbol}.
 
+PROFILE BASELINE (updated weekly):
+- Known Risks: {', '.join(baseline_risks[:2]) if baseline_risks else 'None'}
+- Bear Case: {', '.join(bear_case[:2]) if bear_case else 'None'}
+(Check if trigger / fresh news confirms or contradicts these)
+
 MEGA-CAP GATES:
 - Min Win Rate: {MEGA_CAP_GATES['min_win_rate']}
 - Min Expected Return: {MEGA_CAP_GATES['min_expected_return']}
@@ -116,6 +127,7 @@ CHART:
 - Invalidation: {chart.get('invalidation', {})}
 
 Evaluate all gates and provide decision.
+Consider: do baseline risks create additional concerns for this trade?
 If stats are unavailable, make decision based on setup quality and conviction.
 """
     

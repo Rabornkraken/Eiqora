@@ -18,6 +18,8 @@ class SentimentSummary(BaseModel):
     neutral_count: int = Field(default=0, description="Neutral mentions")
     key_topics: list[str] = Field(default_factory=list, description="Main topics discussed")
     notable_headlines: list[str] = Field(default_factory=list, description="Important headlines")
+    baseline_risks: list[str] = Field(default_factory=list, description="Known risks from profile (updated weekly)")
+    baseline_catalysts: list[str] = Field(default_factory=list, description="Known catalysts from profile (updated weekly)")
 
 
 class EarningsSnapshot(BaseModel):

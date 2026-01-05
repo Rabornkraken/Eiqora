@@ -122,3 +122,50 @@ class NarrativeOutput(BaseModel):
     exit_plan: str = Field(max_length=200, description="Exit execution plan")
     
     stats_summary: str = Field(max_length=150, description="Historical stats summary")
+
+
+class MarketContext(BaseModel):
+    """Current market conditions for position monitoring."""
+    vix_current: float | None = None
+    vix_20d_avg: float | None = None
+    vix_spike: bool = False
+    days_to_fomc: int | None = None
+    days_to_cpi: int | None = None
+    ticker_has_earnings_soon: bool = False
+    days_to_earnings: int | None = None
+    price_vs_ma20: Literal["ABOVE", "BELOW"] | None = None
+    daily_trend: Literal["UPTREND", "DOWNTREND", "SIDEWAYS"] | None = None
+
+
+class PositionMonitorOutput(BaseModel):
+    """Output from Position Monitor Agent for active position management."""
+    
+    action: Literal["HOLD", "TIGHTEN", "WIDEN", "EXIT"] = Field(
+        description="Recommended action for the position"
+    )
+    
+    reason: str = Field(
+        max_length=300,
+        description="Why this action is recommended"
+    )
+    
+    new_stop_loss: float | None = Field(
+        default=None,
+        description="New stop loss level if TIGHTEN/WIDEN"
+    )
+    
+    new_take_profit: float | None = Field(
+        default=None,
+        description="New take profit level if adjusting"
+    )
+    
+    urgency: Literal["LOW", "MEDIUM", "HIGH"] = Field(
+        default="LOW",
+        description="How urgent the action is"
+    )
+    
+    risk_factors: list[str] = Field(
+        default_factory=list,
+        description="Active risk factors (FOMC, VIX_SPIKE, EARNINGS, etc.)"
+    )
+

@@ -156,42 +156,84 @@ def _insert_sec_filing(
     filed_at: str | None,
     report_period: str | None,
     primary_doc_url: str,
-    raw_id: int,
+    raw_id: int | None,
+    has_raw_id: bool,
 ) -> bool:
     filed_date = datetime.strptime(filed_at, "%Y-%m-%d").date() if filed_at else None
     report_date = datetime.strptime(report_period, "%Y-%m-%d").date() if report_period else None
     is_amendment = form_type.endswith("/A")
     with conn.cursor() as cursor:
-        cursor.execute(
-            """
-            INSERT INTO sec_filing
-                (accession, cik, form_type, filed_at, report_period, is_amendment, amends_accession, primary_doc_url, raw_id)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (accession)
-            DO UPDATE SET
-                cik = EXCLUDED.cik,
-                form_type = EXCLUDED.form_type,
-                filed_at = EXCLUDED.filed_at,
-                report_period = EXCLUDED.report_period,
-                is_amendment = EXCLUDED.is_amendment,
-                primary_doc_url = EXCLUDED.primary_doc_url,
-                raw_id = EXCLUDED.raw_id
-            RETURNING (xmax = 0) AS inserted
-            """,
-            (
-                accession,
-                cik,
-                form_type,
-                filed_date,
-                report_date,
-                is_amendment,
-                None,
-                primary_doc_url,
-                raw_id,
-            ),
-        )
+        if has_raw_id:
+            cursor.execute(
+                """
+                INSERT INTO sec_filing
+                    (accession, cik, form_type, filed_at, report_period, is_amendment, amends_accession, primary_doc_url, raw_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (accession)
+                DO UPDATE SET
+                    cik = EXCLUDED.cik,
+                    form_type = EXCLUDED.form_type,
+                    filed_at = EXCLUDED.filed_at,
+                    report_period = EXCLUDED.report_period,
+                    is_amendment = EXCLUDED.is_amendment,
+                    primary_doc_url = EXCLUDED.primary_doc_url,
+                    raw_id = EXCLUDED.raw_id
+                RETURNING (xmax = 0) AS inserted
+                """,
+                (
+                    accession,
+                    cik,
+                    form_type,
+                    filed_date,
+                    report_date,
+                    is_amendment,
+                    None,
+                    primary_doc_url,
+                    raw_id,
+                ),
+            )
+        else:
+            cursor.execute(
+                """
+                INSERT INTO sec_filing
+                    (accession, cik, form_type, filed_at, report_period, is_amendment, amends_accession, primary_doc_url)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (accession)
+                DO UPDATE SET
+                    cik = EXCLUDED.cik,
+                    form_type = EXCLUDED.form_type,
+                    filed_at = EXCLUDED.filed_at,
+                    report_period = EXCLUDED.report_period,
+                    is_amendment = EXCLUDED.is_amendment,
+                    primary_doc_url = EXCLUDED.primary_doc_url
+                RETURNING (xmax = 0) AS inserted
+                """,
+                (
+                    accession,
+                    cik,
+                    form_type,
+                    filed_date,
+                    report_date,
+                    is_amendment,
+                    None,
+                    primary_doc_url,
+                ),
+            )
         row = cursor.fetchone()
         return bool(row[0]) if row else False
+
+
+def _sec_filing_has_raw_id(conn) -> bool:
+    with conn.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_name = 'sec_filing'
+              AND column_name = 'raw_id'
+            """
+        )
+        return cursor.fetchone() is not None
 
 
 def _decode_text(content: bytes) -> str:
@@ -201,6 +243,18 @@ def _decode_text(content: bytes) -> str:
         except UnicodeDecodeError:
             continue
     return content.decode("utf-8", errors="ignore")
+
+
+def _sec_filing_section_exists(conn) -> bool:
+    with conn.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT 1
+            FROM information_schema.tables
+            WHERE table_name = 'sec_filing_section'
+            """
+        )
+        return cursor.fetchone() is not None
 
 
 def _store_section_text(storage, accession: str, text: str) -> str:
@@ -522,6 +576,9 @@ def run() -> None:
             trailing_days,
         )
 
+        has_raw_id = _sec_filing_has_raw_id(conn)
+        has_sections = _sec_filing_section_exists(conn)
+
         for cik in ciks:
             padded_cik = _clean_cik(cik)
             limiter.wait()
@@ -611,11 +668,12 @@ def run() -> None:
                     report_period=filing.get("report_date"),
                     primary_doc_url=url,
                     raw_id=raw_id,
+                    has_raw_id=has_raw_id,
                 ):
                     inserted_new += 1
                 else:
                     updated_existing += 1
-                if form in {"10-K", "10-Q", "8-K"}:
+                if has_sections and form in {"10-K", "10-Q", "8-K"}:
                     sections_inserted += _upsert_sections(conn, accession, storage, content)
                 if form == "4":
                     xml_content = content

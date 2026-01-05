@@ -35,7 +35,7 @@ async def get_documents(
             rows = await conn.fetch("""
                 SELECT doc_id, source, doc_type, ticker, title, published_at, url,
                        LEFT(text, 2000) as text_preview
-                FROM document
+                FROM gdelt_news
                 WHERE ticker = $1
                   AND published_at <= $2
                   AND published_at >= $2 - interval '1 hour' * $3
@@ -47,7 +47,7 @@ async def get_documents(
             rows = await conn.fetch("""
                 SELECT doc_id, source, doc_type, ticker, title, published_at, url,
                        LEFT(text, 2000) as text_preview
-                FROM document
+                FROM gdelt_news
                 WHERE ticker = $1
                   AND published_at <= $2
                   AND published_at >= $2 - interval '1 hour' * $3
@@ -63,7 +63,7 @@ async def get_document_by_id(doc_id: int) -> dict[str, Any] | None:
     async with get_connection() as conn:
         row = await conn.fetchrow("""
             SELECT doc_id, source, doc_type, ticker, title, published_at, url, text
-            FROM document
+            FROM gdelt_news
             WHERE doc_id = $1
         """, doc_id)
         
@@ -93,7 +93,7 @@ async def get_document_chunks_by_similarity(
                        d.ticker, d.title, d.doc_type, d.published_at,
                        dc.embedding <-> $1::vector AS distance
                 FROM document_chunk dc
-                JOIN document d ON dc.doc_id = d.doc_id
+                JOIN gdelt_news d ON dc.doc_id = d.doc_id
                 WHERE dc.active = true
                   AND d.ticker = $2
                 ORDER BY dc.embedding <-> $1::vector
@@ -105,7 +105,7 @@ async def get_document_chunks_by_similarity(
                        d.ticker, d.title, d.doc_type, d.published_at,
                        dc.embedding <-> $1::vector AS distance
                 FROM document_chunk dc
-                JOIN document d ON dc.doc_id = d.doc_id
+                JOIN gdelt_news d ON dc.doc_id = d.doc_id
                 WHERE dc.active = true
                 ORDER BY dc.embedding <-> $1::vector
                 LIMIT $2
@@ -126,7 +126,7 @@ async def count_recent_documents(
     async with get_connection() as conn:
         rows = await conn.fetch("""
             SELECT doc_type, COUNT(*) as count
-            FROM document
+            FROM gdelt_news
             WHERE ticker = $1
               AND published_at <= $2
               AND published_at >= $2 - interval '1 hour' * $3

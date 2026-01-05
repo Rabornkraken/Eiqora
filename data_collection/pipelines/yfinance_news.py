@@ -1,282 +1,313 @@
-"""Yahoo Finance news ingestion pipeline."""
-
-from __future__ import annotations
-
-import argparse
-import hashlib
-import json
+"""
+YFinance News Pipeline - Fetches clean, structured news for tickers
+Replaces GDELT garbage extraction with editor-curated summaries
+"""
 import logging
-import os
-import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import date, datetime, timezone
+import asyncio
+from datetime import datetime, timezone
+import yfinance as yf
 
-import bs4
-import urllib.parse
-
-from data_collection.common.config import HttpSettings, load_common_settings
-from data_collection.common.db import insert_raw_object
-from data_collection.common.hashing import sha256_bytes
-from data_collection.common.http import build_session, request_with_retries, HttpError
-from data_collection.common.paths import utc_date_str
-from data_collection.common.settings import load_config
-from data_collection.common.symbols import get_config_symbols
-from data_collection.common.time_utils import parse_date
-from data_collection.common.storage import build_storage
 from data_collection.db.connection import get_connection
 
+# Import FinBERT scoring and text extraction from gdelt pipeline
+import sys
+import os
+sys.path.insert(0, os.path.dirname(__file__))
+from gdelt import _get_sentiment_pipeline, _chunk_text, _extract_text
+from cdp_sync import fetch_with_cdp, cleanup_cdp_browser
+
 _logger = logging.getLogger(__name__)
-_thread_local = threading.local()
 
 
-def _get_symbols(conn, asof_date: date | None, limit: int | None) -> list[str]:
+def _get_active_symbols(conn, limit: int | None = None) -> list[str]:
+    """Get active symbols from watchlist."""
     with conn.cursor() as cursor:
-        if asof_date:
-            cursor.execute(
-                """
-                SELECT symbol
-                FROM universe_snapshot
-                WHERE asof_date = %s
-                """,
-                (asof_date,),
-            )
-        else:
-            cursor.execute("SELECT symbol FROM universe_member WHERE active = true")
+        cursor.execute("""
+            SELECT DISTINCT symbol 
+            FROM watchlist 
+            ORDER BY symbol
+        """)
         symbols = [row[0] for row in cursor.fetchall()]
         return symbols[:limit] if limit else symbols
 
 
-def _parse_symbols(symbols: str | None) -> list[str]:
-    if not symbols:
-        return []
-    return [item.strip() for item in symbols.split(",") if item.strip()]
-
-
-def _extract_text(html: str) -> str:
-    soup = bs4.BeautifulSoup(html, "html.parser")
-    for tag in soup(["script", "style", "noscript"]):
-        tag.decompose()
-    return " ".join(soup.stripped_strings)
-
-
-def _document_exists(conn, source: str, source_id: str) -> bool:
-    with conn.cursor() as cursor:
-        cursor.execute(
-            "SELECT 1 FROM document WHERE source = %s AND source_id = %s",
-            (source, source_id),
-        )
-        return cursor.fetchone() is not None
-
-
-def _insert_document(conn, doc: dict, raw_id: int, text_object_key: str | None) -> None:
-    with conn.cursor() as cursor:
-        cursor.execute(
-            "SELECT doc_id FROM document WHERE source = %s AND source_id = %s",
-            (doc["source"], doc["source_id"]),
-        )
-        if cursor.fetchone():
-            return
-
-        cursor.execute(
-            """
-            INSERT INTO document
-                (source, source_id, doc_type, cik, ticker, title, published_at, url, raw_id, text_object_key, text)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """,
-            (
-                doc["source"],
-                doc["source_id"],
-                doc["doc_type"],
-                doc.get("cik"),
-                doc.get("ticker"),
-                doc.get("title"),
-                doc.get("published_at"),
-                doc.get("url"),
-                raw_id,
-                text_object_key,
-                doc.get("text"),
-            ),
-        )
-
-
-def _get_thread_session(settings) -> object:
-    current = getattr(_thread_local, "session", None)
-    current_key = getattr(_thread_local, "settings_key", None)
-    settings_key = (
-        settings.user_agent,
-        settings.timeout_seconds,
-        settings.max_retries,
-        settings.backoff_seconds,
-    )
-    if current is None or current_key != settings_key:
-        current = build_session(settings)
-        _thread_local.session = current
-        _thread_local.settings_key = settings_key
-    return current
-
-
-def _fetch_article_text(session, settings, storage, conn, url: str) -> tuple[str | None, str | None, int | None]:
+def _score_news(title: str, text: str) -> float:
+    """
+    Score news sentiment using FinBERT on full article text.
+    
+    Args:
+        title: News title
+        text: Full article text (extracted from HTML)
+    
+    Returns:
+        float: Sentiment score (-10 to +10)
+    """
     try:
-        response = request_with_retries(session, "GET", url, settings=settings)
-    except HttpError:
-        return None, None, None
-    content = response.content
-    sha = sha256_bytes(content)
-    object_key = f"yfinance/news_html/{sha}.html"
-    stored = storage.write_bytes(object_key, content, content_type=response.headers.get("Content-Type"))
-    raw_id = insert_raw_object(
-        source="yfinance_news_article",
-        object_key=stored.object_key,
-        content_type=response.headers.get("Content-Type"),
-        sha256=stored.sha256,
-        http_status=response.status_code,
-        meta={"url": url},
-        conn=conn,
-    )
-    text = _extract_text(response.text)
-    text_bytes = text.encode("utf-8") if text else b""
-    text_sha = sha256_bytes(text_bytes) if text else None
-    text_key = f"yfinance/news_text/{text_sha}.txt" if text_sha else None
-    if text_key and text_bytes:
-        storage.write_bytes(text_key, text_bytes, content_type="text/plain")
-    return text, text_key, raw_id
+        pipe = _get_sentiment_pipeline()
+        
+        # Combine title and full text
+        full_text = f"{title}. {text or ''}"
+        
+        # Chunk the full text
+        chunks = _chunk_text(full_text)[:5]
+        
+        if not chunks:
+            return 0.0
+        
+        # Run FinBERT
+        results = pipe(chunks)
+        
+        # Aggregate sentiment
+        total_sentiment = 0.0
+        for res in results:
+            lbl = res['label'].lower()
+            conf = res['score']
+            
+            if lbl == 'positive':
+                total_sentiment += conf * 10
+            elif lbl == 'negative':
+                total_sentiment -= conf * 10
+            # neutral adds 0
+        
+        # Average across chunks
+        avg_sentiment = total_sentiment / len(chunks)
+        return avg_sentiment
+        
+    except Exception as e:
+        _logger.warning(f"FinBERT scoring failed: {e}")
+        return 0.0
 
 
-def _fetch_article_text_threadsafe(settings, storage, conn, url: str) -> tuple[str | None, str | None, int | None]:
-    session = _get_thread_session(settings)
-    return _fetch_article_text(session, settings, storage, conn, url)
-
-
-def _fetch_yahoo_news(session, settings, symbol: str, max_items: int) -> list[dict]:
-    query = urllib.parse.quote(symbol)
-    url = (
-        "https://query1.finance.yahoo.com/v1/finance/search?"
-        f"q={query}&newsCount={max_items}&enableFuzzyQuery=false"
-    )
-    response = request_with_retries(session, "GET", url, settings=settings)
-    payload = response.json()
-    return payload.get("news", []) or []
-
-
-def run(
-    *,
-    asof_date: date | None = None,
-    limit_symbols: int | None = None,
-    max_news_per_symbol: int | None = None,
-    symbols: list[str] | None = None,
-) -> None:
-    config = load_config()
-    news_cfg = config.get("news", {}).get("yfinance", {})
-    max_per_symbol = int(max_news_per_symbol or news_cfg.get("max_items_per_symbol", 25))
-    min_text_chars = int(news_cfg.get("min_text_chars", 200))
-    symbols_config, _, _ = get_config_symbols(config)
-
-    common = load_common_settings()
-    storage = build_storage(common)
-    session = build_session(common.http)
-
-    article_concurrency = int(os.getenv("YFINANCE_NEWS_CONCURRENCY", "6"))
-    article_timeout = int(os.getenv("YFINANCE_ARTICLE_TIMEOUT_SECONDS", "8"))
-    article_retries = int(os.getenv("YFINANCE_ARTICLE_MAX_RETRIES", "0"))
-    article_backoff = float(os.getenv("YFINANCE_ARTICLE_BACKOFF_SECONDS", "0.5"))
-
-    article_settings = HttpSettings(
-        user_agent=common.http.user_agent,
-        timeout_seconds=article_timeout,
-        max_retries=article_retries,
-        backoff_seconds=article_backoff,
-    )
-
-    with get_connection() as conn:
-        symbol_list = symbols or symbols_config or _get_symbols(conn, asof_date=asof_date, limit=limit_symbols)
-        _logger.info("yfinance_news start: symbols=%s", len(symbol_list))
-        for symbol in symbol_list:
-            _logger.info("yfinance_news symbol=%s start", symbol)
-            items = _fetch_yahoo_news(session, common.http, symbol, max_per_symbol)
-            raw_bytes = json.dumps(items, ensure_ascii=True).encode("utf-8")
-            sha = sha256_bytes(raw_bytes)
-            object_key = f"yfinance/news_list/{symbol}/{utc_date_str()}/{sha}.json"
-            stored = storage.write_bytes(object_key, raw_bytes, content_type="application/json")
-            insert_raw_object(
-                source="yfinance_news_list",
-                object_key=stored.object_key,
-                content_type="application/json",
-                sha256=stored.sha256,
-                http_status=200,
-                meta={"symbol": symbol},
-                conn=conn,
-            )
-
-            candidates: list[tuple[dict, str, str]] = []
-            for item in items[:max_per_symbol]:
-                link = item.get("link") or item.get("url")
-                if not link:
+def collect_news(limit_symbols: int | None = None, lookback_hours: int = 48):
+    """
+    Fetch and store YFinance news (WITHOUT scoring).
+    Scoring is done separately in score_news().
+    
+    Args:
+        limit_symbols: Max number of symbols to process (None = all)
+        lookback_hours: Skip news older than this (avoid re-ingesting)
+    """
+    conn = get_connection()
+    
+    try:
+        symbols = _get_active_symbols(conn, limit_symbols)
+        _logger.info(f"Fetching news for {len(symbols)} symbols")
+        
+        total_new = 0
+        total_skipped = 0
+        
+        for symbol in symbols:
+            try:
+                # Fetch news via yfinance
+                ticker = yf.Ticker(symbol)
+                news_items = ticker.news
+                
+                if not news_items:
+                    _logger.debug(f"{symbol}: No news found")
                     continue
-                source_id = item.get("uuid") or hashlib.sha256(link.encode("utf-8")).hexdigest()
-                if _document_exists(conn, "yfinance_news", source_id):
-                    continue
-                candidates.append((item, link, source_id))
-
-            inserted = 0
-            if candidates:
-                with ThreadPoolExecutor(max_workers=article_concurrency) as executor:
-                    future_map = {
-                        executor.submit(_fetch_article_text_threadsafe, article_settings, storage, conn, link): (item, link, source_id)
-                        for item, link, source_id in candidates
-                    }
-                    for future in as_completed(future_map):
-                        item, link, source_id = future_map[future]
-                        text, text_key, raw_id = future.result()
-                        if not text or len(text) < min_text_chars:
+                
+                _logger.info(f"{symbol}: Found {len(news_items)} news items")
+                
+                for item in news_items:
+                    try:
+                        # Extract fields
+                        content = item.get('content', {})
+                        news_id = content.get('id')
+                        title = content.get('title', '')
+                        pub_date_str = content.get('pubDate')
+                        provider = content.get('provider', {}).get('displayName', 'Unknown')
+                        url = content.get('canonicalUrl', {}).get('url', '')
+                        
+                        if not news_id or not title:
+                            _logger.debug(f"{symbol}: Skipping item without id/title")
                             continue
-                        published = None
-                        if item.get("providerPublishTime"):
+                        
+                        # Parse pub date
+                        published_at = None
+                        if pub_date_str:
                             try:
-                                published = datetime.fromtimestamp(
-                                    int(item["providerPublishTime"]), tz=timezone.utc
-                                )
+                                published_at = datetime.fromisoformat(pub_date_str.replace('Z', '+00:00'))
                             except Exception:
-                                published = None
+                                pass
+                        
+                        # Check if already exists
+                        with conn.cursor() as cur:
+                            cur.execute("SELECT doc_id FROM yfinance_news WHERE news_id = %s", (news_id,))
+                            existing = cur.fetchone()
+                            
+                            if existing:
+                                total_skipped += 1
+                                continue
+                        
+                        # SKIP SUBSCRIPTION SITES & BAD PROVIDERS
+                        # These sites require paywalls or logins that we cannot bypass
+                        # Or they are consistently low quality / empty text
+                        
+                        subscription_domains = [
+                            'barrons.com', 
+                            'wsj.com', 
+                            'marketwatch.com', 
+                            'marketbeat.com', 
+                            'mtnewswires.com',
+                            'investors.com', # IBD
+                            'bloomberg.com',
+                            'seekingalpha.com',
+                            'thestreet.com',   # 100% fail rate
+                            'telegraph.co.uk',
+                            'qz.com', # Quartz
+                        ]
+                        
+                        blocked_providers = [
+                            'MT Newswires',
+                            'Barrons.com',
+                            'The Wall Street Journal', 
+                            'MarketWatch',
+                            'TheStreet',
+                            'Bloomberg',
+                            'MarketBeat'
+                        ]
+                        
+                        should_skip = False
+                        
+                        # Check URL domains
+                        if url:
+                            for domain in subscription_domains:
+                                if domain in url.lower():
+                                    should_skip = True
+                                    _logger.info(f"{symbol}: Skipping domain: {domain}")
+                                    break
+                        
+                        # Check Provider Name (for syndicated content on Yahoo)
+                        if not should_skip and provider:
+                            if provider in blocked_providers:
+                                should_skip = True
+                                _logger.info(f"{symbol}: Skipping provider: {provider}")
+                        
+                        if should_skip:
+                             # Skip CDP fetch, insert blank or skip entirely?
+                             # Let's skip entirely to avoid DB clutter
+                             total_skipped += 1
+                             continue
 
-                        doc = {
-                            "source": "yfinance_news",
-                            "source_id": source_id,
-                            "doc_type": "news_article",
-                            "ticker": symbol,
-                            "title": item.get("title"),
-                            "published_at": published,
-                            "url": link,
-                            "text": text,
-                        }
-                        _insert_document(conn, doc, raw_id, text_key)
-                        conn.commit()
-                        inserted += 1
-            _logger.info("yfinance_news symbol=%s inserted=%s candidates=%s", symbol, inserted, len(candidates))
+                        # Fetch full article text using CDP browser
+                        article_text = ""
+                        if url:
+                            html, error = fetch_with_cdp(url)
+                            
+                            if error:
+                                _logger.warning(f"{symbol}: CDP fetch failed for {url}: {error}")
+                            elif html:
+                                article_text = _extract_text(html)
+                                _logger.debug(f"{symbol}: Extracted {len(article_text)} chars from {url}")
+                        
+                        # Store article WITHOUT scoring (scoring is separate step)
+                        with conn.cursor() as cur:
+                            cur.execute("""
+                                INSERT INTO yfinance_news 
+                                (news_id, ticker, title, text, published_at, provider, url)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                                RETURNING doc_id
+                            """, (news_id, symbol, title, article_text, published_at, provider, url))
+                            
+                            doc_id = cur.fetchone()[0]
+                            conn.commit()
+                            total_new += 1
+                            
+                            _logger.info(f"{symbol}: Saved '{title[:50]}...' (doc_id: {doc_id})")
+                    
+                    except Exception as e:
+                        _logger.warning(f"{symbol}: Failed to process news item: {e}")
+                        continue
+            
+            except Exception as e:
+                _logger.error(f"{symbol}: Failed to fetch news: {e}")
+                continue
+        
+        _logger.info(f"Collection complete: {total_new} new, {total_skipped} skipped")
+        
+        # Cleanup CDP browser
+        cleanup_cdp_browser()
+    
+    finally:
+        conn.close()
 
-        conn.commit()
+
+def score_news(limit: int | None = None):
+    """
+    Score sentiment for unscored YFinance news articles.
+    Runs FinBERT on articles that don't have scores yet.
+    
+    Args:
+        limit: Max articles to score in this run (None = all unscored)
+    """
+    conn = get_connection()
+    
+    try:
+        # Get unscored articles
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT yn.doc_id, yn.title, yn.text
+                FROM yfinance_news yn
+                LEFT JOIN yfinance_news_relevance nr ON yn.doc_id = nr.doc_id
+                WHERE nr.doc_id IS NULL
+                ORDER BY yn.created_at DESC
+                LIMIT %s
+            """, (limit or 999999,))
+            
+            articles = cur.fetchall()
+        
+        if not articles:
+            _logger.info("No unscored articles found")
+            return
+        
+        _logger.info(f"Scoring {len(articles)} articles with FinBERT...")
+        
+        scored = 0
+        for doc_id, title, text in articles:
+            try:
+                # Score with FinBERT
+                score = _score_news(title, text or "")
+                
+                # Insert score
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        INSERT INTO yfinance_news_relevance (doc_id, score, model_version, scored_at)
+                        VALUES (%s, %s, %s, NOW())
+                        ON CONFLICT (doc_id) DO UPDATE
+                        SET score = EXCLUDED.score, scored_at = NOW()
+                    """, (doc_id, score, 'finbert_v1'))
+                    conn.commit()
+                
+                scored += 1
+                _logger.info(f"Scored doc_id {doc_id}: {score:.2f} - '{title[:50]}...'")
+                
+            except Exception as e:
+                _logger.error(f"Failed to score doc_id {doc_id}: {e}")
+        
+        _logger.info(f"Scoring complete: {scored}/{len(articles)} articles")
+    
+    finally:
+        conn.close()
 
 
-def main() -> None:
-    if not logging.getLogger().handlers:
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    parser = argparse.ArgumentParser(description="Yahoo Finance news pipeline")
-    subparsers = parser.add_subparsers(dest="command", required=True)
-    run_parser = subparsers.add_parser("run", help="Run Yahoo Finance news ingestion")
-    run_parser.add_argument("--asof-date", help="Universe snapshot date for symbols (YYYY-MM-DD)")
-    run_parser.add_argument("--limit-symbols", type=int, help="Limit number of symbols")
-    run_parser.add_argument("--max-news-per-symbol", type=int, help="Limit news per symbol")
-    run_parser.add_argument("--symbols", help="Comma-separated list of symbols to ingest")
-    args = parser.parse_args()
-    if args.command == "run":
-        asof_date = parse_date(args.asof_date) if args.asof_date else None
-        symbol_list = _parse_symbols(args.symbols)
-        run(
-            asof_date=asof_date,
-            limit_symbols=args.limit_symbols,
-            max_news_per_symbol=args.max_news_per_symbol,
-            symbols=symbol_list,
-        )
+def run(limit_symbols: int | None = None):
+    """
+    Combined run: collect news then score them.
+    """
+    collect_news(limit_symbols)
+    score_news()
 
 
 if __name__ == "__main__":
-    main()
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s %(levelname)s %(name)s: %(message)s'
+    )
+    
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--limit', type=int, help='Max symbols to process')
+    parser.add_argument('--lookback-hours', type=int, default=48, help='Lookback window')
+    args = parser.parse_args()
+    
+    run(limit_symbols=args.limit, lookback_hours=args.lookback_hours)

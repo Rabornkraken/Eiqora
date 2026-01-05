@@ -5,24 +5,30 @@ Uses pydantic-settings for environment variable loading.
 
 import os
 from functools import lru_cache
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field
 
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
     
-    # OpenRouter Configuration
-    OPENROUTER_API_KEY: str = ""
-    OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
+    # OpenRouter LLM
+    OPENROUTER_API_KEY: str = Field(default="")
+    OPENROUTER_BASE_URL: str = Field(default="https://openrouter.ai/api/v1")
+    OPENROUTER_MODEL: str = Field(default="openai/gpt-4o-2024-11-20")
+    
+    # Alpaca Trading API
+    ALPACA_API_KEY: str = Field(default="")
+    ALPACA_API_SECRET: str = Field(default="")
+    ALPACA_BASE_URL: str = Field(default="https://paper-api.alpaca.markets")  # Paper trading by default
+    ALPACA_PAPER_TRADING: bool = Field(default=True)
+
     SITE_URL: str = "https://github.com/eiqora"
     SITE_NAME: str = "Eiqora"
     
-    # Model Selection
-    DEFAULT_MODEL: str = "deepseek/deepseek-v3.2"
-    FAST_MODEL: str = "deepseek/deepseek-v3.2"
-    
     # LLM Parameters
-    LLM_TEMPERATURE: float = 0.1  # Low temp for consistent structured output
+    LLM_TEMPERATURE: float = Field(default=0.7)
+    LLM_MAX_TOKENS: int = Field(default=4096)
     LLM_MAX_RETRIES: int = 2
     LLM_TIMEOUT_SECONDS: int = 60
     

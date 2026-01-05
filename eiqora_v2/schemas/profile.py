@@ -50,3 +50,7 @@ class TickerProfile(BaseModel):
     bear_case: list[str] = Field(description="Key arguments for SHORT thesis")
     catalysts: list[str] = Field(description="Specific upcoming events to watch")
     risks: list[str] = Field(description="Structural or event-driven risks")
+    
+    # --- PRE-COMPUTED SCORE (stored to avoid recalculation) ---
+    profile_score: float = Field(default=0.0, description="Pre-computed P score (0-0.50)")
+    score_breakdown: dict[str, float] = Field(default_factory=dict, description="Individual score components")

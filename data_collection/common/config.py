@@ -51,7 +51,17 @@ class CommonSettings:
 
 
 def load_common_settings() -> CommonSettings:
-    backend = os.getenv("RAW_STORAGE", "local").strip().lower()
+    # Try to load backend from config.yaml first
+    backend = os.getenv("RAW_STORAGE")  # Env var takes priority
+    if not backend:
+        try:
+            from data_collection.common.settings import load_config
+            config = load_config()
+            backend = config.get("storage", {}).get("raw_s3", {}).get("provider", "local")
+        except Exception:
+            backend = "local"
+    backend = backend.strip().lower()
+    
     local_path = os.getenv("RAW_STORAGE_PATH", "data_collection/raw")
     s3_bucket = os.getenv("RAW_S3_BUCKET")
     s3_prefix = os.getenv("RAW_S3_PREFIX", "raw")

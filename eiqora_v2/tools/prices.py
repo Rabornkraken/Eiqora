@@ -110,6 +110,80 @@ async def get_indicators(
     ], axis=1).max(axis=1)
     atr14 = float(tr.rolling(14).mean().iloc[-1])
     
+    # === ADVANCED INDICATORS ===
+    
+    # RSI (Relative Strength Index) - 14 period
+    delta = close.diff()
+    gain = delta.where(delta > 0, 0).rolling(14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+    rs = gain / loss.replace(0, np.nan)
+    rsi = 100 - (100 / (1 + rs))
+    rsi14 = float(rsi.iloc[-1]) if not pd.isna(rsi.iloc[-1]) else 50.0
+    
+    # MACD (12, 26, 9)
+    ema12 = close.ewm(span=12, adjust=False).mean()
+    ema26 = close.ewm(span=26, adjust=False).mean()
+    macd_line = ema12 - ema26
+    macd_signal = macd_line.ewm(span=9, adjust=False).mean()
+    macd_histogram = macd_line - macd_signal
+    macd = {
+        "line": float(macd_line.iloc[-1]),
+        "signal": float(macd_signal.iloc[-1]),
+        "histogram": float(macd_histogram.iloc[-1]),
+        "bullish_cross": bool(macd_line.iloc[-1] > macd_signal.iloc[-1] and macd_line.iloc[-2] <= macd_signal.iloc[-2]) if len(macd_line) > 2 else False,
+        "bearish_cross": bool(macd_line.iloc[-1] < macd_signal.iloc[-1] and macd_line.iloc[-2] >= macd_signal.iloc[-2]) if len(macd_line) > 2 else False,
+    }
+    
+    # Bollinger Bands (20, 2)
+    bb_sma = close.rolling(20).mean()
+    bb_std = close.rolling(20).std()
+    bb_upper = bb_sma + (bb_std * 2)
+    bb_lower = bb_sma - (bb_std * 2)
+    bollinger = {
+        "upper": float(bb_upper.iloc[-1]),
+        "middle": float(bb_sma.iloc[-1]),
+        "lower": float(bb_lower.iloc[-1]),
+        "width": float((bb_upper.iloc[-1] - bb_lower.iloc[-1]) / bb_sma.iloc[-1]) if bb_sma.iloc[-1] > 0 else 0,
+        "price_position": "UPPER" if current_price > bb_upper.iloc[-1] else "LOWER" if current_price < bb_lower.iloc[-1] else "MIDDLE",
+    }
+    
+    # ADX (Average Directional Index) - 14 period
+    plus_dm = high.diff()
+    minus_dm = -low.diff()
+    plus_dm = plus_dm.where((plus_dm > minus_dm) & (plus_dm > 0), 0)
+    minus_dm = minus_dm.where((minus_dm > plus_dm) & (minus_dm > 0), 0)
+    
+    tr_smooth = tr.ewm(span=14, adjust=False).mean()
+    plus_di = 100 * (plus_dm.ewm(span=14, adjust=False).mean() / tr_smooth)
+    minus_di = 100 * (minus_dm.ewm(span=14, adjust=False).mean() / tr_smooth)
+    dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, np.nan)
+    adx = dx.ewm(span=14, adjust=False).mean()
+    adx14 = float(adx.iloc[-1]) if not pd.isna(adx.iloc[-1]) else 25.0
+    
+    # Stochastic (14, 3)
+    lowest_low = low.rolling(14).min()
+    highest_high = high.rolling(14).max()
+    stoch_k = 100 * ((close - lowest_low) / (highest_high - lowest_low).replace(0, np.nan))
+    stoch_d = stoch_k.rolling(3).mean()
+    stochastic = {
+        "k": float(stoch_k.iloc[-1]) if not pd.isna(stoch_k.iloc[-1]) else 50.0,
+        "d": float(stoch_d.iloc[-1]) if not pd.isna(stoch_d.iloc[-1]) else 50.0,
+        "overbought": bool(stoch_k.iloc[-1] > 80) if not pd.isna(stoch_k.iloc[-1]) else False,
+        "oversold": bool(stoch_k.iloc[-1] < 20) if not pd.isna(stoch_k.iloc[-1]) else False,
+    }
+    
+    # OBV (On-Balance Volume) with trend
+    obv = (np.sign(close.diff()) * volume).fillna(0).cumsum()
+    obv_ma20 = obv.rolling(20).mean()
+    obv_current = float(obv.iloc[-1])
+    obv_ma = float(obv_ma20.iloc[-1]) if not pd.isna(obv_ma20.iloc[-1]) else obv_current
+    obv_trend = "RISING" if obv_current > obv_ma else "FALLING"
+    obv_data = {
+        "current": obv_current,
+        "ma20": obv_ma,
+        "trend": obv_trend,
+    }
+    
     # Momentum (returns)
     ret_20d = float((close.iloc[-1] / close.iloc[-20] - 1)) if len(close) >= 20 else None
     ret_60d = float((close.iloc[-1] / close.iloc[-60] - 1)) if len(close) >= 60 else None
@@ -119,7 +193,7 @@ async def get_indicators(
     vol_std = volume.rolling(20).std().iloc[-1]
     volume_z_20d = float((volume.iloc[-1] - vol_mean) / vol_std) if vol_std > 0 else 0.0
     
-    # State tags
+    # State tags (enhanced with new indicators)
     state_tags = []
     if trend["ma20"] == "ABOVE" and trend["ma50"] == "ABOVE":
         state_tags.append("UPTREND")
@@ -136,6 +210,22 @@ async def get_indicators(
     if volume_z_20d > 2.0:
         state_tags.append("HIGH_VOLUME")
     
+    # New state tags from advanced indicators
+    if rsi14 > 70:
+        state_tags.append("OVERBOUGHT_RSI")
+    elif rsi14 < 30:
+        state_tags.append("OVERSOLD_RSI")
+    
+    if adx14 > 25:
+        state_tags.append("STRONG_TREND")
+    elif adx14 < 15:
+        state_tags.append("WEAK_TREND")
+    
+    if macd["bullish_cross"]:
+        state_tags.append("MACD_BULLISH_CROSS")
+    elif macd["bearish_cross"]:
+        state_tags.append("MACD_BEARISH_CROSS")
+    
     return {
         "current_price": current_price,
         "ma20": ma20,
@@ -144,6 +234,14 @@ async def get_indicators(
         "trend": trend,
         "rv20": rv20,
         "atr14": atr14,
+        # New indicators
+        "rsi14": rsi14,
+        "macd": macd,
+        "bollinger": bollinger,
+        "adx14": adx14,
+        "stochastic": stochastic,
+        "obv": obv_data,
+        # Momentum
         "ret_20d": ret_20d,
         "ret_60d": ret_60d,
         "volume_z_20d": volume_z_20d,
@@ -198,3 +296,187 @@ async def get_price_levels(
         "low_60d": low_60d,
         "range_20d_pct": (high_20d - low_20d) / low_20d,
     }
+
+
+async def get_hourly_bars(
+    symbol: str,
+    start_date: date,
+    end_date: date,
+) -> list[dict[str, Any]]:
+    """
+    Fetch hourly OHLCV bars from market_bar_hourly table.
+    
+    Used by BacktestEngine for precise TP/SL checking.
+    
+    Args:
+        symbol: Stock ticker symbol
+        start_date: Start date (inclusive)
+        end_date: End date (inclusive)
+    
+    Returns:
+        List of hourly bar dicts with keys: timestamp, open, high, low, close, volume
+    """
+    async with get_connection() as conn:
+        try:
+            rows = await conn.fetch("""
+                SELECT timestamp, open, high, low, close, volume
+                FROM market_bar_hourly
+                WHERE symbol = $1
+                  AND timestamp::date >= $2
+                  AND timestamp::date <= $3
+                ORDER BY timestamp ASC
+            """, symbol, start_date, end_date)
+            
+            return [dict(r) for r in rows]
+        except Exception:
+            # Table may not exist
+            return []
+
+
+async def get_hourly_indicators(
+    symbol: str,
+    check_date: date,
+    asof_time: datetime,
+) -> dict[str, Any]:
+    """
+    Get hourly indicators for precise entry timing.
+    
+    Multi-timeframe approach:
+    - Daily indicators (get_indicators) → Trend/setup identification
+    - Hourly indicators (this function) → Entry timing
+    
+    Computes:
+    - VWAP (Volume Weighted Average Price)
+    - Hourly RSI (8-period for faster signals)
+    - Volume profile
+    - Intraday trend
+    
+    Args:
+        symbol: Stock ticker
+        check_date: Date to analyze
+        asof_time: Point-in-time reference
+    
+    Returns:
+        Dict with hourly indicators for entry timing
+    """
+    from datetime import timedelta
+    
+    async with get_connection() as conn:
+        # Get hourly bars for check_date and previous 5 days
+        start_date = check_date - timedelta(days=7)
+        
+        try:
+            rows = await conn.fetch("""
+                SELECT datetime, open, high, low, close, volume
+                FROM market_bar_hourly
+                WHERE symbol = $1
+                  AND datetime::date >= $2
+                  AND datetime::date <= $3
+                ORDER BY datetime ASC
+            """, symbol, start_date, check_date)
+            
+            if len(rows) < 8:
+                return {"error": "Insufficient hourly data", "data_points": len(rows)}
+            
+            df = pd.DataFrame([dict(r) for r in rows])
+            df["datetime"] = pd.to_datetime(df["datetime"])
+            df = df.set_index("datetime").sort_index()
+            
+            close = df["close"].astype(float)
+            high = df["high"].astype(float)
+            low = df["low"].astype(float)
+            volume = df["volume"].astype(float)
+            
+            # Filter to today's bars only
+            today_bars = df[df.index.date == check_date]
+            
+            if len(today_bars) == 0:
+                return {"error": "No hourly data for check_date", "data_points": 0}
+            
+            current_price = float(close.iloc[-1])
+            
+            # === VWAP (Volume Weighted Average Price) ===
+            today_close = today_bars["close"].astype(float)
+            today_volume = today_bars["volume"].astype(float)
+            today_typical = (today_bars["high"].astype(float) + today_bars["low"].astype(float) + today_bars["close"].astype(float)) / 3
+            
+            vwap = (today_typical * today_volume).sum() / today_volume.sum() if today_volume.sum() > 0 else current_price
+            vwap_distance_pct = (current_price - vwap) / vwap if vwap > 0 else 0
+            
+            # === Hourly RSI (8-period for faster signals) ===
+            delta = close.diff()
+            gain = delta.where(delta > 0, 0).rolling(8).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(8).mean()
+            rs = gain / loss.replace(0, np.nan)
+            rsi = 100 - (100 / (1 + rs))
+            rsi_hourly = float(rsi.iloc[-1]) if not pd.isna(rsi.iloc[-1]) else 50.0
+            
+            # === Volume Profile (today's accumulation) ===
+            total_volume_today = float(today_volume.sum())
+            avg_volume_today = float(today_volume.mean())
+            current_hour_volume = float(today_volume.iloc[-1])
+            
+            volume_profile = {
+                "total": total_volume_today,
+                "avg_per_hour": avg_volume_today,
+                "current_hour": current_hour_volume,
+                "current_vs_avg": current_hour_volume / avg_volume_today if avg_volume_today > 0 else 1.0,
+            }
+            
+            # === Intraday Trend ===
+            if len(today_bars) >= 3:
+                today_ema3 = today_close.ewm(span=3, adjust=False).mean()
+                intraday_trend = "UP" if today_close.iloc[-1] > today_ema3.iloc[-1] else "DOWN"
+            else:
+                intraday_trend = "NEUTRAL"
+            
+            # === Hourly High/Low Range ===
+            today_high = float(today_bars["high"].max())
+            today_low = float(today_bars["low"].min())
+            price_range_pct = (today_high - today_low) / today_low if today_low > 0 else 0
+            
+            # Position within today's range
+            if today_high > today_low:
+                position_in_range = (current_price - today_low) / (today_high - today_low)
+            else:
+                position_in_range = 0.5
+            
+            # === State Tags ===
+            state_tags = []
+            
+            if vwap_distance_pct > 0.01:
+                state_tags.append("ABOVE_VWAP")
+            elif vwap_distance_pct < -0.01:
+                state_tags.append("BELOW_VWAP")
+            
+            if rsi_hourly > 70:
+                state_tags.append("HOURLY_OVERBOUGHT")
+            elif rsi_hourly < 30:
+                state_tags.append("HOURLY_OVERSOLD")
+            
+            if volume_profile["current_vs_avg"] > 2.0:
+                state_tags.append("HOURLY_VOLUME_SPIKE")
+            
+            if position_in_range > 0.8:
+                state_tags.append("NEAR_HOD")  # Near high of day
+            elif position_in_range < 0.2:
+                state_tags.append("NEAR_LOD")  # Near low of day
+            
+            return {
+                "current_price": current_price,
+                "vwap": float(vwap),
+                "vwap_distance_pct": vwap_distance_pct * 100,
+                "rsi_hourly": rsi_hourly,
+                "volume_profile": volume_profile,
+                "intraday_trend": intraday_trend,
+                "today_high": today_high,
+                "today_low": today_low,
+                "price_range_pct": price_range_pct * 100,
+                "position_in_range": position_in_range,  # 0-1, where 1 is at high
+                "state_tags": state_tags,
+                "bars_today": len(today_bars),
+                "data_points": len(rows),
+            }
+            
+        except Exception as e:
+            return {"error": str(e), "data_points": 0}

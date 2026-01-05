@@ -97,8 +97,21 @@ class S3Storage(StorageBackend):
         return response["Body"].read()
 
 
+class NullStorage(StorageBackend):
+    """No-op storage that discards all data."""
+    
+    def write_bytes(self, object_key: str, data: bytes, content_type: str | None = None) -> StoredObject:
+        # Return a valid StoredObject but don't actually store anything
+        return StoredObject(object_key=object_key, sha256=sha256_bytes(data), bytes_written=len(data))
+    
+    def read_bytes(self, object_key: str) -> bytes:
+        raise StorageError(f"NullStorage cannot read: {object_key}")
+
+
 def build_storage(settings: CommonSettings) -> StorageBackend:
     backend = settings.raw_storage.backend
+    if backend == "null" or backend == "none":
+        return NullStorage()
     if backend == "s3":
         access_key = os.getenv("MINIO_ACCESS_KEY") or os.getenv("AWS_ACCESS_KEY_ID")
         secret_key = os.getenv("MINIO_SECRET_KEY") or os.getenv("AWS_SECRET_ACCESS_KEY")

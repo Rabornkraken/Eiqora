@@ -20,19 +20,19 @@ class ProfileGenerator:
     
     async def get_profile(self, symbol: str, use_cache: bool = True) -> TickerProfile:
         """
-        Get Ticker Profile, using cache if fresh (< 24h).
+        Get Ticker Profile, using cache if fresh (< 7 days).
         If stale or use_cache=False, generates new profile.
         """
         if use_cache:
             profile = await self._load_profile(symbol)
             if profile:
-                # Check freshness
+                # Check freshness - weekly refresh
                 age = datetime.utcnow().replace(tzinfo=None) - profile.last_updated.replace(tzinfo=None)
-                if age < timedelta(hours=24):
-                    logger.info(f"Using cached profile for {symbol} (age: {age})")
+                if age < timedelta(days=7):
+                    logger.info(f"Using cached profile for {symbol} (age: {age.days}d)")
                     return profile
                 else:
-                    logger.info(f"Cached profile for {symbol} is stale (age: {age})")
+                    logger.info(f"Cached profile for {symbol} is stale (age: {age.days}d, refreshing...)")
             else:
                 logger.info(f"No cached profile found for {symbol}")
 
@@ -43,15 +43,20 @@ class ProfileGenerator:
         Generate a fresh Ticker Profile for the symbol.
         Queries deep history (3y) for fundamentals and 1y for events.
         """
+        from eiqora_v2.services.signal_aggregator import gather_quantitative_signals
+        
         logger.info(f"Generating Ticker Profile for {symbol}")
         
-        # 1. Gather Layered Data
+        # 1. Gather Layered Data (text for narrative)
         data = await self._gather_layered_data(symbol)
         
-        # 2. Synthesize with LLM
-        profile = await self._synthesize_profile(symbol, data)
+        # 2. Gather Quantitative Signals (structured for scoring)
+        signals = await gather_quantitative_signals(symbol)
         
-        # 3. Save to DB
+        # 3. Synthesize with LLM (includes signals for contextual scoring)
+        profile = await self._synthesize_profile(symbol, data, signals)
+        
+        # 4. Save to DB
         await self._save_profile(profile)
         
         return profile
@@ -150,10 +155,10 @@ class ProfileGenerator:
                 "sec_filings": [dict(r) for r in sec_rows],
             }
 
-    async def _synthesize_profile(self, symbol: str, data: dict[str, Any]) -> TickerProfile:
-        """Call LLM to synthesize data into a profile."""
+    async def _synthesize_profile(self, symbol: str, data: dict[str, Any], signals: dict[str, Any] | None = None) -> TickerProfile:
+        """Call LLM to synthesize data into a profile with contextual scoring."""
         
-        prompt = self._build_synthesis_prompt(symbol, data)
+        prompt = self._build_synthesis_prompt(symbol, data, signals)
         
         import json
         schema_json = json.dumps(TickerProfile.model_json_schema(), indent=2)
@@ -166,6 +171,7 @@ class ProfileGenerator:
         2. **Consistency:** Review the 3-year earnings history. Are they growing? Margins expanding?
         3. **Ongoing Sagas:** Identify "Material Events" that span months/years (lawsuits, turnarounds).
         4. **Current Narrative:** What is the market focused on RIGHT NOW (last 90 days)?
+        5. **Contextual Scoring:** Interpret ALL quantitative signals together to produce profile_score.
         
         Be concise, objective, and professional.
         
@@ -179,7 +185,9 @@ class ProfileGenerator:
             system_prompt=system_prompt
         )
 
-    def _build_synthesis_prompt(self, symbol: str, data: dict[str, Any]) -> str:
+    def _build_synthesis_prompt(self, symbol: str, data: dict[str, Any], signals: dict[str, Any] | None = None) -> str:
+        import json
+        
         earnings = data.get("earnings", [])
         events = data.get("event_news", [])
         recent = data.get("recent_news", [])
@@ -198,6 +206,33 @@ class ProfileGenerator:
         # Format Recent Narrative News
         recent_txt = "\n".join([f"- {n['published_at']}: {n['title']}" for n in recent[:10]])
         
+        # Format Quantitative Signals
+        signals_txt = ""
+        if signals:
+            signals_txt = f"""
+        ### 4. Quantitative Signals (interpret contextually for scoring)
+        
+        **Earnings:**
+        - Quarters analyzed: {signals.get('earnings', {}).get('quarters_analyzed', 0)}
+        - Beat rate: {signals.get('earnings', {}).get('beat_rate', 'N/A')}
+        - Avg surprise %: {signals.get('earnings', {}).get('avg_surprise_pct', 'N/A')}
+        
+        **Insider Transactions (90 days):**
+        - Total transactions: {signals.get('insider', {}).get('transactions_90d', 0)}
+        - Buy count: {signals.get('insider', {}).get('buy_count', 0)}, Sell count: {signals.get('insider', {}).get('sell_count', 0)}
+        - Net value: ${signals.get('insider', {}).get('net_value', 0):,.0f}
+        - CEO net: ${signals.get('insider', {}).get('ceo_net_value', 0):,.0f}
+        - CFO net: ${signals.get('insider', {}).get('cfo_net_value', 0):,.0f}
+        - Directors net: ${signals.get('insider', {}).get('director_net_value', 0):,.0f}
+        
+        **Corporate Actions (1 year):**
+        - Dividends: {signals.get('corporate_actions', {}).get('dividend_count_1y', 0)}
+        - Total dividend: ${signals.get('corporate_actions', {}).get('total_dividend_1y', 0):,.2f}
+        
+        **News Sentiment:**
+        - Articles (90d): {signals.get('sentiment', {}).get('article_count_90d', 0)}
+        """
+        
         return f"""
         Generate a Ticker Profile for {symbol}.
         
@@ -210,10 +245,17 @@ class ProfileGenerator:
         
         ### 3. Recent News / Narrative (Last 90 Days)
         {recent_txt}
+        {signals_txt}
         
         Task:
         - Summarize the multi-year business and profitability trend.
         - Identify persistent "Material Events".
         - Describe the current 90-day narrative.
         - Define the Bull/Bear thesis.
+        - **IMPORTANT**: Set profile_score (0.0-1.0) based on ALL signals above:
+          - 0.8-1.0: Strong fundamentals, positive insider activity, clear catalysts
+          - 0.5-0.7: Mixed signals, some concerns but overall neutral/positive
+          - 0.2-0.4: Significant headwinds, heavy insider selling, poor earnings
+          - 0.0-0.1: Major red flags
+        - Provide score_breakdown dict explaining each factor's contribution.
         """

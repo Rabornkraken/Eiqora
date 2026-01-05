@@ -1,6 +1,7 @@
 """
 TopDown Agent implementation.
 Analyzes macro market conditions and regime.
+Uses: market_bar_daily (SPY/QQQ), economic_indicator (FOMC/CPI/NFP)
 """
 
 from typing import Any
@@ -9,6 +10,7 @@ from eiqora_v2.agents.base import BaseAgent
 from eiqora_v2.schemas.portfolio import TopDownOutput
 from eiqora_v2.schemas.state import SwingTradeState
 from eiqora_v2.tools.prices import get_prices, get_indicators
+from eiqora_v2.tools.events import get_economic_calendar
 
 
 # Context symbols for macro analysis
@@ -31,10 +33,15 @@ class TopDownAgent(BaseAgent[TopDownOutput]):
     Runs ONCE per sweep (not per ticker).
     Output is cached and shared across all ticker analyses.
     
+    Data Sources:
+    - market_bar_daily: SPY/QQQ/sector ETF technicals
+    - economic_indicator: FOMC/CPI/NFP calendar
+    
     Evaluates:
     - SPY/QQQ trend and momentum
     - VIX regime
     - Sector rotation signals
+    - Upcoming macro events (FOMC, CPI, NFP)
     - Risk-on/risk-off indicators
     """
     
@@ -42,7 +49,7 @@ class TopDownAgent(BaseAgent[TopDownOutput]):
     output_schema = TopDownOutput
     
     async def _gather_data(self, state: SwingTradeState) -> dict[str, Any]:
-        """Gather market-wide context data."""
+        """Gather market-wide context data including economic calendar."""
         asof_time = state["asof_time"]
         
         data = {}
@@ -75,21 +82,52 @@ class TopDownAgent(BaseAgent[TopDownOutput]):
                 pass
         data["sectors"] = sector_data
         
+        # Get economic calendar (FOMC/CPI/NFP)
+        try:
+            econ_calendar = await get_economic_calendar(
+                asof_time, 
+                window_days_back=7, 
+                window_days_forward=14
+            )
+            data["economic_calendar"] = econ_calendar
+        except Exception as e:
+            data["economic_calendar"] = {"error": str(e)}
+        
         return data
     
     def _build_prompt(self, state: SwingTradeState, data: dict[str, Any]) -> str:
-        """Build prompt for macro analysis."""
+        """Build prompt for macro analysis including economic calendar."""
         asof_time = state["asof_time"]
         
         spy = data.get("spy", {})
         qqq = data.get("qqq", {})
         sectors = data.get("sectors", {})
+        econ = data.get("economic_calendar", {})
         
         # Format sector performance
         sector_text = "\n".join([
             f"  {etf}: 20d return={d.get('ret_20d', 'N/A'):.1%}, MA20={d.get('trend', 'N/A')}"
             for etf, d in sectors.items()
         ]) if sectors else "  No sector data"
+        
+        # Format economic calendar
+        upcoming = econ.get("upcoming_events", [])[:5]  # Limit to 5
+        recent = econ.get("recent_events", [])[:3]  # Limit to 3
+        
+        upcoming_text = "\n".join([
+            f"  {e.get('event_date', 'N/A')}: {e.get('indicator_name', 'N/A')}"
+            for e in upcoming
+        ]) if upcoming else "  No upcoming events"
+        
+        recent_text = "\n".join([
+            f"  {e.get('event_date', 'N/A')}: {e.get('indicator_name', 'N/A')} = {e.get('value', 'N/A')}"
+            for e in recent
+        ]) if recent else "  No recent events"
+        
+        days_to_fomc = econ.get("days_to_fomc")
+        fomc_warning = ""
+        if days_to_fomc is not None and days_to_fomc <= 3:
+            fomc_warning = f"\n⚠️ FOMC MEETING IN {days_to_fomc} DAYS - Consider volatility impact!"
         
         return f"""
 Analyze macro market conditions as of {asof_time}.
@@ -110,12 +148,24 @@ QQQ (Nasdaq 100):
 SECTOR PERFORMANCE:
 {sector_text}
 
+ECONOMIC CALENDAR:
+Upcoming Events (next 14 days):
+{upcoming_text}
+
+Recent Events (last 7 days):
+{recent_text}
+
+Days to next FOMC: {days_to_fomc if days_to_fomc is not None else 'Unknown'}
+Days to next CPI: {econ.get('next_cpi', 'Unknown')}
+{fomc_warning}
+
 Classify:
 1. Market regime (RISK_ON, RISK_OFF, HIGH_VOL, etc.)
 2. SPY trend (UP, DOWN, SIDEWAYS)
 3. VIX level based on RV20 proxy (LOW <15, NORMAL 15-20, ELEVATED 20-25, HIGH >25)
 4. Sector rotation (which sectors are LEADING/LAGGING)
-5. Overall bias (BULLISH, BEARISH, NEUTRAL)
+5. Policy stance based on economic calendar (Fed hawkish/dovish, data beats/misses)
+6. Overall bias (BULLISH, BEARISH, NEUTRAL)
 """
     
     def _get_system_prompt(self) -> str:

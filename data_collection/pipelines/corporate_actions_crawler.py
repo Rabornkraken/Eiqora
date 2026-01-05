@@ -317,6 +317,68 @@ def _parse_yahoo_splits(ticker: str, csv_text: str) -> list[CorporateActionRow]:
     return rows
 
 
+def _fetch_yfinance_splits(ticker: str) -> list[CorporateActionRow]:
+    """Fallback: use yfinance library for splits (more reliable than API)."""
+    try:
+        import yfinance as yf
+        t = yf.Ticker(ticker)
+        splits = t.splits
+        if splits is None or splits.empty:
+            return []
+        
+        rows = []
+        for idx, ratio_val in splits.items():
+            ex_date = idx.date() if hasattr(idx, 'date') else None
+            if ex_date and ratio_val:
+                source_ref = f"{ticker}/split/yfinance/{ex_date}:{ratio_val}"
+                rows.append(
+                    CorporateActionRow(
+                        ticker=ticker,
+                        action_type="split",
+                        ex_date=ex_date,
+                        pay_date=None,
+                        ratio=float(ratio_val),
+                        cash_amount=None,
+                        source_ref=source_ref,
+                    )
+                )
+        return rows
+    except Exception as e:
+        _logger.warning("yfinance splits error for %s: %s", ticker, e)
+        return []
+
+
+def _fetch_yfinance_dividends(ticker: str) -> list[CorporateActionRow]:
+    """Fallback: use yfinance library for dividends."""
+    try:
+        import yfinance as yf
+        t = yf.Ticker(ticker)
+        dividends = t.dividends
+        if dividends is None or dividends.empty:
+            return []
+        
+        rows = []
+        for idx, amount in dividends.items():
+            ex_date = idx.date() if hasattr(idx, 'date') else None
+            if ex_date and amount:
+                source_ref = f"{ticker}/dividend/yfinance/{ex_date}:{amount}"
+                rows.append(
+                    CorporateActionRow(
+                        ticker=ticker,
+                        action_type="dividend",
+                        ex_date=ex_date,
+                        pay_date=None,
+                        ratio=None,
+                        cash_amount=float(amount),
+                        source_ref=source_ref,
+                    )
+                )
+        return rows
+    except Exception as e:
+        _logger.warning("yfinance dividends error for %s: %s", ticker, e)
+        return []
+
+
 def _upsert_actions(conn, cik_map: dict[str, str], rows: list[CorporateActionRow]) -> int:
     if not rows:
         return 0
@@ -434,26 +496,38 @@ def run(start: date | None, end: date | None) -> None:
                     inserted,
                 )
                 if (status_code >= 400 or not rows) and source == "stockanalysis_split":
-                    time.sleep(random.uniform(0.5, 1.5))
-                    csv_text, csv_status = _fetch_yahoo_csv(session, ticker, "split", start, end, settings=common.http)
-                    _store_raw(
-                        storage=storage,
-                        conn=conn,
-                        source="yahoo_split",
-                        object_key_prefix=f"corporate_actions/yahoo/{ticker}/{utc_date_str()}",
-                        payload=csv_text.encode("utf-8", errors="ignore"),
-                        status_code=csv_status,
-                        meta={"ticker": ticker, "url": YAHOO_DOWNLOAD.format(ticker=_yahoo_symbol(ticker)), "event": "split"},
-                    )
-                    yahoo_rows = _parse_yahoo_splits(ticker, csv_text)
-                    inserted = _upsert_actions(conn, cik_map, yahoo_rows)
-                    _logger.info(
-                        "corp_actions ticker=%s source=yahoo_split fetched=%s parsed=%s inserted=%s",
-                        ticker,
-                        csv_status,
-                        len(yahoo_rows),
-                        inserted,
-                    )
+                    # Try yfinance library first (most reliable)
+                    yf_rows = _fetch_yfinance_splits(ticker)
+                    if yf_rows:
+                        inserted = _upsert_actions(conn, cik_map, yf_rows)
+                        _logger.info(
+                            "corp_actions ticker=%s source=yfinance_split parsed=%s inserted=%s",
+                            ticker,
+                            len(yf_rows),
+                            inserted,
+                        )
+                    else:
+                        # Fallback to Yahoo CSV API
+                        time.sleep(random.uniform(0.5, 1.5))
+                        csv_text, csv_status = _fetch_yahoo_csv(session, ticker, "split", start, end, settings=common.http)
+                        _store_raw(
+                            storage=storage,
+                            conn=conn,
+                            source="yahoo_split",
+                            object_key_prefix=f"corporate_actions/yahoo/{ticker}/{utc_date_str()}",
+                            payload=csv_text.encode("utf-8", errors="ignore"),
+                            status_code=csv_status,
+                            meta={"ticker": ticker, "url": YAHOO_DOWNLOAD.format(ticker=_yahoo_symbol(ticker)), "event": "split"},
+                        )
+                        yahoo_rows = _parse_yahoo_splits(ticker, csv_text)
+                        inserted = _upsert_actions(conn, cik_map, yahoo_rows)
+                        _logger.info(
+                            "corp_actions ticker=%s source=yahoo_split fetched=%s parsed=%s inserted=%s",
+                            ticker,
+                            csv_status,
+                            len(yahoo_rows),
+                            inserted,
+                        )
                 if (status_code >= 400 or not rows) and source == "stockanalysis_dividend":
                     time.sleep(random.uniform(0.5, 1.5))
                     csv_text, csv_status = _fetch_yahoo_csv(session, ticker, "div", start, end, settings=common.http)

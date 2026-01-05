@@ -81,29 +81,62 @@ def _fetch_symbol(settings, base_url: str, endpoint: str, stooq_symbol: str) -> 
     return _fetch_stooq_csv(session, settings, base_url, endpoint, stooq_symbol)
 
 
-def _upsert_bars(conn, rows: list[tuple[Any, ...]]) -> None:
+def _market_bar_has_raw_id(conn) -> bool:
+    with conn.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_name = 'market_bar_daily'
+              AND column_name = 'raw_id'
+            """
+        )
+        return cursor.fetchone() is not None
+
+
+def _upsert_bars(conn, rows: list[tuple[Any, ...]], has_raw_id: bool) -> None:
     if not rows:
         return
     with conn.cursor() as cursor:
-        cursor.executemany(
-            """
-            INSERT INTO market_bar_daily
-                (symbol, date, open, high, low, close, volume, vwap, trade_count, raw_id, source)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (symbol, date)
-            DO UPDATE SET
-                open = EXCLUDED.open,
-                high = EXCLUDED.high,
-                low = EXCLUDED.low,
-                close = EXCLUDED.close,
-                volume = EXCLUDED.volume,
-                vwap = EXCLUDED.vwap,
-                trade_count = EXCLUDED.trade_count,
-                raw_id = EXCLUDED.raw_id,
-                source = EXCLUDED.source
-            """,
-            rows,
-        )
+        if has_raw_id:
+            cursor.executemany(
+                """
+                INSERT INTO market_bar_daily
+                    (symbol, date, open, high, low, close, volume, vwap, trade_count, raw_id, source)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (symbol, date)
+                DO UPDATE SET
+                    open = EXCLUDED.open,
+                    high = EXCLUDED.high,
+                    low = EXCLUDED.low,
+                    close = EXCLUDED.close,
+                    volume = EXCLUDED.volume,
+                    vwap = EXCLUDED.vwap,
+                    trade_count = EXCLUDED.trade_count,
+                    raw_id = EXCLUDED.raw_id,
+                    source = EXCLUDED.source
+                """,
+                rows,
+            )
+        else:
+            cursor.executemany(
+                """
+                INSERT INTO market_bar_daily
+                    (symbol, date, open, high, low, close, volume, vwap, trade_count, source)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (symbol, date)
+                DO UPDATE SET
+                    open = EXCLUDED.open,
+                    high = EXCLUDED.high,
+                    low = EXCLUDED.low,
+                    close = EXCLUDED.close,
+                    volume = EXCLUDED.volume,
+                    vwap = EXCLUDED.vwap,
+                    trade_count = EXCLUDED.trade_count,
+                    source = EXCLUDED.source
+                """,
+                rows,
+            )
 
 
 def backfill(
@@ -160,6 +193,8 @@ def backfill(
             batch_offset,
         )
 
+        has_raw_id = _market_bar_has_raw_id(conn)
+
         with ThreadPoolExecutor(max_workers=concurrency) as executor:
             future_map = {}
             for symbol in symbols:
@@ -196,23 +231,39 @@ def backfill(
                     bar_date = datetime.strptime(row["Date"], "%Y-%m-%d").date()
                     if bar_date < start or bar_date > end:
                         continue
-                    bar_rows.append(
-                        (
-                            symbol,
-                            bar_date,
-                            float(row["Open"]) if row.get("Open") else None,
-                            float(row["High"]) if row.get("High") else None,
-                            float(row["Low"]) if row.get("Low") else None,
-                            float(row["Close"]) if row.get("Close") else None,
-                            int(float(row["Volume"])) if row.get("Volume") else None,
-                            None,
-                            None,
-                            raw_id,
-                            "stooq",
+                    if has_raw_id:
+                        bar_rows.append(
+                            (
+                                symbol,
+                                bar_date,
+                                float(row["Open"]) if row.get("Open") else None,
+                                float(row["High"]) if row.get("High") else None,
+                                float(row["Low"]) if row.get("Low") else None,
+                                float(row["Close"]) if row.get("Close") else None,
+                                int(float(row["Volume"])) if row.get("Volume") else None,
+                                None,
+                                None,
+                                raw_id,
+                                "stooq",
+                            )
                         )
-                    )
+                    else:
+                        bar_rows.append(
+                            (
+                                symbol,
+                                bar_date,
+                                float(row["Open"]) if row.get("Open") else None,
+                                float(row["High"]) if row.get("High") else None,
+                                float(row["Low"]) if row.get("Low") else None,
+                                float(row["Close"]) if row.get("Close") else None,
+                                int(float(row["Volume"])) if row.get("Volume") else None,
+                                None,
+                                None,
+                                "stooq",
+                            )
+                        )
 
-                _upsert_bars(conn, bar_rows)
+                _upsert_bars(conn, bar_rows, has_raw_id)
                 conn.commit()
                 _logger.info("stooq_daily symbol=%s rows=%s", symbol, len(bar_rows))
 

@@ -1,12 +1,62 @@
 """
-Event and SEC filing tools.
-Fetches SEC filings, macro indicators, and earnings data.
+Event-related tools for accessing economic calendar and SEC filings.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
+import logging
 
 from eiqora_v2.tools.db import get_connection
+
+logger = logging.getLogger(__name__)
+
+# Critical macro events that warrant trading blackout
+BLACKOUT_EVENTS = [
+    'FOMC',
+    'Fed Interest Rate Decision',
+    'Non-Farm Payrolls',
+    'NFP',
+    'CPI',
+    'Core CPI',
+    'PCE Price Index',
+]
+
+
+async def check_macro_blackout(asof_time: datetime, hours_ahead: int = 6) -> tuple[bool, str | None]:
+    """
+    Check if there's a high-impact macro event in the next N hours.
+    
+    Returns:
+        (is_blackout, event_name)
+    """
+    end_time = asof_time + timedelta(hours=hours_ahead)
+    
+    try:
+        async with get_connection() as conn:
+            events = await conn.fetch("""
+                SELECT event_name, event_time, importance
+                FROM economic_calendar
+                WHERE event_time BETWEEN $1 AND $2
+                  AND importance = 'HIGH'
+                ORDER BY event_time
+            """, asof_time, end_time)
+            
+            for event in events:
+                event_name = event['event_name']
+                # Check if this is a blackout event
+                for blackout_trigger in BLACKOUT_EVENTS:
+                    if blackout_trigger.lower() in event_name.lower():
+                        hours_until = (event['event_time'] - asof_time).total_seconds() / 3600
+                        logger.warning(
+                            f"MACRO BLACKOUT: {event_name} in {hours_until:.1f}h"
+                        )
+                        return True, event_name
+            
+            return False, None
+            
+    except Exception as e:
+        logger.warning(f"Could not check macro blackout: {e}")
+        return False, None
 
 
 async def get_sec_filings(
@@ -156,3 +206,107 @@ async def get_insider_transactions(
         except Exception:
             # Table may not exist yet
             return []
+
+
+async def get_economic_calendar(
+    asof_time: datetime,
+    window_days_back: int = 7,
+    window_days_forward: int = 7,
+) -> dict[str, Any]:
+    """
+    Fetch upcoming and recent economic events from economic_indicator table.
+    
+    Used by TopDownAgent to understand macro calendar context:
+    - FOMC meeting dates (Fed policy)
+    - CPI releases (inflation)
+    - NFP releases (employment)
+    - GDP releases (growth)
+    
+    Args:
+        asof_time: Point-in-time reference
+        window_days_back: Days to look back for recent events
+        window_days_forward: Days to look forward for upcoming events
+    
+    Returns:
+        {
+            "upcoming_events": [...],
+            "recent_events": [...],
+            "next_fomc": date or None,
+            "next_cpi": date or None,
+            "days_to_fomc": int or None,
+        }
+    """
+    async with get_connection() as conn:
+        result = {
+            "upcoming_events": [],
+            "recent_events": [],
+            "next_fomc": None,
+            "next_cpi": None,
+            "next_nfp": None,
+            "days_to_fomc": None,
+        }
+        
+        try:
+            # Get upcoming events
+            upcoming = await conn.fetch("""
+                SELECT indicator_name, event_date, period, value, previous_value
+                FROM economic_indicator
+                WHERE event_date > $1::date
+                  AND event_date <= $1::date + interval '1 day' * $2
+                ORDER BY event_date ASC
+            """, asof_time, window_days_forward)
+            
+            result["upcoming_events"] = [dict(r) for r in upcoming]
+            
+            # Get recent events (for context on what just happened)
+            recent = await conn.fetch("""
+                SELECT indicator_name, event_date, period, value, previous_value
+                FROM economic_indicator
+                WHERE event_date <= $1::date
+                  AND event_date >= $1::date - interval '1 day' * $2
+                ORDER BY event_date DESC
+            """, asof_time, window_days_back)
+            
+            result["recent_events"] = [dict(r) for r in recent]
+            
+            # Find next FOMC
+            fomc = await conn.fetchrow("""
+                SELECT event_date FROM economic_indicator
+                WHERE indicator_name ILIKE '%FOMC%'
+                  AND event_date > $1::date
+                ORDER BY event_date ASC
+                LIMIT 1
+            """, asof_time)
+            if fomc:
+                result["next_fomc"] = fomc["event_date"]
+                asof_date = asof_time.date() if hasattr(asof_time, 'date') else asof_time
+                result["days_to_fomc"] = (fomc["event_date"] - asof_date).days
+            
+            # Find next CPI
+            cpi = await conn.fetchrow("""
+                SELECT event_date FROM economic_indicator
+                WHERE indicator_name ILIKE '%CPI%'
+                  AND event_date > $1::date
+                ORDER BY event_date ASC
+                LIMIT 1
+            """, asof_time)
+            if cpi:
+                result["next_cpi"] = cpi["event_date"]
+            
+            # Find next NFP
+            nfp = await conn.fetchrow("""
+                SELECT event_date FROM economic_indicator
+                WHERE indicator_name ILIKE '%NFP%' OR indicator_name ILIKE '%payroll%'
+                  AND event_date > $1::date
+                ORDER BY event_date ASC
+                LIMIT 1
+            """, asof_time)
+            if nfp:
+                result["next_nfp"] = nfp["event_date"]
+            
+        except Exception as e:
+            # Table may not exist or have different schema
+            result["error"] = str(e)
+        
+        return result
+
