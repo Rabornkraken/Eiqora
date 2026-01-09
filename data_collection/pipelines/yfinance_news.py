@@ -1,22 +1,65 @@
 """
 YFinance News Pipeline - Fetches clean, structured news for tickers
-Replaces GDELT garbage extraction with editor-curated summaries
 """
 import logging
 import asyncio
+import os
 from datetime import datetime, timezone
 import yfinance as yf
+from bs4 import BeautifulSoup
 
+from data_collection.common.db import notify_ingest
 from data_collection.db.connection import get_connection
-
-# Import FinBERT scoring and text extraction from gdelt pipeline
-import sys
-import os
-sys.path.insert(0, os.path.dirname(__file__))
-from gdelt import _get_sentiment_pipeline, _chunk_text, _extract_text
-from cdp_sync import fetch_with_cdp, cleanup_cdp_browser
+from data_collection.pipelines.cdp_sync import fetch_with_cdp, cleanup_cdp_browser
 
 _logger = logging.getLogger(__name__)
+NOTIFY_CHANNEL = os.getenv("EIQORA_INGEST_CHANNEL", "eiqora_ingest")
+
+# FinBERT sentiment pipeline (cached globally)
+_sentiment_pipeline = None
+
+
+def _get_sentiment_pipeline():
+    """Get or create cached FinBERT sentiment pipeline."""
+    global _sentiment_pipeline
+    if _sentiment_pipeline is None:
+        from transformers import pipeline
+        _sentiment_pipeline = pipeline(
+            "sentiment-analysis",
+            model="ProsusAI/finbert",
+            tokenizer="ProsusAI/finbert"
+        )
+    return _sentiment_pipeline
+
+
+def _chunk_text(text: str, chunk_size: int = 1500) -> list[str]:
+    """Split text into chunks of approx chunk_size characters."""
+    return [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
+
+
+def _extract_text(html: str) -> str:
+    """Extract main article text from HTML."""
+    soup = BeautifulSoup(html, 'html.parser')
+    
+    # Remove script, style, nav, footer
+    for tag in soup(['script', 'style', 'nav', 'footer', 'header', 'aside']):
+        tag.decompose()
+    
+    # Try to find article content
+    selectors = [
+        '.article-body', '.article-content', '.post-content', 
+        'article', 'main', '[role="main"]'
+    ]
+    
+    for selector in selectors:
+        content = soup.select_one(selector)
+        if content:
+            text = content.get_text(separator=' ', strip=True)
+            if len(text) > 200:
+                return text
+    
+    # Fallback to body
+    return soup.get_text(separator=' ', strip=True)
 
 
 def _get_active_symbols(conn, limit: int | None = None) -> list[str]:
@@ -24,7 +67,7 @@ def _get_active_symbols(conn, limit: int | None = None) -> list[str]:
     with conn.cursor() as cursor:
         cursor.execute("""
             SELECT DISTINCT symbol 
-            FROM watchlist 
+            FROM daily_watchlist 
             ORDER BY symbol
         """)
         symbols = [row[0] for row in cursor.fetchall()]
@@ -78,7 +121,7 @@ def _score_news(title: str, text: str) -> float:
         return 0.0
 
 
-def collect_news(limit_symbols: int | None = None, lookback_hours: int = 48):
+def collect_news(limit_symbols: int | None = None, lookback_hours: int = 48) -> int:
     """
     Fetch and store YFinance news (WITHOUT scoring).
     Scoring is done separately in score_news().
@@ -224,6 +267,7 @@ def collect_news(limit_symbols: int | None = None, lookback_hours: int = 48):
                 continue
         
         _logger.info(f"Collection complete: {total_new} new, {total_skipped} skipped")
+        return total_new
         
         # Cleanup CDP browser
         cleanup_cdp_browser()
@@ -232,7 +276,7 @@ def collect_news(limit_symbols: int | None = None, lookback_hours: int = 48):
         conn.close()
 
 
-def score_news(limit: int | None = None):
+def score_news(limit: int | None = None) -> int:
     """
     Score sentiment for unscored YFinance news articles.
     Runs FinBERT on articles that don't have scores yet.
@@ -258,7 +302,7 @@ def score_news(limit: int | None = None):
         
         if not articles:
             _logger.info("No unscored articles found")
-            return
+            return 0
         
         _logger.info(f"Scoring {len(articles)} articles with FinBERT...")
         
@@ -285,6 +329,7 @@ def score_news(limit: int | None = None):
                 _logger.error(f"Failed to score doc_id {doc_id}: {e}")
         
         _logger.info(f"Scoring complete: {scored}/{len(articles)} articles")
+        return scored
     
     finally:
         conn.close()
@@ -294,8 +339,24 @@ def run(limit_symbols: int | None = None):
     """
     Combined run: collect news then score them.
     """
-    collect_news(limit_symbols)
-    score_news()
+    new_count = collect_news(limit_symbols)
+    scored_count = score_news()
+    if new_count or scored_count:
+        try:
+            conn = get_connection()
+            notify_ingest(
+                conn,
+                NOTIFY_CHANNEL,
+                {
+                    "source": "yfinance_news",
+                    "new_count": new_count,
+                    "scored_count": scored_count,
+                },
+            )
+            conn.commit()
+            conn.close()
+        except Exception as exc:
+            _logger.warning(f"Failed to notify ingest channel: {exc}")
 
 
 if __name__ == "__main__":
@@ -310,4 +371,4 @@ if __name__ == "__main__":
     parser.add_argument('--lookback-hours', type=int, default=48, help='Lookback window')
     args = parser.parse_args()
     
-    run(limit_symbols=args.limit, lookback_hours=args.lookback_hours)
+    run(limit_symbols=args.limit)

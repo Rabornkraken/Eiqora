@@ -3,9 +3,12 @@ CDP Browser with sync wrapper for YFinance news pipeline
 Includes progressive retry logic for bot detection
 """
 import asyncio
+import logging
 import time
 import random
-from cdp_browser import CDPBrowser
+from datetime import datetime, timedelta
+
+from data_collection.pipelines.cdp_browser import CDPBrowser
 
 _cdp_browser_instance = None
 _logger = None

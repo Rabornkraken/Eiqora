@@ -35,9 +35,9 @@ def main():
         logger.warning("No symbols in universe, skipping")
         return
     
-    # Collect hourly data for past 2 days (to ensure we don't miss anything)
+    # Collect only the most recent hourly bar
     end_date = date.today()
-    start_date = end_date - timedelta(days=2)
+    start_date = end_date - timedelta(days=1)
     
     logger.info(f"Collecting hourly bars: {start_date} to {end_date}")
     
@@ -45,6 +45,7 @@ def main():
         tickers=symbols,
         start_date=start_date,
         end_date=end_date,
+        latest_only=True,
     )
     
     logger.info(f"✅ Collected {total} hourly bars")

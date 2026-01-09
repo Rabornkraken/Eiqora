@@ -16,7 +16,6 @@ from typing import Any
 from eiqora_v2.services.profile_generator import ProfileGenerator
 from eiqora_v2.tools.prices import get_indicators
 from eiqora_v2.tools.db import get_connection
-from eiqora_v2.tools.positions import get_open_positions
 
 _logger = logging.getLogger(__name__)
 
@@ -31,7 +30,7 @@ class CandidateSelector:
     def __init__(
         self,
         symbols_file: str = "data_collection/config/symbols.txt",
-        threshold: float = 0.50,
+        threshold: float = 0.70,
     ):
         self.symbols_file = Path(symbols_file)
         self.threshold = threshold
@@ -68,42 +67,120 @@ class CandidateSelector:
             if indicators.get("error"):
                 return 0.0, {"error": "No data"}
             
-            scores = {}
-            
-            # Trend (30%) - scaled to 0-1
-            if "UPTREND" in indicators.get("state_tags", []):
-                scores["uptrend"] = 0.30
-            elif "MIXED" in indicators.get("state_tags", []):
-                scores["sideways"] = 0.10
-            
-            # RSI (20%)
+            scores: dict[str, float] = {}
+            total = 0.0
+
+            def add_score(label: str, value: float) -> None:
+                nonlocal total
+                if value:
+                    scores[label] = value
+                    total += value
+
+            state_tags = set(indicators.get("state_tags", []))
+            trend = indicators.get("trend", {}) or {}
+
+            # Trend regime (net 0.25)
+            if "UPTREND" in state_tags:
+                add_score("trend_up", 0.25)
+            elif "MIXED" in state_tags:
+                add_score("trend_mixed", 0.08)
+            elif "DOWNTREND" in state_tags:
+                add_score("trend_down", -0.20)
+
+            # MA alignment (net 0.15)
+            ma20_state = trend.get("ma20")
+            if ma20_state == "ABOVE":
+                add_score("ma20_above", 0.05)
+            elif ma20_state == "BELOW":
+                add_score("ma20_below", -0.05)
+
+            ma50_state = trend.get("ma50")
+            if ma50_state == "ABOVE":
+                add_score("ma50_above", 0.05)
+            elif ma50_state == "BELOW":
+                add_score("ma50_below", -0.05)
+
+            ma200_state = trend.get("ma200")
+            if ma200_state == "ABOVE":
+                add_score("ma200_above", 0.05)
+            elif ma200_state == "BELOW":
+                add_score("ma200_below", -0.05)
+
+            # Momentum (net 0.15)
+            ret_20d = indicators.get("ret_20d")
+            if ret_20d is not None:
+                if ret_20d > 0.03:
+                    add_score("mom_20d_strong", 0.08)
+                elif ret_20d > 0:
+                    add_score("mom_20d_pos", 0.04)
+                elif ret_20d < -0.03:
+                    add_score("mom_20d_neg", -0.08)
+                elif ret_20d < 0:
+                    add_score("mom_20d_weak", -0.04)
+
+            ret_60d = indicators.get("ret_60d")
+            if ret_60d is not None:
+                if ret_60d > 0.06:
+                    add_score("mom_60d_strong", 0.07)
+                elif ret_60d > 0:
+                    add_score("mom_60d_pos", 0.03)
+                elif ret_60d < -0.06:
+                    add_score("mom_60d_neg", -0.07)
+                elif ret_60d < 0:
+                    add_score("mom_60d_weak", -0.03)
+
+            # RSI (net 0.10)
             rsi = indicators.get("rsi14", 50)
-            if 30 <= rsi <= 50:  # Favorable zone
-                scores["rsi_favorable"] = 0.20
-            elif rsi < 30:
-                scores["rsi_oversold"] = 0.15
-            
-            # MACD (20%)
+            if rsi < 30:
+                if "DOWNTREND" in state_tags:
+                    add_score("rsi_oversold_downtrend", -0.05)
+                else:
+                    add_score("rsi_oversold", 0.02)
+            elif 30 <= rsi < 40:
+                add_score("rsi_recovery", 0.06)
+            elif 40 <= rsi <= 60:
+                add_score("rsi_neutral", 0.08)
+            elif 60 < rsi <= 70:
+                add_score("rsi_momentum", 0.04)
+            elif rsi > 70:
+                add_score("rsi_overbought", -0.03)
+
+            # MACD (net 0.10)
             macd_hist = indicators.get("macd", {}).get("histogram", 0)
             if macd_hist > 0:
-                scores["macd_bullish"] = 0.20
-            
-            # ADX (20%)
+                add_score("macd_bullish", 0.08)
+            elif macd_hist < 0:
+                add_score("macd_bearish", -0.05)
+
+            # ADX (net 0.10)
             adx = indicators.get("adx14", 20)
             if adx > 25:
-                scores["strong_trend"] = 0.20
+                add_score("adx_strong", 0.08)
             elif adx > 20:
-                scores["moderate_trend"] = 0.10
-            
-            # MA proximity (10%)
+                add_score("adx_moderate", 0.04)
+            elif adx < 15:
+                add_score("adx_weak", -0.03)
+
+            # Volume confirmation (net 0.10)
+            vol_z = indicators.get("volume_z_20d", 0)
+            if vol_z > 2.5:
+                add_score("volume_surge", 0.08)
+            elif vol_z > 1.5:
+                add_score("volume_high", 0.05)
+            elif vol_z < -1.5:
+                add_score("volume_light", -0.05)
+
+            # MA proximity (net 0.05)
             current_price = indicators.get("current_price", 0)
             ma20 = indicators.get("ma20", current_price)
-            if ma20 > 0:
+            if ma20 and ma20 > 0:
                 ma_dist = abs(current_price - ma20) / ma20
-                if ma_dist < 0.03:  # Within 3%
-                    scores["near_ma20"] = 0.10
-            
-            total = min(sum(scores.values()), 1.0)  # Cap at 1.0
+                if ma_dist < 0.03 and ("UPTREND" in state_tags or "MIXED" in state_tags):
+                    add_score("near_ma20", 0.05)
+                elif ma_dist > 0.08:
+                    add_score("extended_from_ma20", -0.03)
+
+            total = max(min(total, 1.0), 0.0)
             return total, scores
             
         except Exception as e:
@@ -169,7 +246,10 @@ class CandidateSelector:
         # MACRO SAFEGUARD: Check VIX regime and adjust threshold
         try:
             from eiqora_v2.tools.prices import get_indicators
-            vix_indicators = await get_indicators("VIX", 20, scan_time)
+            vix_symbol = "IDX_VIX"
+            vix_indicators = await get_indicators(vix_symbol, 20, scan_time)
+            if vix_indicators.get("error"):
+                vix_indicators = await get_indicators("VIX", 20, scan_time)
             vix_level = vix_indicators.get("current_price", 15) if vix_indicators else 15
             
             # Dynamic threshold based on VIX
@@ -204,22 +284,14 @@ class CandidateSelector:
             _logger.warning(f"Yield regime check failed: {e}")
         
         # Get universe symbols
-        universe = await self.get_universe(scan_time)
-        
-        # POSITION EXCLUSION: Filter out symbols with open positions
-        open_positions = await get_open_positions()
-        position_symbols = {pos["symbol"] for pos in open_positions}
-        
-        if position_symbols:
-            _logger.info(
-                f"🔒 Excluding {len(position_symbols)} symbols with open positions: "
-                f"{', '.join(sorted(position_symbols))}"
-            )
-            universe = [s for s in universe if s not in position_symbols]
+        universe = self.load_universe()
         
         watchlist = []
         
         _logger.info(f"Building watchlist for {len(universe)} symbols...")
+        
+        # Prepare all logs for database
+        all_logs = []
         
         for symbol in universe:
             # Score technicals
@@ -228,10 +300,27 @@ class CandidateSelector:
             # Score profile (0-1 from LLM)
             profile_score, profile_breakdown = await self.score_profile(symbol)
             
-            # Combined score: 50% technical + 50% profile (both on 0-1 scale)
+            # Combined score: 50% technical + 50% profile
             total_score = (tech_score * 0.5) + (profile_score * 0.5)
             
-            if total_score >= adjusted_threshold:
+            is_selected = total_score >= adjusted_threshold
+            
+            # Prepare log entry
+            log_entry = {
+                "symbol": symbol,
+                "scan_date": scan_time.date(),
+                "total_score": total_score,
+                "technical_score": tech_score,
+                "profile_score": profile_score,
+                "is_selected": is_selected,
+                "details": {
+                    "technical": tech_breakdown,
+                    "profile": profile_breakdown,
+                }
+            }
+            all_logs.append(log_entry)
+            
+            if is_selected:
                 candidate = {
                     "symbol": symbol,
                     "total_score": total_score,
@@ -239,27 +328,62 @@ class CandidateSelector:
                     "profile_score": profile_score,
                     "technical_breakdown": tech_breakdown,
                     "profile_breakdown": profile_breakdown,
-                    "added_at": asof_time,
+                    "added_at": scan_time,
                 }
                 watchlist.append(candidate)
                 _logger.info(f"  ✅ {symbol}: {total_score:.2f} (tech={tech_score:.2f}, profile={profile_score:.2f})")
             else:
                 _logger.debug(f"  ❌ {symbol}: {total_score:.2f}")
+
+        # Bulk save logs
+        await self.save_candidate_logs(all_logs)
         
         # Sort by score descending
         watchlist.sort(key=lambda x: x["total_score"], reverse=True)
         
-        _logger.info(f"Watchlist built: {len(watchlist)} candidates (threshold={self.threshold})")
+        _logger.info(f"Watchlist selected: {len(watchlist)} candidates (threshold={adjusted_threshold})")
         return watchlist
+
+    async def save_candidate_logs(self, logs: list[dict]) -> None:
+        """Save full selection logs for all candidates."""
+        try:
+            import json
+            async with get_connection() as conn:
+                for log in logs:
+                    await conn.execute("""
+                        INSERT INTO candidate_selection_log (
+                            symbol, scan_date, total_score, technical_score, profile_score, is_selected, details
+                        ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+                        ON CONFLICT (symbol, scan_date) DO UPDATE 
+                        SET total_score = EXCLUDED.total_score,
+                            technical_score = EXCLUDED.technical_score,
+                            profile_score = EXCLUDED.profile_score,
+                            is_selected = EXCLUDED.is_selected,
+                            details = EXCLUDED.details
+                    """,
+                        log["symbol"],
+                        log["scan_date"],
+                        log["total_score"],
+                        log["technical_score"],
+                        log["profile_score"],
+                        log["is_selected"],
+                        json.dumps(log["details"]),
+                    )
+            _logger.info(f"Logged evaluation for {len(logs)} symbols")
+        except Exception as e:
+            _logger.error(f"Failed to save candidate logs: {e}")
     
     async def save_watchlist(self, watchlist: list[dict], scan_date: date) -> None:
         """Save watchlist to database."""
         try:
             import json
             async with get_connection() as conn:
+                # Clear existing watchlist for this date to ensure freshness/limit
+                await conn.execute("DELETE FROM daily_watchlist WHERE scan_date = $1", scan_date)
+                
                 for candidate in watchlist:
                     await conn.execute("""
-                        INSERT INTO watchlist (symbol, scan_date, total_score, technical_score, profile_score, details)
+                        INSERT INTO daily_watchlist (symbol, scan_date, total_score, technical_score, profile_score, details)
                         VALUES ($1, $2, $3, $4, $5, $6)
                         ON CONFLICT (symbol, scan_date) DO UPDATE 
                         SET total_score = EXCLUDED.total_score,
@@ -277,7 +401,7 @@ class CandidateSelector:
                             "profile": candidate["profile_breakdown"],
                         }),
                     )
-            _logger.info(f"Saved {len(watchlist)} candidates to watchlist table")
+            _logger.info(f"Saved {len(watchlist)} candidates to daily_watchlist table")
         except Exception as e:
             _logger.error(f"Failed to save watchlist: {e}")
 
@@ -289,11 +413,17 @@ async def main():
         format="%(asctime)s [%(levelname)s] %(message)s",
     )
     
-    selector = CandidateSelector(threshold=0.45)
-    watchlist = await selector.build_watchlist()
+    selector = CandidateSelector(threshold=0.70)
+    from zoneinfo import ZoneInfo
+    scan_time = datetime.now(ZoneInfo("America/New_York"))
+    watchlist = await selector.build_watchlist(scan_time)
+    
+    # Save all selected candidates to DB
+    if watchlist:
+        await selector.save_watchlist(watchlist, scan_time.date())
     
     print(f"\n{'='*60}")
-    print(f"WATCHLIST ({len(watchlist)} candidates)")
+    print(f"WATCHLIST ({len(watchlist)} candidates) - All Saved")
     print(f"{'='*60}")
     
     for c in watchlist[:10]:

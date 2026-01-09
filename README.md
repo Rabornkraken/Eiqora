@@ -36,7 +36,7 @@ Complete end-to-end trading system with automated data collection, LLM-powered a
 │                                                              │
 │ Stage 4: Trade Execution                                    │
 │   ├─ Position sizing (10% max risk)                         │
-│   ├─ Alpaca order placement                                 │
+│   ├─ Database position lifecycle tracking                   │
 │   └─ Max 3 concurrent positions                             │
 └──────────────────────────────────────────────────────────────┘
 ```
@@ -49,7 +49,6 @@ Complete end-to-end trading system with automated data collection, LLM-powered a
 - Python 3.10+
 - PostgreSQL 14+
 - OpenRouter API key (for LLM)
-- Alpaca API key (for market data & execution)
 
 ### Installation
 
@@ -99,13 +98,13 @@ Located in `data_collection/`, automated pipelines for market data ingestion.
 |----------|----------|-------------|-----------------|
 | `universe` | Daily 5 AM | SPY holdings + config | `universe_snapshot`, `universe_member` |
 | `stooq_daily` | Daily 6 AM | Stooq.com | `market_bar_daily` |
-| `hourly_bars` | Hourly 9-4 ET | Alpaca | `market_bar_hourly` |
+| `hourly_bars` | Hourly 9-4 ET | Market data API | `market_bar_hourly` |
 | `earnings` | Daily 6 AM | NASDAQ API | `earnings_event` |
 | `sec_rss` | Every 15 min (6-8 PM) | SEC EDGAR RSS | `sec_filing` |
 | `sec_edgar` | Daily 7 PM | SEC EDGAR | `sec_filing_section`, `insider_transaction`, `sec_13f_holding` |
 | `yfinance_news` | Every 4 hours | YFinance + CDP | `yfinance_news`, `yfinance_news_relevance` |
 | `economic_calendar` | Daily 7 AM | Forex Factory (Stealth) | `economic_event` |
-| `corporate_actions` | Weekly Sun 3 AM | Alpaca | `corporate_action` |
+| `corporate_actions` | Weekly Sun 3 AM | Public filings | `corporate_action` |
 
 ### Pipeline Configuration
 
@@ -135,11 +134,6 @@ POSTGRES_DB=finance
 # OpenRouter LLM
 OPENROUTER_API_KEY=your_key_here
 
-# Alpaca Trading API
-ALPACA_API_KEY=your_alpaca_key
-ALPACA_API_SECRET=your_alpaca_secret
-ALPACA_BASE_URL=https://paper-api.alpaca.markets  # Paper trading
-ALPACA_PAPER_TRADING=true  # Set to false for live trading
 ```
 
 ---

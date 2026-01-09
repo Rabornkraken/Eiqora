@@ -1,19 +1,28 @@
 """
 Context Agent implementation.
-Provides stock-level context features for swing planning.
+Provides deterministic stock-level context features for swing planning.
 """
 
+from datetime import date
 from typing import Any
 
 from eiqora_v2.agents.base import BaseAgent
-from eiqora_v2.schemas.context import ContextOutput, VolBasis, TrendStatus, MomentumMetrics
+from eiqora_v2.config.universe import get_sector_etf
+from eiqora_v2.schemas.context import (
+    ContextOutput,
+    VolBasis,
+    TrendStatus,
+    MomentumMetrics,
+    RelativeStrengthMetrics,
+    RelativeStrengthPair,
+)
 from eiqora_v2.schemas.state import SwingTradeState
-from eiqora_v2.tools.prices import get_indicators, get_hourly_indicators
+from eiqora_v2.tools.prices import get_indicators, get_return_metrics
 
 
 class ContextAgent(BaseAgent[ContextOutput]):
     """
-    Context Agent: provides deterministic context features.
+    Context Agent: provides deterministic context features (no LLM call).
     
     Gathers:
     - Volatility (RV20)
@@ -27,101 +36,191 @@ class ContextAgent(BaseAgent[ContextOutput]):
     output_schema = ContextOutput
     
     async def _gather_data(self, state: SwingTradeState) -> dict[str, Any]:
-        """Fetch daily and hourly technical indicators."""
+        """Fetch daily technical indicators."""
         symbol = state["symbol"]
         asof_time = state["asof_time"]
         
         # Get daily indicators
         indicators = await get_indicators(symbol, 60, asof_time)
         
-        # Get hourly indicators for entry timing
-        hourly = await get_hourly_indicators(symbol, asof_time.date(), asof_time)
-        
         return {
             "daily": indicators,
-            "hourly": hourly,
         }
     
     def _build_prompt(self, state: SwingTradeState, data: dict[str, Any]) -> str:
-        """Build prompt with daily and hourly indicator data."""
-        symbol = state["symbol"]
-        asof_time = state["asof_time"]
-        
-        daily = data.get("daily", {})
-        hourly = data.get("hourly", {})
-        
-        # Check for data issues
-        if daily.get("error"):
-            return f"""
-Symbol: {symbol}
-As of: {asof_time}
+        """Unused (context output is deterministic)."""
+        return ""
 
-ERROR: {daily.get('error')}
-Data points available: {daily.get('data_points', 0)}
-
-Based on limited data, provide best-effort context analysis.
-Set data_quality to "SPARSE" or "STALE" as appropriate.
-"""
-        
-        # Build hourly timing section
-        hourly_section = ""
-        if not hourly.get("error"):
-            vwap_dist = hourly.get('vwap_distance_pct', 0)
-            hourly_section = f"""
-
-HOURLY TIMING:
-- VWAP: ${hourly.get('vwap', 0):.2f} (distance: {vwap_dist:+.2f}%)
-- Hourly RSI: {hourly.get('rsi_hourly', 50):.1f}
-- Intraday Trend: {hourly.get('intraday_trend', 'NEUTRAL')}
-- Position in Range: {hourly.get('position_in_range', 0.5):.1%}
-- Hourly Tags: {', '.join(hourly.get('state_tags', []))}
-"""
-        
-        return f"""
-Analyze the following technical indicators for {symbol} as of {asof_time}.
-
-DAILY INDICATORS:
-- Current Price: ${daily.get('current_price', 0):.2f}
-- MA20: ${daily.get('ma20', 0):.2f}
-- MA50: ${daily.get('ma50', 'N/A')}
-- MA200: ${daily.get('ma200', 'N/A')}
-- Trend Status: {daily.get('trend', {})}
-- RSI(14): {daily.get('rsi14', 50):.1f}
-- MACD Histogram: {daily.get('macd', {}).get('histogram', 0):.2f}
-- ADX(14): {daily.get('adx14', 25):.1f}
-- RV20 (Realized Vol): {daily.get('rv20', 0):.4f}
-- ATR14: ${daily.get('atr14', 0):.2f}
-- 20d Return: {daily.get('ret_20d', 0):.2%} if daily.get('ret_20d') else "N/A"
-- 60d Return: {daily.get('ret_60d', 0):.2%} if daily.get('ret_60d') else "N/A"
-- Volume Z-Score (20d): {daily.get('volume_z_20d', 0):.2f}
-- State Tags: {daily.get('state_tags', [])}
-- Data Points: {daily.get('data_points', 0)}{hourly_section}
-
-Provide a structured context analysis. Use hourly timing to assess if NOW is a good entry point.
-Use RV20 as the vol_basis type. Set appropriate state_tags based on trend, volatility, and volume.
-"""
-    
     def _get_system_prompt(self) -> str:
-        return """You are a Context Agent that provides deterministic technical context for swing trade analysis.
+        """Unused (context output is deterministic)."""
+        return ""
 
-OUTPUT SCHEMA:
-{
-  "vol_basis": {"type": "RV20", "value": <float>},
-  "trend": {"ma20": "ABOVE|BELOW", "ma50": "ABOVE|BELOW|null", "ma200": "ABOVE|BELOW|null"},
-  "momentum": {"ret_20d": <float|null>, "ret_60d": <float|null>},
-  "volume_z_20d": <float>,
-  "state_tags": ["UPTREND", "HIGH_VOL", etc.],
-  "current_price": <float>,
-  "data_quality": "GOOD|SPARSE|STALE"
-}
+    async def run(self, state: SwingTradeState) -> dict[str, Any]:
+        """Compute deterministic context output from indicators."""
+        symbol = state.get("symbol")
+        asof_time = state.get("asof_time")
 
-STATE_TAGS options:
-- UPTREND, DOWNTREND, MIXED (trend)
-- HIGH_VOL, LOW_VOL (volatility)
-- HIGH_VOLUME (unusual volume)
+        try:
+            data = await self._gather_data(state)
+            daily = data.get("daily", {})
 
-Return ONLY valid JSON. No explanation."""
+            if daily.get("error"):
+                msg = daily.get("error", "Unknown error")
+                self.logger.warning(f"{symbol}: Context data error - {msg}")
+                return {
+                    "context": {"error": msg, "data_points": daily.get("data_points", 0)},
+                    "errors": state.get("errors", []) + [f"context: {msg}"],
+                }
 
-    def _build_state_update(self, state: SwingTradeState, result: ContextOutput) -> dict[str, Any]:
-        """Build state update with context output."""
-        return {"context": result.model_dump()}
+            current_price = float(daily.get("current_price") or 0)
+            if current_price <= 0:
+                raise ValueError("Missing or invalid current_price")
+
+            vol_basis = self._build_vol_basis(daily, current_price)
+            trend = self._build_trend(daily, current_price)
+            momentum = MomentumMetrics(
+                ret_20d=daily.get("ret_20d"),
+                ret_60d=daily.get("ret_60d"),
+            )
+            rel_strength = await self._build_relative_strength(
+                symbol,
+                daily,
+                asof_time,
+            )
+
+            output = ContextOutput(
+                vol_basis=vol_basis,
+                trend=trend,
+                momentum=momentum,
+                volume_z_20d=float(daily.get("volume_z_20d") or 0.0),
+                state_tags=list(daily.get("state_tags") or []),
+                current_price=current_price,
+                relative_strength=rel_strength,
+                data_quality=self._data_quality(daily, asof_time),
+            )
+
+            return {"context": output.model_dump()}
+
+        except Exception as e:
+            self.logger.error(f"{symbol}: Context computation failed - {e}")
+            return {
+                "context": {"error": str(e)},
+                "errors": state.get("errors", []) + [f"context: {e}"],
+            }
+
+    def _build_vol_basis(self, daily: dict[str, Any], current_price: float) -> VolBasis:
+        rv20 = daily.get("rv20")
+        if rv20 is not None and rv20 > 0:
+            return VolBasis(type="RV20", value=float(rv20))
+
+        atr14 = daily.get("atr14")
+        if atr14 is not None and atr14 > 0 and current_price > 0:
+            return VolBasis(type="ATR14_PROXY", value=float(atr14) / current_price)
+
+        return VolBasis(type="RV20", value=0.0)
+
+    def _build_trend(self, daily: dict[str, Any], current_price: float) -> TrendStatus:
+        trend = daily.get("trend") or {}
+
+        def _coerce(value: Any, fallback: str | None) -> str | None:
+            return value if value in ("ABOVE", "BELOW") else fallback
+
+        ma20 = daily.get("ma20")
+        ma20_state = _coerce(trend.get("ma20"), None)
+        if ma20_state is None:
+            ma20_state = "ABOVE" if ma20 and current_price > ma20 else "BELOW"
+
+        ma50_state = _coerce(trend.get("ma50"), None)
+        ma200_state = _coerce(trend.get("ma200"), None)
+
+        return TrendStatus(ma20=ma20_state, ma50=ma50_state, ma200=ma200_state)
+
+    def _data_quality(self, daily: dict[str, Any], asof_time: Any) -> str:
+        data_points = int(daily.get("data_points") or 0)
+        if data_points < 20:
+            return "SPARSE"
+
+        last_date = daily.get("last_date")
+        if isinstance(last_date, str):
+            try:
+                last_date = date.fromisoformat(last_date)
+            except ValueError:
+                last_date = None
+
+        if isinstance(last_date, date) and asof_time:
+            gap_days = (asof_time.date() - last_date).days
+            if gap_days >= 3:
+                return "STALE"
+
+        return "GOOD"
+
+    async def _build_relative_strength(
+        self,
+        symbol: str,
+        daily: dict[str, Any],
+        asof_time: Any,
+    ) -> RelativeStrengthMetrics | None:
+        if not asof_time:
+            return None
+
+        symbol_ret_20d = daily.get("ret_20d")
+        symbol_ret_60d = daily.get("ret_60d")
+        symbol_last_date = daily.get("last_date")
+        if isinstance(symbol_last_date, str):
+            try:
+                symbol_last_date = date.fromisoformat(symbol_last_date)
+            except ValueError:
+                symbol_last_date = None
+
+        sector_etf = get_sector_etf(symbol)
+        benchmarks = {
+            "SPY": "vs_spy",
+            sector_etf: "vs_sector",
+            "QQQ": "vs_qqq",
+        }
+
+        rel = RelativeStrengthMetrics(sector_etf=sector_etf)
+        missing: list[str] = []
+
+        for bench_symbol, field_name in benchmarks.items():
+            metrics = await get_return_metrics(bench_symbol, 120, asof_time)
+            if metrics.get("error"):
+                missing.append(bench_symbol)
+                pair = RelativeStrengthPair(
+                    benchmark=bench_symbol,
+                    data_quality="MISSING",
+                )
+            else:
+                bench_ret_20d = metrics.get("ret_20d")
+                bench_ret_60d = metrics.get("ret_60d")
+                bench_last_date = metrics.get("last_date")
+
+                data_quality = "OK"
+                if symbol_last_date and bench_last_date:
+                    gap_days = abs((symbol_last_date - bench_last_date).days)
+                    if gap_days >= 3:
+                        data_quality = "STALE"
+
+                pair = RelativeStrengthPair(
+                    benchmark=bench_symbol,
+                    symbol_ret_20d=symbol_ret_20d,
+                    benchmark_ret_20d=bench_ret_20d,
+                    rel_ret_20d=(
+                        symbol_ret_20d - bench_ret_20d
+                        if symbol_ret_20d is not None and bench_ret_20d is not None
+                        else None
+                    ),
+                    symbol_ret_60d=symbol_ret_60d,
+                    benchmark_ret_60d=bench_ret_60d,
+                    rel_ret_60d=(
+                        symbol_ret_60d - bench_ret_60d
+                        if symbol_ret_60d is not None and bench_ret_60d is not None
+                        else None
+                    ),
+                    data_quality=data_quality,
+                )
+
+            setattr(rel, field_name, pair)
+
+        rel.missing = missing
+        return rel

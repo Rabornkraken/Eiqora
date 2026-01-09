@@ -8,4 +8,3 @@ Place one pipeline per source family. Suggested starting points:
 - earnings.py
 - yfinance_news.py
 - gdelt.py
-- index_docs.py

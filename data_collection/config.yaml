@@ -26,7 +26,14 @@ universe:
   include_context_symbols: ["SPY","QQQ","IWM","DIA","XLF","XLE","XLK","XLV","XLY","XLP","XLI","XLU","XLB","XLRE","IEF","TLT","SHY","UUP"]
 
 market_data:
-  provider: "alpaca"
+  provider: "stooq"
+
+stooq:
+  base_url: "https://stooq.com"
+  daily_endpoint: "/q/d/l/"
+  symbol_suffix: ".us"
+  symbol_map:
+    BRK.B: "brk-b"
 
 alpaca:
   base_url: "https://data.alpaca.markets"
@@ -56,6 +63,8 @@ news:
     max_docs_per_symbol_per_poll: 10
 
 earnings:
+  window_past_days: 30
+  window_future_days: 14
   nasdaq:
     earnings_calendar_endpoint: "https://api.nasdaq.com/api/calendar/earnings"
 

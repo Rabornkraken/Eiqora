@@ -1,15 +1,14 @@
 """
 Economic Calendar Pipeline.
-Fetches upcoming economic events from Investing.com economic calendar.
+Fetches economic events from Forex Factory.
 """
 
 import asyncio
 import logging
-import re
-from datetime import datetime, timedelta
+import os
+from datetime import datetime, timedelta, date
 from typing import Any
 
-import requests
 from bs4 import BeautifulSoup
 
 from eiqora_v2.tools.db import get_connection
@@ -44,8 +43,37 @@ HIGH_IMPACT_EVENTS = {
     'ppi',
 }
 
+FOREXFACTORY_URL = "https://www.forexfactory.com/calendar"
+DEFAULT_USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/124.0.0.0 Safari/537.36"
+)
 
-async def fetch_forexfactory_calendar() -> list[dict[str, Any]]:
+
+def _week_start(value: date) -> date:
+    days_since_sunday = (value.weekday() + 1) % 7
+    return value - timedelta(days=days_since_sunday)
+
+
+def _week_key(value: date) -> str:
+    return f"{value.strftime('%b').lower()}{value.day}.{value.year}"
+
+
+def _weeks_in_range(start_date: date, end_date: date) -> list[date]:
+    current = _week_start(start_date)
+    end_week = _week_start(end_date)
+    weeks: list[date] = []
+    while current <= end_week:
+        weeks.append(current)
+        current += timedelta(days=7)
+    return weeks
+
+
+async def fetch_forexfactory_calendar(
+    week: str | None = None,
+    week_start: date | None = None,
+) -> list[dict[str, Any]]:
     """
     Fetch economic calendar from Forex Factory using Playwright with stealth mode.
     Returns list of events with actual/forecast/previous values.
@@ -60,13 +88,16 @@ async def fetch_forexfactory_calendar() -> list[dict[str, Any]]:
         return events
     
     # Forex Factory calendar URL - shows current week
-    url = "https://www.forexfactory.com/calendar"
+    url = FOREXFACTORY_URL if not week else f"{FOREXFACTORY_URL}?week={week}"
+    if week_start is None:
+        week_start = _week_start(datetime.now().date())
     
     try:
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
+            user_agent = os.getenv("DATA_COLLECTION_USER_AGENT", DEFAULT_USER_AGENT)
             context = await browser.new_context(
-                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                user_agent=user_agent,
                 viewport={'width': 1920, 'height': 1080},
             )
             page = await context.new_page()
@@ -98,7 +129,7 @@ async def fetch_forexfactory_calendar() -> list[dict[str, Any]]:
             await browser.close()
         
         # Track current date from date cells
-        current_date = datetime.now().date()
+        current_date = week_start or datetime.now().date()
         year = current_date.year
         
         # Parse the calendar table
@@ -113,7 +144,13 @@ async def fetch_forexfactory_calendar() -> list[dict[str, Any]]:
                             # Format: "Mon Jan 6" or similar
                             from dateutil import parser
                             parsed = parser.parse(f"{date_text} {year}")
-                            current_date = parsed.date()
+                            parsed_date = parsed.date()
+                            if week_start:
+                                if parsed_date < week_start - timedelta(days=3):
+                                    parsed_date = parsed_date.replace(year=parsed_date.year + 1)
+                                elif parsed_date > week_start + timedelta(days=7):
+                                    parsed_date = parsed_date.replace(year=parsed_date.year - 1)
+                            current_date = parsed_date
                         except:
                             pass
                 
@@ -195,175 +232,27 @@ async def fetch_forexfactory_calendar() -> list[dict[str, Any]]:
     return events
 
 
-def get_fomc_dates() -> list[dict]:
-    """Return known FOMC meeting dates for 2024-2025."""
-    # FOMC schedule (official)
-    fomc_dates = [
-        # 2024 (for historical context)
-        ('2024-01-31', 'FOMC Rate Decision'),
-        ('2024-03-20', 'FOMC Rate Decision'),
-        ('2024-05-01', 'FOMC Rate Decision'),
-        ('2024-06-12', 'FOMC Rate Decision'),
-        ('2024-07-31', 'FOMC Rate Decision'),
-        ('2024-09-18', 'FOMC Rate Decision'),
-        ('2024-11-07', 'FOMC Rate Decision'),
-        ('2024-12-18', 'FOMC Rate Decision'),
-        # 2025
-        ('2025-01-29', 'FOMC Rate Decision'),
-        ('2025-03-19', 'FOMC Rate Decision'),
-        ('2025-05-07', 'FOMC Rate Decision'),
-        ('2025-06-18', 'FOMC Rate Decision'),
-        ('2025-07-30', 'FOMC Rate Decision'),
-        ('2025-09-17', 'FOMC Rate Decision'),
-        ('2025-11-05', 'FOMC Rate Decision'),
-        ('2025-12-17', 'FOMC Rate Decision'),
-    ]
-    
-    events = []
-    for date_str, name in fomc_dates:
-        dt = datetime.strptime(date_str, '%Y-%m-%d')
-        events.append({
-            'event_name': name,
-            'event_date': dt.replace(hour=14, minute=0),  # 2 PM ET
-            'country': 'US',
-            'impact': 'high',
-            'source': 'federal_reserve',
-        })
+async def fetch_forexfactory_months_ahead(months_ahead: int) -> list[dict[str, Any]]:
+    from dateutil.relativedelta import relativedelta
+
+    today = datetime.now().date()
+    end_date = today + relativedelta(months=months_ahead)
+    weeks = _weeks_in_range(today, end_date)
+
+    events: list[dict[str, Any]] = []
+    seen: set[tuple[str, date, str]] = set()
+    for week_start in weeks:
+        week_key = _week_key(week_start)
+        week_events = await fetch_forexfactory_calendar(week=week_key, week_start=week_start)
+        for event in week_events:
+            key = (event.get("event_name", ""), event.get("event_date").date(), event.get("country", "US"))
+            if key in seen:
+                continue
+            seen.add(key)
+            events.append(event)
     return events
 
 
-def get_macro_release_dates() -> list[dict]:
-    """
-    Return scheduled release dates for major economic indicators.
-    Generates dates dynamically for the next 12 months.
-    """
-    from datetime import date
-    events = []
-    
-    # Get current year and next year
-    today = date.today()
-    current_year = today.year
-    next_year = current_year + 1
-    
-    # Jobs Report (Non-Farm Payrolls) - First Friday of each month, 8:30 AM ET
-    # Approximate dates for 2026
-    nfp_dates_2026 = [
-        '2026-01-09', '2026-02-06', '2026-03-06', '2026-04-03', 
-        '2026-05-08', '2026-06-05', '2026-07-02', '2026-08-07',
-        '2026-09-04', '2026-10-02', '2026-11-06', '2026-12-04',
-    ]
-    for date_str in nfp_dates_2026:
-        dt = datetime.strptime(date_str, '%Y-%m-%d')
-        events.append({
-            'event_name': 'Non-Farm Payrolls',
-            'event_date': dt.replace(hour=8, minute=30),
-            'country': 'US',
-            'impact': 'high',
-            'source': 'bls',
-        })
-        events.append({
-            'event_name': 'Unemployment Rate',
-            'event_date': dt.replace(hour=8, minute=30),
-            'country': 'US',
-            'impact': 'high',
-            'source': 'bls',
-        })
-    
-    # CPI Report - Mid-month, 8:30 AM ET (2026)
-    cpi_dates_2026 = [
-        '2026-01-14', '2026-02-11', '2026-03-11', '2026-04-14',
-        '2026-05-12', '2026-06-10', '2026-07-14', '2026-08-12',
-        '2026-09-11', '2026-10-13', '2026-11-12', '2026-12-11',
-    ]
-    for date_str in cpi_dates_2026:
-        dt = datetime.strptime(date_str, '%Y-%m-%d')
-        events.append({
-            'event_name': 'CPI (Consumer Price Index)',
-            'event_date': dt.replace(hour=8, minute=30),
-            'country': 'US',
-            'impact': 'high',
-            'source': 'bls',
-        })
-    
-    # FOMC 2026 (estimated based on typical schedule)
-    fomc_2026 = [
-        ('2026-01-28', 'FOMC Rate Decision'),
-        ('2026-03-18', 'FOMC Rate Decision'),
-        ('2026-05-06', 'FOMC Rate Decision'),
-        ('2026-06-17', 'FOMC Rate Decision'),
-        ('2026-07-29', 'FOMC Rate Decision'),
-        ('2026-09-16', 'FOMC Rate Decision'),
-        ('2026-11-04', 'FOMC Rate Decision'),
-        ('2026-12-16', 'FOMC Rate Decision'),
-    ]
-    for date_str, name in fomc_2026:
-        dt = datetime.strptime(date_str, '%Y-%m-%d')
-        events.append({
-            'event_name': name,
-            'event_date': dt.replace(hour=14, minute=0),
-            'country': 'US',
-            'impact': 'high',
-            'source': 'federal_reserve',
-        })
-    
-    # GDP 2026 (Quarterly reports)
-    gdp_dates_2026 = [
-        ('2026-01-29', 'GDP (Q4 2025 Advance)'),
-        ('2026-02-26', 'GDP (Q4 2025 Second)'),
-        ('2026-03-26', 'GDP (Q4 2025 Third)'),
-        ('2026-04-29', 'GDP (Q1 2026 Advance)'),
-        ('2026-05-28', 'GDP (Q1 2026 Second)'),
-        ('2026-06-25', 'GDP (Q1 2026 Third)'),
-        ('2026-07-29', 'GDP (Q2 2026 Advance)'),
-        ('2026-08-27', 'GDP (Q2 2026 Second)'),
-        ('2026-09-24', 'GDP (Q2 2026 Third)'),
-        ('2026-10-29', 'GDP (Q3 2026 Advance)'),
-    ]
-    for date_str, name in gdp_dates_2026:
-        dt = datetime.strptime(date_str, '%Y-%m-%d')
-        events.append({
-            'event_name': name,
-            'event_date': dt.replace(hour=8, minute=30),
-            'country': 'US',
-            'impact': 'high',
-            'source': 'bea',
-        })
-    
-    # PCE 2026 (End of month)
-    pce_dates_2026 = [
-        '2026-01-30', '2026-02-27', '2026-03-27', '2026-04-30',
-        '2026-05-29', '2026-06-26', '2026-07-31', '2026-08-28',
-        '2026-09-25', '2026-10-30', '2026-11-25', '2026-12-23',
-    ]
-    for date_str in pce_dates_2026:
-        dt = datetime.strptime(date_str, '%Y-%m-%d')
-        events.append({
-            'event_name': 'PCE Price Index',
-            'event_date': dt.replace(hour=8, minute=30),
-            'country': 'US',
-            'impact': 'high',
-            'source': 'bea',
-        })
-    
-    # Initial Jobless Claims - Every Thursday for next 52 weeks
-    # Find next Thursday from today
-    days_until_thursday = (3 - today.weekday()) % 7
-    if days_until_thursday == 0:
-        days_until_thursday = 7  # If today is Thursday, start next week
-    next_thursday = today + timedelta(days=days_until_thursday)
-    
-    for week in range(52):
-        claim_date = next_thursday + timedelta(days=7 * week)
-        dt = datetime.combine(claim_date, datetime.min.time())
-        events.append({
-            'event_name': 'Initial Jobless Claims',
-            'event_date': dt.replace(hour=8, minute=30),
-            'country': 'US',
-            'impact': 'medium',
-            'source': 'dol',
-        })
-    
-    return events
 
 
 async def upsert_events(events: list[dict]) -> int:
@@ -375,21 +264,29 @@ async def upsert_events(events: list[dict]) -> int:
         inserted = 0
         for event in events:
             try:
+                event_dt = event.get("event_date") or datetime.now()
+                event_date = event_dt.date() if isinstance(event_dt, datetime) else event_dt
+                event_time = event_dt.time() if isinstance(event_dt, datetime) else None
                 await conn.execute("""
-                    INSERT INTO economic_event (event_name, event_date, country, actual, forecast, previous, impact, source)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                    ON CONFLICT (event_name, event_date, country) 
-                    DO UPDATE SET actual = EXCLUDED.actual, forecast = EXCLUDED.forecast, 
-                                  previous = EXCLUDED.previous, impact = EXCLUDED.impact
+                    INSERT INTO economic_event (event_name, event_date, event_time, country, actual, forecast, previous, impact, source)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                    ON CONFLICT (event_name, event_date, country)
+                    DO UPDATE SET event_time = COALESCE(EXCLUDED.event_time, economic_event.event_time),
+                                  actual = COALESCE(EXCLUDED.actual, economic_event.actual),
+                                  forecast = COALESCE(EXCLUDED.forecast, economic_event.forecast),
+                                  previous = COALESCE(EXCLUDED.previous, economic_event.previous),
+                                  impact = COALESCE(EXCLUDED.impact, economic_event.impact),
+                                  source = COALESCE(EXCLUDED.source, economic_event.source)
                 """,
                     event['event_name'],
-                    event.get('event_date', datetime.now()),
+                    event_date,
+                    event_time,
                     event.get('country', 'US'),
                     event.get('actual'),
                     event.get('forecast'),
                     event.get('previous'),
                     event.get('impact', 'medium'),
-                    event.get('source', 'unknown'),
+                    'forexfactory',
                 )
                 inserted += 1
             except Exception as e:
@@ -401,15 +298,19 @@ async def upsert_events(events: list[dict]) -> int:
 async def run():
     """Main pipeline entry point."""
     logger.info("Fetching economic calendar from Forex Factory...")
-    
-    # Fetch live data from Forex Factory (high + medium impact USD events only)
-    events = await fetch_forexfactory_calendar()
+
+    months_ahead = int(os.getenv("FOREXFACTORY_MONTHS_AHEAD", "1") or 0)
+    if months_ahead > 0:
+        logger.info("Fetching Forex Factory calendar for next %s months", months_ahead)
+        events = await fetch_forexfactory_months_ahead(months_ahead)
+    else:
+        events = await fetch_forexfactory_calendar()
     logger.info(f"Found {len(events)} high/medium impact USD events from Forex Factory")
-    
+
     if not events:
-        logger.warning("No events fetched from Forex Factory")
+        logger.warning("No events fetched from Forex Factory; skipping update")
         return
-    
+
     # Insert events
     inserted = await upsert_events(events)
     logger.info(f"Inserted {inserted} events")

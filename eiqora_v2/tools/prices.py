@@ -41,6 +41,44 @@ async def get_prices(
         return [dict(r) for r in rows]
 
 
+async def get_return_metrics(
+    symbol: str,
+    window_days: int,
+    asof_time: datetime,
+) -> dict[str, Any]:
+    """
+    Compute basic return metrics from price data.
+
+    Returns:
+        Dict with ret_20d, ret_60d, last_date, data_points.
+    """
+    prices = await get_prices(symbol, window_days, asof_time)
+    if len(prices) < 20:
+        return {
+            "error": "Insufficient data",
+            "data_points": len(prices),
+        }
+
+    df = pd.DataFrame(prices)
+    df["date"] = pd.to_datetime(df["date"])
+    df = df.set_index("date").sort_index()
+
+    close = df["close"].astype(float)
+    last_date = df.index.max().date() if len(df.index) > 0 else None
+    current_price = float(close.iloc[-1])
+
+    ret_20d = float((close.iloc[-1] / close.iloc[-20] - 1)) if len(close) >= 20 else None
+    ret_60d = float((close.iloc[-1] / close.iloc[-60] - 1)) if len(close) >= 60 else None
+
+    return {
+        "current_price": current_price,
+        "ret_20d": ret_20d,
+        "ret_60d": ret_60d,
+        "last_date": last_date,
+        "data_points": len(prices),
+    }
+
+
 async def get_indicators(
     symbol: str,
     window_days: int,
@@ -65,7 +103,8 @@ async def get_indicators(
         Dict with computed indicators
     """
     # Fetch extra days for MA lookback
-    lookback_days = window_days + 210  # Extra for MA200
+    # Use a wider calendar window to reliably capture 200 trading days.
+    lookback_days = max(window_days + 210, 320)
     prices = await get_prices(symbol, lookback_days, asof_time)
     
     if len(prices) < 20:
@@ -85,6 +124,7 @@ async def get_indicators(
     
     # Current price
     current_price = float(close.iloc[-1])
+    last_date = df.index.max().date() if len(df.index) > 0 else None
     
     # Moving averages
     ma20 = float(close.rolling(20).mean().iloc[-1])
@@ -247,6 +287,7 @@ async def get_indicators(
         "volume_z_20d": volume_z_20d,
         "state_tags": state_tags,
         "data_points": len(prices),
+        "last_date": last_date,
     }
 
 
@@ -359,25 +400,28 @@ async def get_hourly_indicators(
     Returns:
         Dict with hourly indicators for entry timing
     """
-    from datetime import timedelta
+    from datetime import timedelta, timezone
     
     async with get_connection() as conn:
-        # Get hourly bars for check_date and previous 5 days
-        start_date = check_date - timedelta(days=7)
+        # Get the most recent hourly bars (capped at asof_time)
+        asof_ts = asof_time
+        if asof_ts.tzinfo is not None:
+            asof_ts = asof_ts.astimezone(timezone.utc).replace(tzinfo=None)
         
         try:
             rows = await conn.fetch("""
                 SELECT datetime, open, high, low, close, volume
                 FROM market_bar_hourly
                 WHERE symbol = $1
-                  AND datetime::date >= $2
-                  AND datetime::date <= $3
-                ORDER BY datetime ASC
-            """, symbol, start_date, check_date)
+                  AND datetime <= $2
+                ORDER BY datetime DESC
+                LIMIT 200
+            """, symbol, asof_ts)
             
             if len(rows) < 8:
                 return {"error": "Insufficient hourly data", "data_points": len(rows)}
             
+            rows = list(reversed(rows))
             df = pd.DataFrame([dict(r) for r in rows])
             df["datetime"] = pd.to_datetime(df["datetime"])
             df = df.set_index("datetime").sort_index()
@@ -387,11 +431,19 @@ async def get_hourly_indicators(
             low = df["low"].astype(float)
             volume = df["volume"].astype(float)
             
-            # Filter to today's bars only
-            today_bars = df[df.index.date == check_date]
+            # Get the most recent trading day in the data (not necessarily check_date)
+            latest_ts = df.index.max()
+            if asof_ts - latest_ts > timedelta(hours=2):
+                return {
+                    "error": "Stale hourly data",
+                    "data_points": len(rows),
+                    "bar_time": latest_ts.isoformat(),
+                }
+            latest_date = latest_ts.date()
+            today_bars = df[df.index.date == latest_date]
             
             if len(today_bars) == 0:
-                return {"error": "No hourly data for check_date", "data_points": 0}
+                return {"error": "No hourly data for latest date", "data_points": 0}
             
             current_price = float(close.iloc[-1])
             
@@ -464,6 +516,7 @@ async def get_hourly_indicators(
             
             return {
                 "current_price": current_price,
+                "bar_time": latest_ts.isoformat(),
                 "vwap": float(vwap),
                 "vwap_distance_pct": vwap_distance_pct * 100,
                 "rsi_hourly": rsi_hourly,

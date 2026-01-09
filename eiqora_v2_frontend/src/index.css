@@ -1,0 +1,498 @@
+/* Bloomberg Terminal Design System */
+
+:root {
+  /* Light Mode Colors */
+  --bg-primary: #F5F5F5;
+  --bg-surface: #FFFFFF;
+  --border-primary: #1a1a1a;
+  --border-light: #e0e0e0;
+  --text-primary: #000000;
+  --text-secondary: #666666;
+  --text-muted: #999999;
+
+  /* Financial Colors */
+  --color-go: #00C853;
+  --color-no-go: #FF1744;
+  --color-neutral: #666666;
+
+  /* Chart Colors */
+  --chart-line: #64B5F6;
+  --chart-gradient-start: rgba(100, 181, 246, 0.4);
+  --chart-gradient-end: rgba(100, 181, 246, 0.0);
+  --chart-grid: #e0e0e0;
+  --chart-reference: #9E9E9E;
+
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-2xl: 32px;
+
+  /* Typography */
+  --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+  --font-system: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* Dark Mode Colors */
+[data-theme="dark"] {
+  --bg-primary: #0a0a0a;
+  --bg-surface: #1a1a1a;
+  --border-primary: #333333;
+  --border-light: #2a2a2a;
+  --text-primary: #e0e0e0;
+  --text-secondary: #a0a0a0;
+  --text-muted: #707070;
+
+  /* Financial Colors - slightly adjusted for dark mode */
+  --color-go: #00E676;
+  --color-no-go: #FF5252;
+  --color-neutral: #a0a0a0;
+
+  /* Chart Colors - cyan for dark mode */
+  --chart-line: #00E5FF;
+  --chart-gradient-start: rgba(0, 229, 255, 0.3);
+  --chart-gradient-end: rgba(0, 229, 255, 0.0);
+  --chart-grid: #2a2a2a;
+  --chart-reference: #616161;
+}
+
+/* Reset & Base */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-mono);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Terminal-style borders */
+.border-box {
+  border: 1px solid var(--border-primary);
+  background-color: var(--bg-surface);
+}
+
+.border-light {
+  border: 1px solid var(--border-light);
+}
+
+/* Typography */
+.text-mono {
+  font-family: var(--font-mono);
+}
+
+.text-sm {
+  font-size: 0.875rem;
+}
+
+.text-xs {
+  font-size: 0.75rem;
+}
+
+.text-lg {
+  font-size: 1.125rem;
+}
+
+.text-xl {
+  font-size: 1.25rem;
+}
+
+.font-bold {
+  font-weight: 700;
+}
+
+.font-semibold {
+  font-weight: 600;
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+.text-secondary {
+  color: var(--text-secondary);
+}
+
+/* Financial Status Colors */
+.status-go {
+  color: var(--color-go);
+  font-weight: 600;
+}
+
+.status-no-go {
+  color: var(--color-no-go);
+  font-weight: 600;
+}
+
+/* Layout Utilities */
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 var(--space-lg);
+}
+
+.flex {
+  display: flex;
+}
+
+.flex-col {
+  flex-direction: column;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.justify-between {
+  justify-content: space-between;
+}
+
+.gap-sm {
+  gap: var(--space-sm);
+}
+
+.gap-md {
+  gap: var(--space-md);
+}
+
+.gap-lg {
+  gap: var(--space-lg);
+}
+
+/* Responsive Table */
+.table-container {
+  overflow-x: auto;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-surface);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+}
+
+thead {
+  background-color: var(--bg-primary);
+  border-bottom: 2px solid var(--border-primary);
+}
+
+th {
+  text-align: left;
+  padding: var(--space-md);
+  font-weight: 600;
+  border-right: 1px solid var(--border-light);
+  white-space: nowrap;
+}
+
+th:last-child {
+  border-right: none;
+}
+
+td {
+  padding: var(--space-md);
+  border-top: 1px solid var(--border-light);
+  border-right: 1px solid var(--border-light);
+}
+
+td:last-child {
+  border-right: none;
+}
+
+tbody tr:hover {
+  background-color: var(--border-light);
+  cursor: pointer;
+}
+
+/* Button Styles */
+button {
+  font-family: var(--font-mono);
+  padding: var(--space-sm) var(--space-lg);
+  border: 1px solid var(--border-primary);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: all 0.15s;
+}
+
+button:hover {
+  background-color: var(--bg-primary);
+}
+
+button:active {
+  transform: translateY(1px);
+}
+
+button.primary {
+  background-color: var(--text-primary);
+  color: var(--bg-surface);
+}
+
+button.primary:hover {
+  opacity: 0.9;
+}
+
+/* Theme Toggle Button */
+.theme-toggle {
+  padding: var(--space-sm);
+  min-width: auto;
+  font-size: 1.2rem;
+  background: transparent;
+  border: 1px solid var(--border-primary);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.theme-toggle:hover {
+  background: var(--border-light);
+}
+
+/* Header */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  border-bottom: 1px solid var(--border-primary);
+  background-color: var(--bg-surface);
+  padding: var(--space-lg) 0;
+  backdrop-filter: blur(8px);
+  background-color: rgba(255, 255, 255, 0.95);
+}
+
+[data-theme="dark"] .header {
+  background-color: rgba(26, 26, 26, 0.95);
+}
+
+.header-content {
+  gap: var(--space-2xl);
+}
+
+.logo {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--space-lg);
+  flex: 1;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.stat-value {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+/* Tab Navigation */
+.tabs {
+  border-bottom: 1px solid var(--border-primary);
+  background-color: var(--bg-surface);
+  margin-top: var(--space-md);
+}
+
+.tabs-list {
+  display: flex;
+  gap: 0;
+  list-style: none;
+  padding: 0 var(--space-lg);
+  margin: 0;
+}
+
+.tab-button {
+  padding: var(--space-md) var(--space-xl);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tab-button:hover {
+  color: var(--text-primary);
+  background: var(--border-light);
+}
+
+.tab-button.active {
+  color: var(--text-primary);
+  border-bottom-color: var(--text-primary);
+  background: transparent;
+}
+
+.tab-content {
+  padding: var(--space-2xl) 0;
+}
+
+/* Chart Container */
+.chart-section {
+  margin: var(--space-2xl) 0;
+}
+
+.chart-box {
+  border: 1px solid var(--border-primary);
+  background: var(--bg-surface);
+  padding: var(--space-xl);
+}
+
+.chart-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: var(--space-xl);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Recharts Custom Styling */
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: var(--chart-grid);
+}
+
+.recharts-text {
+  fill: var(--text-secondary);
+}
+
+/* Loading & Error States */
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2xl);
+  color: var(--text-muted);
+}
+
+.error {
+  padding: var(--space-xl);
+  border: 1px solid var(--color-no-go);
+  background-color: rgba(255, 23, 68, 0.05);
+  color: var(--color-no-go);
+}
+
+[data-theme="dark"] .error {
+  background-color: rgba(255, 82, 82, 0.1);
+}
+
+/* Modal/Details View */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: var(--space-2xl);
+}
+
+[data-theme="dark"] .modal-overlay {
+  background-color: rgba(0, 0, 0, 0.85);
+}
+
+.modal-content {
+  background: var(--bg-surface);
+  border: 2px solid var(--border-primary);
+  max-width: 900px;
+  max-height: 90vh;
+  overflow-y: auto;
+  width: 100%;
+}
+
+.modal-header {
+  padding: var(--space-xl);
+  border-bottom: 1px solid var(--border-primary);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-body {
+  padding: var(--space-xl);
+}
+
+.modal-close {
+  padding: var(--space-sm);
+  min-width: auto;
+}
+
+/* Agent Output Sections */
+.agent-section {
+  margin-bottom: var(--space-xl);
+  border: 1px solid var(--border-light);
+  padding: var(--space-lg);
+}
+
+.agent-section h4 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: var(--space-md);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.agent-section pre {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  color: var(--text-secondary);
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-primary);
+  border-radius: 0;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}

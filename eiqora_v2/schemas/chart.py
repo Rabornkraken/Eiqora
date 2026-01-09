@@ -5,6 +5,7 @@ Chart Agent output schema.
 from typing import Literal
 from pydantic import BaseModel, Field
 
+from eiqora_v2.schemas.context import RelativeStrengthMetrics
 
 class EntryTrigger(BaseModel):
     """Entry trigger specification."""
@@ -71,4 +72,9 @@ class ChartOutput(BaseModel):
         default="",
         max_length=300,
         description="Brief technical notes"
+    )
+
+    relative_strength: RelativeStrengthMetrics | None = Field(
+        default=None,
+        description="Relative strength vs benchmarks (copied from context)"
     )

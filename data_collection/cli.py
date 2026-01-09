@@ -16,8 +16,7 @@ PIPELINES: dict[str, str] = {
     "fred_macro": "data_collection.pipelines.fred_macro.pipeline",
     "usaspending": "data_collection.pipelines.usaspending.pipeline",
     "sec_ftd": "data_collection.pipelines.sec_ftd.pipeline",
-    "lobbying": "data_collection.pipelines.lobbying.pipeline",
-    "openinsider": "data_collection.pipelines.openinsider.pipeline",
+    "sec_ftd_etl": "data_collection.pipelines.sec_ftd.etl",
 }
 
 

@@ -1,7 +1,7 @@
 # Postgres setup
 
 This folder contains the initialization schema for the data-collection
-warehouse described in `docs/data_collection_pipeline_plan_updated_alpaca.md`.
+warehouse.
 
 ## Start Postgres locally (Docker)
 

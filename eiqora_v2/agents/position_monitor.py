@@ -222,9 +222,10 @@ class PositionMonitorAgent(BaseAgent[PositionMonitorOutput]):
         entry_price = position.get("entry_price", 0)
         current_price = position.get("current_price", entry_price)
         entry_date = position.get("entry_date")
+        direction = str(position.get("direction", "LONG")).upper()
         
         # Calculate unrealized P&L
-        if position.get("direction") == "long":
+        if direction == "LONG":
             unrealized_pnl_pct = (current_price - entry_price) / entry_price if entry_price else 0
         else:
             unrealized_pnl_pct = (entry_price - current_price) / entry_price if entry_price else 0

@@ -94,7 +94,7 @@ class DecisionOutput(BaseModel):
     )
     
     reason: str = Field(
-        max_length=300,
+        max_length=1000,
         description="Decision reasoning"
     )
     

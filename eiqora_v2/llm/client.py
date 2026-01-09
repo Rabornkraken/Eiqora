@@ -83,6 +83,42 @@ async def call_llm(
     
     last_error: Exception | None = None
     
+    def _truncate_at_path(payload: dict[str, Any], loc: tuple, max_len: int) -> bool:
+        target: Any = payload
+        for idx, key in enumerate(loc):
+            is_last = idx == len(loc) - 1
+            if is_last:
+                if isinstance(target, dict) and key in target and isinstance(target[key], str):
+                    target[key] = target[key][:max_len]
+                    return True
+                if isinstance(target, list) and isinstance(key, int) and 0 <= key < len(target):
+                    if isinstance(target[key], str):
+                        target[key] = target[key][:max_len]
+                        return True
+                return False
+            if isinstance(target, dict) and key in target:
+                target = target[key]
+                continue
+            if isinstance(target, list) and isinstance(key, int) and 0 <= key < len(target):
+                target = target[key]
+                continue
+            return False
+        return False
+
+    def _apply_truncations(payload: dict[str, Any], errors: list[dict[str, Any]]) -> bool:
+        truncated = False
+        for err in errors:
+            if err.get("type") != "string_too_long":
+                continue
+            loc = err.get("loc")
+            ctx = err.get("ctx") or {}
+            max_len = ctx.get("max_length")
+            if not loc or max_len is None:
+                continue
+            if _truncate_at_path(payload, tuple(loc), int(max_len)):
+                truncated = True
+        return truncated
+
     for attempt in range(settings.LLM_MAX_RETRIES + 1):
         try:
             response = await client.chat.completions.create(
@@ -98,7 +134,15 @@ async def call_llm(
             
             # Parse JSON and validate against schema
             data = json.loads(content)
-            result = schema.model_validate(data)
+            try:
+                result = schema.model_validate(data)
+            except ValidationError as e:
+                errors = e.errors()
+                if errors and _apply_truncations(data, errors):
+                    result = schema.model_validate(data)
+                    logger.warning("Auto-truncated string fields to satisfy schema max_length.")
+                else:
+                    raise
             
             logger.debug(f"LLM response parsed successfully on attempt {attempt + 1}")
             return result

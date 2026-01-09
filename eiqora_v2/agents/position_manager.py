@@ -9,7 +9,6 @@ and make intelligent decisions about new trades based on:
 - Market context
 """
 
-from datetime import datetime
 from typing import Any
 from pydantic import BaseModel, Field
 
@@ -64,50 +63,79 @@ class PositionManagerAgent(BaseAgent[PositionManagerOutput]):
         """
         Gather current portfolio state and proposed trade.
         
-        In live mode, queries Alpaca for open positions.
+        Uses database-tracked positions for live mode.
         In backtest mode, uses state['current_positions'].
         """
-        from eiqora_v2.tools.db import get_connection
+        from eiqora_v2.tools.positions import get_open_positions
+        from eiqora_v2.services.risk_model import size_position
         
         # Get proposed trade details
         decision = state.get("decision", {})
         symbol = state.get("symbol")
+        ideas = state.get("ideas", {}) or {}
+        context = state.get("context", {}) or {}
+        rule = decision.get("rule", {}) or {}
+
+        ideas_list = ideas.get("ideas", []) or []
+        primary_idea_id = ideas.get("primary_idea_id")
+        primary_idea = next(
+            (idea for idea in ideas_list if idea.get("idea_id") == primary_idea_id),
+            ideas_list[0] if ideas_list else {},
+        )
+
+        entry_price = rule.get("entry_level") or context.get("current_price") or 0
+        sl_mult = rule.get("sl_mult", 2.0)
+        atr = context.get("atr14")
+        if not atr and entry_price:
+            atr = entry_price * 0.02
+        direction = rule.get("direction", "LONG")
+        stop_loss = None
+        if entry_price and atr:
+            if direction == "SHORT":
+                stop_loss = entry_price + (atr * sl_mult)
+            else:
+                stop_loss = entry_price - (atr * sl_mult)
+
+        conviction = primary_idea.get("conviction") or "MEDIUM"
+
+        risk_model_output: dict[str, Any] = {}
+        if entry_price:
+            try:
+                risk_model_output = await size_position(
+                    symbol=symbol,
+                    entry_price=entry_price,
+                    stop_loss=stop_loss,
+                    conviction=conviction,
+                )
+            except Exception as exc:
+                risk_model_output = {"error": str(exc)}
         
         proposed_trade = {
             "symbol": symbol,
-            "direction": decision.get("direction", "LONG"),
-            "conviction": decision.get("conviction", "MEDIUM"),
+            "direction": rule.get("direction", decision.get("direction", "LONG")),
+            "conviction": conviction,
             "setup_type": decision.get("setup_type", ""),
-            "proposed_size_pct": decision.get("position_size_pct", 10.0),
-            "entry_price": decision.get("entry_price", 0),
+            "proposed_size_pct": risk_model_output.get("position_size_pct", decision.get("position_size_pct", 10.0)),
+            "entry_price": entry_price,
+            "stop_loss": stop_loss,
         }
         
-        # Get current positions
-        # In production, this would query Alpaca API
-        # For now, query from signal table
+        # Get current positions from database
         positions = []
-        async with get_connection() as conn:
-            rows = await conn.fetch("""
-                SELECT symbol, entry_price, stop_loss, take_profit,
-                       conviction, created_at
-                FROM signal
-                WHERE action = 'GO'
-                  AND created_at > NOW() - INTERVAL '30 days'
-                ORDER BY created_at DESC
-                LIMIT 10
-            """)
-            
-            for row in rows:
-                # Simplified: assume all are still open
-                # In production, would check Alpaca positions
+        try:
+            open_positions = await get_open_positions()
+            for pos in open_positions:
                 positions.append({
-                    "symbol": row["symbol"],
-                    "entry_price": float(row["entry_price"]) if row["entry_price"] else 0,
-                    "current_price": 0,  # Would fetch from market
-                    "pnl_pct": 0,  # Would calculate
-                    "size_pct": 10.0,  # Would get from actual position
-                    "days_held": (datetime.utcnow() - row["created_at"]).days,
+                    "symbol": pos["symbol"],
+                    "entry_price": float(pos.get("entry_price") or 0),
+                    "current_price": float(pos.get("current_price") or pos.get("entry_price") or 0),
+                    "pnl_pct": float(pos.get("unrealized_pnl_pct") or 0),
+                    "size_pct": float(pos.get("size_pct") or 10.0),
+                    "days_held": int(pos.get("days_held") or 0),
                 })
+        except Exception as e:
+            self._logger.debug(f"No existing positions found: {e}")
+            positions = []
         
         # Calculate portfolio metrics
         total_exposure = sum(p["size_pct"] for p in positions)
@@ -118,6 +146,7 @@ class PositionManagerAgent(BaseAgent[PositionManagerOutput]):
             "total_exposure_pct": total_exposure,
             "available_capital_pct": 100 - total_exposure,
             "topdown": state.get("topdown", {}),
+            "risk_model": risk_model_output,
         }
     
     def _build_prompt(self, state: SwingTradeState, data: dict[str, Any]) -> str:
@@ -127,6 +156,7 @@ class PositionManagerAgent(BaseAgent[PositionManagerOutput]):
         exposure = data["total_exposure_pct"]
         available = data["available_capital_pct"]
         topdown = data.get("topdown", {})
+        risk_model = data.get("risk_model", {}) or {}
         
         # MACRO SAFEGUARD: Check for market stress (SPY drawdown)
         spy_indicators = topdown.get("spy", {})
@@ -179,6 +209,16 @@ PROPOSED TRADE:
 - Setup: {proposed['setup_type']}
 - Conviction: {proposed['conviction']}
 - Proposed size: {proposed['proposed_size_pct']:.1f}%
+- Entry Price: {proposed.get('entry_price', 0)}
+- Stop Loss: {proposed.get('stop_loss', 'N/A')}
+
+RISK MODEL (deterministic caps):
+- Recommended size %: {risk_model.get('position_size_pct', 'N/A')}
+- Portfolio heat cap: {risk_model.get('portfolio_heat_cap', 'N/A')}
+- Available exposure %: {risk_model.get('available_exposure_pct', 'N/A')}
+- Position count: {risk_model.get('position_count', 'N/A')}
+- Sector exposure: {risk_model.get('sector_exposure', {})}
+- Notes: {risk_model.get('notes', [])}
 
 GUIDELINES (interpret contextually, not hard rules):
 - Generally prefer 3-4 positions max
@@ -196,7 +236,7 @@ CONTEXTUAL CONSIDERATIONS:
 - Market stress (correlation breakdown) → extra caution warranted
 
 Make a contextual decision: APPROVE, REDUCE_SIZE, or REJECT.
-If REDUCE_SIZE, suggest appropriate size.
+If REDUCE_SIZE, suggest appropriate size. Do not exceed the risk model recommended size.
 Explain reasoning based on portfolio context.
 """
     

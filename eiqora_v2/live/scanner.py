@@ -236,7 +236,7 @@ class LiveScanner:
         scan_time: datetime,
     ) -> dict[str, Any] | None:
         """
-        Stage 2: Run 8-agent LLM pipeline on a quality-filtered candidate.
+        Stage 2: Run 10-agent LLM pipeline on a quality-filtered candidate.
         """
         try:
             _logger.info(f"🧠 LLM analysis: {symbol} (score: {score:.2f})")

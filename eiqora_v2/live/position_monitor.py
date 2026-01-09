@@ -47,6 +47,7 @@ class PositionMonitor:
     - major_negative_news: High-impact negative news (sentiment < -0.7)
     - stop_loss_hit: Price hit stop loss (auto-exit, no LLM)
     - take_profit_hit: Price hit take profit (auto-exit, no LLM)
+    - time_stop_hit: Position reached time stop (auto-exit, no LLM)
     """
     
     def __init__(self):
@@ -66,7 +67,7 @@ class PositionMonitor:
             check_time = datetime.now(timezone.utc)
         
         # Get open positions
-        positions = await get_open_positions()
+        positions = await get_open_positions(asof_time=check_time)
         if not positions:
             _logger.info("No open positions to monitor")
             return []
@@ -78,6 +79,64 @@ class PositionMonitor:
         
         for position in positions:
             symbol = position["symbol"]
+            direction = str(position.get("direction", "LONG")).upper()
+            current_price = position.get("current_price")
+            stop_loss = position.get("stop_loss")
+            take_profit = position.get("take_profit")
+            time_stop_date = position.get("time_stop_date")
+            if isinstance(time_stop_date, datetime) and time_stop_date.tzinfo is None:
+                time_stop_date = time_stop_date.replace(tzinfo=timezone.utc)
+
+            # Auto-exit checks (no LLM)
+            if current_price is not None:
+                if stop_loss is not None:
+                    if (direction == "LONG" and current_price <= stop_loss) or (
+                        direction == "SHORT" and current_price >= stop_loss
+                    ):
+                        all_triggers.append(
+                            PositionTrigger(
+                                symbol=symbol,
+                                trigger_type="stop_loss_hit",
+                                severity="CRITICAL",
+                                details={
+                                    "current_price": current_price,
+                                    "stop_loss": stop_loss,
+                                },
+                                detected_at=check_time,
+                            )
+                        )
+                        continue
+                if take_profit is not None:
+                    if (direction == "LONG" and current_price >= take_profit) or (
+                        direction == "SHORT" and current_price <= take_profit
+                    ):
+                        all_triggers.append(
+                            PositionTrigger(
+                                symbol=symbol,
+                                trigger_type="take_profit_hit",
+                                severity="CRITICAL",
+                                details={
+                                    "current_price": current_price,
+                                    "take_profit": take_profit,
+                                },
+                                detected_at=check_time,
+                            )
+                        )
+                        continue
+
+            if time_stop_date and check_time >= time_stop_date:
+                all_triggers.append(
+                    PositionTrigger(
+                        symbol=symbol,
+                        trigger_type="time_stop_hit",
+                        severity="HIGH",
+                        details={
+                            "time_stop_date": str(time_stop_date),
+                        },
+                        detected_at=check_time,
+                    )
+                )
+                continue
             
             # Check for thesis-breaking events
             sec_trigger = await self.check_sec_8k_trigger(symbol, check_time)
@@ -92,7 +151,7 @@ class PositionMonitor:
             if news_trigger:
                 all_triggers.append(news_trigger)
             
-            # TODO: Price-based triggers (SL/TP) when we have live prices
+            # Thesis-breaking event checks
         
         if all_triggers:
             _logger.warning(
@@ -186,18 +245,19 @@ class PositionMonitor:
         symbol: str,
         check_time: datetime,
     ) -> PositionTrigger | None:
-        """Check for major negative news (sentiment < -0.7, last 12h)."""
+        """Check for major negative news (FinBERT sentiment < -0.7, last 12h)."""
         try:
             start_time = check_time - timedelta(hours=12)
             async with get_connection() as conn:
                 row = await conn.fetchrow("""
-                    SELECT published_at, title, sentiment_score
-                    FROM document
-                    WHERE ticker = $1
-                      AND published_at BETWEEN $2 AND $3
-                      AND sentiment_score IS NOT NULL
-                      AND sentiment_score < -0.7
-                    ORDER BY sentiment_score ASC
+                    SELECT yn.published_at, yn.title, nr.score
+                    FROM yfinance_news yn
+                    JOIN yfinance_news_relevance nr ON yn.doc_id = nr.doc_id
+                    WHERE yn.ticker = $1
+                      AND yn.published_at BETWEEN $2 AND $3
+                      AND nr.score IS NOT NULL
+                      AND nr.score < -0.7
+                    ORDER BY nr.score ASC
                     LIMIT 1
                 """, symbol, start_time, check_time)
                 
@@ -209,7 +269,7 @@ class PositionMonitor:
                         details={
                             "published_at": str(row["published_at"]),
                             "title": row["title"],
-                            "sentiment": row["sentiment_score"],
+                            "sentiment": row["score"],
                         },
                         detected_at=check_time,
                     )

@@ -1,17 +1,18 @@
 """
 Multi-Agent Orchestrator for Swing Trading.
 
-FULL AGENT CHAIN (9 agents using ALL database tables):
+FULL AGENT CHAIN (10 agents using ALL database tables):
 
 1. TopDownAgent      - Market regime (SPY, QQQ, VIX from market_bar_daily)
 2. ContextAgent      - Stock technical context (market_bar_daily)
 3. ChartAgent        - Setup classification (market_bar_daily)
-4. FundamentalAgent  - News/SEC/Earnings (document, sec_filing, earnings_event)
+4. FundamentalAgent  - News/SEC/Earnings (yfinance_news, sec_filing, earnings_event)
 5. IdeaGeneratorAgent- Generate trade ideas
 6. ExitPolicyAgent   - Define TP/SL/time stop
-7. DecisionAgent     - Final GO/NO_GO decision
-8. VetoAgent         - Sanity checks
-9. NarrativeAgent    - Generate trade narrative
+7. RedTeamAgent      - Stress test idea for risks
+8. DecisionAgent     - Final GO/NO_GO decision
+9. VetoAgent         - Sanity checks
+10. NarrativeAgent   - Generate trade narrative
 
 Each agent receives the state from previous agents and adds its output.
 """
@@ -64,7 +65,7 @@ class Orchestrator:
         from eiqora_v2.agents.chart import ChartAgent
         agents.append(ChartAgent())
         
-        # 4. Fundamental (news/SEC/earnings) - uses document, sec_filing, earnings_event
+        # 4. Fundamental (news/SEC/earnings) - uses yfinance_news, sec_filing, earnings_event
         if self.include_fundamental:
             try:
                 from eiqora_v2.agents.fundamental import FundamentalAgent
@@ -80,15 +81,19 @@ class Orchestrator:
         from eiqora_v2.agents.exit_policy import ExitPolicyAgent
         agents.append(ExitPolicyAgent())
         
-        # 7. Decision - final GO/NO_GO
+        # 7. Red Team - stress test ideas
+        from eiqora_v2.agents.red_team import RedTeamAgent
+        agents.append(RedTeamAgent())
+
+        # 8. Decision - final GO/NO_GO
         from eiqora_v2.agents.decision import DecisionAgent
         agents.append(DecisionAgent())
         
-        # 8. Veto - sanity checks
+        # 9. Veto - sanity checks
         from eiqora_v2.agents.veto import VetoAgent
         agents.append(VetoAgent())
         
-        # 9. Narrative (for approved trades only) - generates trade story
+        # 10. Narrative (for approved trades only) - generates trade story
         # NOTE: This runs conditionally after decision
         
         return agents
@@ -265,6 +270,7 @@ class BacktestOrchestrator:
                 "chart": final_state.get("chart", {}),
                 "fundamental": final_state.get("fundamental", {}),
                 "ideas": final_state.get("ideas", {}),
+                "red_team": final_state.get("red_team", {}),
                 "decision": decision,
                 "narrative": final_state.get("narrative", {}),
             },
@@ -292,16 +298,17 @@ async def main():
     print("FULL MULTI-AGENT ORCHESTRATOR TEST")
     print("="*60)
     print()
-    print("Agent Chain (9 agents):")
+    print("Agent Chain (10 agents):")
     print("1. TopDownAgent      - SPY/QQQ/VIX (market_bar_daily)")
     print("2. ContextAgent      - Stock technicals (market_bar_daily)")
     print("3. ChartAgent        - Setup (market_bar_daily)")
-    print("4. FundamentalAgent  - News/SEC/Earnings (document, sec_filing, earnings_event)")
+    print("4. FundamentalAgent  - News/SEC/Earnings (yfinance_news, sec_filing, earnings_event)")
     print("5. IdeaGeneratorAgent")
     print("6. ExitPolicyAgent")
-    print("7. DecisionAgent")
-    print("8. VetoAgent")
-    print("9. NarrativeAgent    - (if trade approved)")
+    print("7. RedTeamAgent")
+    print("8. DecisionAgent")
+    print("9. VetoAgent")
+    print("10. NarrativeAgent   - (if trade approved)")
     print()
     
     orchestrator = BacktestOrchestrator(include_fundamental=False)  # Skip for quick test

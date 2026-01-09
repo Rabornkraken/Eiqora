@@ -71,49 +71,6 @@ CREATE TABLE IF NOT EXISTS raw_object (
     meta JSONB
 );
 
--- Documents and retrieval
-CREATE TABLE IF NOT EXISTS document (
-    doc_id BIGSERIAL PRIMARY KEY,
-    source TEXT,
-    source_id TEXT,
-    doc_type TEXT,
-    cik VARCHAR(10),
-    ticker TEXT,
-    title TEXT,
-    published_at TIMESTAMPTZ,
-    url TEXT,
-    raw_id BIGINT REFERENCES raw_object(raw_id),
-    text_object_key TEXT,
-    text TEXT
-);
-
-CREATE TABLE IF NOT EXISTS document_chunk (
-    chunk_id BIGSERIAL PRIMARY KEY,
-    doc_id BIGINT REFERENCES document(doc_id),
-    chunk_index INT,
-    text TEXT,
-    token_count INT,
-    embedding VECTOR(1536),
-    active BOOLEAN DEFAULT TRUE
-);
-
-CREATE INDEX IF NOT EXISTS idx_document_chunk_doc ON document_chunk (doc_id, chunk_index);
-CREATE INDEX IF NOT EXISTS idx_document_chunk_embedding ON document_chunk USING ivfflat (embedding vector_l2_ops);
-
-CREATE TABLE IF NOT EXISTS document_fts (
-    doc_id BIGINT PRIMARY KEY REFERENCES document(doc_id),
-    tsv TSVECTOR
-);
-
-CREATE INDEX IF NOT EXISTS idx_document_fts_tsv ON document_fts USING GIN (tsv);
-
-CREATE TABLE IF NOT EXISTS news_relevance (
-    doc_id BIGINT PRIMARY KEY REFERENCES document(doc_id),
-    score NUMERIC,
-    features_json JSONB,
-    model_version TEXT
-);
-
 -- Market data
 CREATE TABLE IF NOT EXISTS market_bar_daily (
     symbol TEXT NOT NULL,
@@ -211,22 +168,4 @@ CREATE TABLE IF NOT EXISTS sec_ftd (
     price NUMERIC,
     quantity BIGINT,
     PRIMARY KEY (settlement_date, cusip)
-);
-
--- Senate lobbying
-CREATE TABLE IF NOT EXISTS lobbying_filing (
-    filing_id TEXT PRIMARY KEY,
-    filing_type TEXT,
-    received_date DATE,
-    registrant TEXT,
-    client TEXT,
-    raw_id BIGINT REFERENCES raw_object(raw_id),
-    source_url TEXT
-);
-
-CREATE TABLE IF NOT EXISTS lobbying_issue (
-    filing_id TEXT REFERENCES lobbying_filing(filing_id),
-    issue_code TEXT,
-    issue_text TEXT,
-    bill_numbers TEXT
 );

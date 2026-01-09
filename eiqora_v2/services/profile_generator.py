@@ -66,13 +66,17 @@ class ProfileGenerator:
         try:
             async with get_connection() as conn:
                 row = await conn.fetchrow(
-                    "SELECT profile_data FROM ticker_profile WHERE symbol = $1", 
+                    "SELECT profile_data, updated_at FROM ticker_profile WHERE symbol = $1", 
                     symbol
                 )
                 if row:
                     import json
                     data = json.loads(row["profile_data"])
-                    return TickerProfile.model_validate(data)
+                    profile = TickerProfile.model_validate(data)
+                    # Override last_updated with DB timestamp to ensure freshness check is accurate
+                    if row["updated_at"]:
+                        profile.last_updated = row["updated_at"]
+                    return profile
         except Exception as e:
             logger.error(f"Error loading profile for {symbol}: {e}")
         return None
@@ -81,15 +85,17 @@ class ProfileGenerator:
         """Save profile to DB."""
         try:
             import json
+            # Ensure last_updated is current before saving
+            profile.last_updated = datetime.utcnow()
             data_json = profile.model_dump_json()
             
             async with get_connection() as conn:
                 await conn.execute("""
                     INSERT INTO ticker_profile (symbol, profile_data, updated_at)
-                    VALUES ($1, $2, NOW())
+                    VALUES ($1, $2, $3)
                     ON CONFLICT (symbol) 
-                    DO UPDATE SET profile_data = EXCLUDED.profile_data, updated_at = NOW()
-                """, profile.symbol, data_json)
+                    DO UPDATE SET profile_data = EXCLUDED.profile_data, updated_at = EXCLUDED.updated_at
+                """, profile.symbol, data_json, profile.last_updated)
         except Exception as e:
             logger.error(f"Error saving profile for {profile.symbol}: {e}")
         
@@ -109,30 +115,33 @@ class ProfileGenerator:
             # B. News (Last 1 Year for Major Events)
             # Filter for high-impact keywords to find events
             major_event_keywords = [
-                "investigation", "lawsuit", "SEC", "doj", "regulatory",
+                "investigation", "lawsuit", "SEC", "DOJ", "regulatory",
                 "acquisition", "merger", "spinoff", "restructuring",
                 "CEO", "CFO", "resignation", "activist", "patent"
             ]
             keywords_pattern = "|".join(major_event_keywords)
             
             event_news_rows = await conn.fetch("""
-                SELECT published_at, title, text
-                FROM document
-                WHERE ticker = $1 
-                  AND published_at >= NOW() - interval '1 year'
-                  AND (title ~* $2 OR text ~* $2)
-                ORDER BY published_at DESC
+                SELECT yn.published_at, yn.title, LEFT(yn.text, 500) as text_preview,
+                       nr.score as sentiment
+                FROM yfinance_news yn
+                LEFT JOIN yfinance_news_relevance nr ON yn.doc_id = nr.doc_id
+                WHERE yn.ticker = $1 
+                  AND yn.published_at >= NOW() - interval '1 year'
+                  AND (yn.title ~* $2 OR yn.text ~* $2)
+                ORDER BY yn.published_at DESC
                 LIMIT 50
             """, symbol, keywords_pattern)
             
             # C. Recent News (Last 90 Days for Narrative)
-            # Use smaller limit for recent news to fit in context context
+            # Include sentiment scores for context
             recent_news_rows = await conn.fetch("""
-                SELECT published_at, title
-                FROM document
-                WHERE ticker = $1
-                  AND published_at >= NOW() - interval '90 days'
-                ORDER BY published_at DESC
+                SELECT yn.published_at, yn.title, nr.score as sentiment
+                FROM yfinance_news yn
+                LEFT JOIN yfinance_news_relevance nr ON yn.doc_id = nr.doc_id
+                WHERE yn.ticker = $1
+                  AND yn.published_at >= NOW() - interval '90 days'
+                ORDER BY yn.published_at DESC
                 LIMIT 30
             """, symbol)
             
@@ -200,15 +209,24 @@ class ProfileGenerator:
                 for e in earnings
             ])
             
-        # Format Major Events News
-        events_txt = "\n".join([f"- {n['published_at']}: {n['title']}" for n in events[:15]])
+        # Format Major Events News with sentiment
+        events_txt = "\n".join([
+            f"- {n['published_at']}: {n['title']}" + 
+            (f" (sentiment: {n['sentiment']:.1f})" if n.get('sentiment') else "")
+            for n in events[:15]
+        ])
         
-        # Format Recent Narrative News
-        recent_txt = "\n".join([f"- {n['published_at']}: {n['title']}" for n in recent[:10]])
+        # Format Recent Narrative News with sentiment
+        recent_txt = "\n".join([
+            f"- {n['published_at']}: {n['title']}" + 
+            (f" (sentiment: {n['sentiment']:.1f})" if n.get('sentiment') else "")
+            for n in recent[:10]
+        ])
         
         # Format Quantitative Signals
         signals_txt = ""
         if signals:
+            sentiment_signals = signals.get('sentiment', {})
             signals_txt = f"""
         ### 4. Quantitative Signals (interpret contextually for scoring)
         
@@ -229,8 +247,13 @@ class ProfileGenerator:
         - Dividends: {signals.get('corporate_actions', {}).get('dividend_count_1y', 0)}
         - Total dividend: ${signals.get('corporate_actions', {}).get('total_dividend_1y', 0):,.2f}
         
-        **News Sentiment:**
-        - Articles (90d): {signals.get('sentiment', {}).get('article_count_90d', 0)}
+        **News Sentiment (FinBERT, 90 days):**
+        - Total articles: {sentiment_signals.get('article_count_90d', 0)}
+        - Scored articles: {sentiment_signals.get('scored_count', 0)}
+        - Average sentiment: {sentiment_signals.get('avg_sentiment', 'N/A')} (scale: -10 to +10)
+        - Positive articles (>2.0): {sentiment_signals.get('positive_count', 0)}
+        - Negative articles (<-2.0): {sentiment_signals.get('negative_count', 0)}
+        - Neutral articles: {sentiment_signals.get('neutral_count', 0)}
         """
         
         return f"""

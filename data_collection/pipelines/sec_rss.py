@@ -12,7 +12,7 @@ from typing import Any
 from xml.etree import ElementTree
 
 from data_collection.common.config import get_env_list, load_common_settings
-from data_collection.common.db import insert_raw_object
+from data_collection.common.db import insert_raw_object, notify_ingest
 from data_collection.common.hashing import sha256_bytes
 from data_collection.common.http import build_session, request_with_retries
 from data_collection.common.paths import utc_date_str
@@ -25,6 +25,7 @@ _logger = logging.getLogger(__name__)
 ATOM_NS = {"a": "http://www.w3.org/2005/Atom"}
 SEC_RSS_URL = "https://www.sec.gov/cgi-bin/browse-edgar"
 SEC_DAILY_INDEX = "https://www.sec.gov/Archives/edgar/daily-index/{year}/QTR{quarter}/master.{datestr}.idx"
+NOTIFY_CHANNEL = os.getenv("EIQORA_INGEST_CHANNEL", "eiqora_ingest")
 
 
 def _clean_cik(value: str | None) -> str | None:
@@ -383,6 +384,16 @@ def run(forms: list[str] | None) -> None:
                     skipped_no_accession,
                 )
 
+        if total_inserted or total_updated:
+            notify_ingest(
+                conn,
+                NOTIFY_CHANNEL,
+                {
+                    "source": "sec_filing",
+                    "inserted": total_inserted,
+                    "updated": total_updated,
+                },
+            )
         conn.commit()
         _logger.info(
             "sec_rss done processed=%s inserted=%s updated=%s",
@@ -394,17 +405,15 @@ def run(forms: list[str] | None) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="SEC RSS fast-lane pipeline")
-    subparsers = parser.add_subparsers(dest="command", required=True)
-    run_parser = subparsers.add_parser("run", help="Run SEC RSS ingestion")
-    run_parser.add_argument("--forms", help="Comma-separated form types", default=None)
-    run_parser.add_argument("--lookback-days", help="Backfill days using daily index", default=None)
+    parser.add_argument("command", nargs="?", default="run", choices=["run"])
+    parser.add_argument("--forms", help="Comma-separated form types", default=None)
+    parser.add_argument("--lookback-days", help="Backfill days using daily index", default=None)
 
     args = parser.parse_args()
-    if args.command == "run":
-        forms = [item.strip() for item in args.forms.split(",")] if args.forms else None
-        if args.lookback_days:
-            os.environ["SEC_RSS_LOOKBACK_DAYS"] = str(args.lookback_days)
-        run(forms)
+    forms = [item.strip() for item in args.forms.split(",")] if args.forms else None
+    if args.lookback_days:
+        os.environ["SEC_RSS_LOOKBACK_DAYS"] = str(args.lookback_days)
+    run(forms)
 
 
 if __name__ == "__main__":

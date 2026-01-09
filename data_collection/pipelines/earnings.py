@@ -1,4 +1,4 @@
-"""Earnings calendar pipeline (Alpha Vantage + Nasdaq fallback)."""
+"""Earnings calendar pipeline (YFinance)."""
 
 from __future__ import annotations
 
@@ -8,26 +8,248 @@ import io
 import json
 import logging
 import os
-import re
-import time
 import random
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta
 
-from data_collection.common.db import insert_raw_object
+import numpy as np
+import pandas as pd
+import yfinance as yf
+
+from data_collection.common.db import insert_raw_object, notify_ingest
 from data_collection.common.hashing import sha256_bytes
-from data_collection.common.http import build_session, request_with_retries, HttpError
-from data_collection.common.config import HttpSettings
+from data_collection.common.http import HttpError, build_session, request_with_retries
 from data_collection.common.storage import build_storage
-from data_collection.common.settings import get_env_value, load_config
+from data_collection.common.settings import load_config
 from data_collection.common.symbols import get_config_symbols
 from data_collection.common.time_utils import today_in_timezone
 from data_collection.db.connection import get_connection
-from data_collection.common.config import load_common_settings
+from data_collection.common.config import HttpSettings, load_common_settings
 
 _logger = logging.getLogger(__name__)
+NOTIFY_CHANNEL = os.getenv("EIQORA_INGEST_CHANNEL", "eiqora_ingest")
 NASDAQ_REFERRER = "https://www.nasdaq.com/market-activity/earnings"
-SEC_ITEM_202_RE = re.compile(r"item\s*2\.02", re.IGNORECASE)
+
+def _parse_float(value: object) -> float | None:
+    if pd.isna(value) or value is None:
+        return None
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return None
+
+def _fetch_yfinance_earnings(symbols: list[str]) -> list[dict[str, object]]:
+    """Fetch earnings data using YFinance (historical + estimates)."""
+    rows = []
+    
+    for i, symbol in enumerate(symbols):
+        try:
+            if i % 10 == 0:
+                _logger.info(f"Processing {i}/{len(symbols)}: {symbol}")
+                
+            ticker = yf.Ticker(symbol)
+            
+            # 1. Historical Data (from Income Statement)
+            # This gives us actual Revenue and EPS for past quarters
+            try:
+                # Transpose so dates are rows
+                q_stmt = ticker.quarterly_income_stmt.T
+                q_financials = ticker.quarterly_financials.T
+                
+                # Combine info if possible, but mainly we need Revenue (from stmt) and Basic EPS (from financials)
+                # Note: YFinance structure varies. Total Revenue is usually in income_stmt.
+                # Basic EPS is in financials.
+                
+                # Let's iterate through the last 4 quarters available
+                common_dates = q_stmt.index.intersection(q_financials.index)
+                
+                for d in common_dates:
+                    if not isinstance(d, (date, datetime, pd.Timestamp)):
+                        continue
+                        
+                    earnings_date = d.date() if isinstance(d, (datetime, pd.Timestamp)) else d
+                    
+                    revenue = _parse_float(q_stmt.loc[d].get("Total Revenue"))
+                    eps = _parse_float(q_financials.loc[d].get("Basic EPS"))
+                    
+                    if revenue is not None or eps is not None:
+                        rows.append({
+                            "symbol": symbol,
+                            "earnings_date": earnings_date,
+                            "time_of_day": None, # YF doesn't give this history easily
+                            "eps_est": None,
+                            "eps_actual": eps,
+                            "revenue_est": None,
+                            "revenue_actual": revenue,
+                            "source": "yfinance_hist",
+                            "fiscal_quarter": None, # Could infer, but safer to leave null
+                            "revenue_growth_yoy": None, # Will be calc in SQL
+                            "guidance": None
+                        })
+                        
+            except Exception as e:
+                _logger.debug(f"Failed to fetch historical for {symbol}: {e}")
+
+            # 2. Upcoming / Recent Estimates (from Calendar)
+            try:
+                cal = ticker.calendar
+                if isinstance(cal, dict) and "Earnings Date" in cal:
+                    # New YFinance structure returns a dict with lists
+                    dates = cal.get("Earnings Date", [])
+                    earnings_avg = cal.get("Earnings Average")
+                    revenue_avg = cal.get("Revenue Average")
+                    
+                    for d in dates:
+                        if not d: continue
+                        # YFinance dates here might be just dates or datetimes
+                        evt_date = d.date() if hasattr(d, "date") else d
+                        
+                        rows.append({
+                            "symbol": symbol,
+                            "earnings_date": evt_date,
+                            "time_of_day": None,
+                            "eps_est": _parse_float(earnings_avg),
+                            "eps_actual": None, # It's a forecast
+                            "revenue_est": _parse_float(revenue_avg),
+                            "revenue_actual": None,
+                            "source": "yfinance_cal",
+                            "fiscal_quarter": None,
+                            "revenue_growth_yoy": None,
+                            "guidance": None
+                        })
+            except Exception as e:
+                _logger.debug(f"Failed to fetch calendar for {symbol}: {e}")
+                
+        except Exception as e:
+            _logger.error(f"Error fetching {symbol}: {e}")
+            
+    return rows
+
+def _get_earnings_columns(conn) -> set[str]:
+    with conn.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_name = 'earnings_event'
+            """
+        )
+        return {row[0] for row in cursor.fetchall()}
+
+def _upsert_events(conn, rows: list[dict[str, object]]) -> None:
+    if not rows:
+        return
+    table_columns = _get_earnings_columns(conn)
+    base_order = [
+        "symbol", "earnings_date", "time_of_day", "eps_est", "eps_actual",
+        "revenue_est", "revenue_actual", "source", "fiscal_quarter",
+        "revenue_growth_yoy", "guidance"
+    ]
+    # Filter for compatible columns
+    insert_columns = [col for col in base_order if col in table_columns]
+    
+    # We want to enable UPSERT, but carefully.
+    # If source is yfinance_hist (actuals), we overwrite actuals.
+    # If source is yfinance_cal (estimates), we overwrite estimates.
+    
+    # Simplified logic: Just upsert non-nulls.
+    has_updated_at = "updated_at" in table_columns
+    insert_cols_sql = ", ".join(insert_columns + (["updated_at"] if has_updated_at else []))
+    placeholders = ", ".join(["%s"] * len(insert_columns) + (["now()"] if has_updated_at else []))
+
+    # For conflict update, we update fields if they are not null in the new row
+    update_parts = []
+    for col in insert_columns:
+        if col in ("symbol", "earnings_date"): continue
+        # Only update if excluded value is not null (COALESCE logic equivalent)
+        # Qualify with table name to avoid ambiguity
+        update_parts.append(f"{col} = COALESCE(EXCLUDED.{col}, earnings_event.{col})")
+        
+    if has_updated_at:
+        update_parts.append("updated_at = now()")
+        
+    update_sql = ", ".join(update_parts)
+
+    values = [tuple(row.get(col) for col in insert_columns) for row in rows]
+    
+    with conn.cursor() as cursor:
+        cursor.executemany(
+            f"""
+            INSERT INTO earnings_event ({insert_cols_sql})
+            VALUES ({placeholders})
+            ON CONFLICT (symbol, earnings_date)
+            DO UPDATE SET {update_sql}
+            """,
+            values,
+        )
+
+def run_yfinance(limit_symbols: int | None = None) -> None:
+    config = load_config()
+    symbols_config, _, _ = get_config_symbols(config)
+    symbols = list(symbols_config)
+    
+    if limit_symbols:
+        symbols = symbols[:limit_symbols]
+        
+    _logger.info(f"Fetching YFinance earnings for {len(symbols)} symbols...")
+    
+    rows = _fetch_yfinance_earnings(symbols)
+    _logger.info(f"Fetched {len(rows)} earnings events.")
+    
+    if not rows:
+        return
+
+    # Store raw archive (optional, keeping system pattern)
+    common = load_common_settings()
+    storage = build_storage(common)
+    today = datetime.now()
+    raw_bytes = json.dumps(rows, ensure_ascii=True, default=str).encode("utf-8")
+    sha = sha256_bytes(raw_bytes)
+    object_key = f"earnings/yfinance/{today.date().isoformat()}/{sha}.json"
+    stored = storage.write_bytes(object_key, raw_bytes, content_type="application/json")
+
+    with get_connection() as conn:
+        insert_raw_object(
+            source="yfinance_earnings",
+            object_key=stored.object_key,
+            content_type="application/json",
+            sha256=stored.sha256,
+            http_status=200,
+            conn=conn,
+        )
+        
+        _upsert_events(conn, rows)
+        notify_ingest(
+            conn,
+            NOTIFY_CHANNEL,
+            {
+                "source": "earnings_event",
+                "count": len(rows),
+                "provider": "yfinance",
+            },
+        )
+        
+        # Calculate YoY Growth
+        _logger.info("Calculating YoY Growth...")
+        with conn.cursor() as cursor:
+             cursor.execute("""
+                UPDATE earnings_event e
+                SET revenue_growth_yoy = (
+                    (e.revenue_actual - prev.revenue_actual) / NULLIF(ABS(prev.revenue_actual), 0) * 100
+                )
+                FROM earnings_event prev
+                WHERE e.symbol = prev.symbol
+                  AND prev.earnings_date < e.earnings_date - interval '10 months'
+                  AND prev.earnings_date > e.earnings_date - interval '14 months'
+                  AND e.revenue_actual IS NOT NULL
+                  AND prev.revenue_actual IS NOT NULL
+                  AND (e.revenue_growth_yoy IS NULL OR e.revenue_growth_yoy = 0)
+                  AND e.updated_at >= now() - interval '5 minutes'
+            """)
+        conn.commit()
+    
+    _logger.info("Earnings update complete.")
 
 
 
@@ -180,15 +402,26 @@ def _parse_nasdaq_items(items: list[dict], source: str, symbols_config: set[str]
     return rows
 
 
-def run(window_past: int | None = None, window_future: int | None = None) -> None:
+def run(
+    window_past: int | None = None,
+    window_future: int | None = None,
+    limit_symbols: int | None = None,
+) -> None:
     config = load_config()
     tz_name = config["project"]["timezone"]
-    nasdaq_cfg = config["earnings"]["nasdaq"]
-    alpha_cfg = config["earnings"].get("alphavantage", {})
+    earnings_cfg = config.get("earnings", {})
+    nasdaq_cfg = earnings_cfg["nasdaq"]
+    alpha_cfg = earnings_cfg.get("alphavantage", {})
     symbols_config, _, _ = get_config_symbols(config)
+    symbols_list = list(symbols_config)
+    if limit_symbols:
+        symbols_list = symbols_list[:limit_symbols]
+    symbol_filter = set(symbols_list) if symbols_list else None
 
-    window_past = window_past if window_past is not None else int(alpha_cfg.get("window_past_days", 30))
-    window_future = window_future if window_future is not None else int(alpha_cfg.get("window_future_days", 14))
+    default_past = earnings_cfg.get("window_past_days", alpha_cfg.get("window_past_days", 30))
+    default_future = earnings_cfg.get("window_future_days", alpha_cfg.get("window_future_days", 14))
+    window_past = window_past if window_past is not None else int(default_past)
+    window_future = window_future if window_future is not None else int(default_future)
 
     today = today_in_timezone(tz_name)
     start_date = today - timedelta(days=window_past)
@@ -214,10 +447,14 @@ def run(window_past: int | None = None, window_future: int | None = None) -> Non
     source = None
     source_override = os.getenv("EARNINGS_SOURCE", "").strip().lower()
 
+    if source_override == "yfinance":
+        run_yfinance(limit_symbols=limit_symbols)
+        return
+
     if source_override == "sec":
         source = "sec_8k"
         with get_connection() as conn:
-            payload = _fetch_sec_earnings(conn, sec_session, sec_settings, symbols_config or [], start_date, end_date)
+            payload = _fetch_sec_earnings(conn, sec_session, sec_settings, symbols_list, start_date, end_date)
         rows = payload
     else:
         # Use NASDAQ as primary source
@@ -268,7 +505,7 @@ def run(window_past: int | None = None, window_future: int | None = None) -> Non
                             continue
                 
                 # Parse and upsert batch
-                batch_rows = _parse_nasdaq_items(batch_payload, source, symbols_config)
+                batch_rows = _parse_nasdaq_items(batch_payload, source, symbol_filter)
                 if batch_rows:
                     _upsert_events(conn, batch_rows)
                     _logger.info("earnings batch %s upsert rows=%s", batch_idx + 1, len(batch_rows))
@@ -282,11 +519,11 @@ def run(window_past: int | None = None, window_future: int | None = None) -> Non
         if not rows and os.getenv("EARNINGS_SEC_FALLBACK", "1") != "0":
             _logger.info("earnings fallback=sec_8k start=%s end=%s", start_date, end_date)
             with get_connection() as conn:
-                sec_payload = _fetch_sec_earnings(conn, sec_session, sec_settings, symbols_config or [], start_date, end_date)
+                sec_payload = _fetch_sec_earnings(conn, sec_session, sec_settings, symbols_list, start_date, end_date)
             if sec_payload:
                 source = "sec_8k"
                 payload = sec_payload
-                rows = _parse_nasdaq_items(payload, source, symbols_config) # Re-use parse logic if compatible?
+                rows = _parse_nasdaq_items(payload, source, symbol_filter) # Re-use parse logic if compatible?
                 # Actually SEC payload structure might differ. 
                 # _fetch_sec_earnings returns LIST OF DICTS compatible with rows structure directly?
                 # Original code: rows = payload.
@@ -322,6 +559,16 @@ def run(window_past: int | None = None, window_future: int | None = None) -> Non
 
         _logger.info("earnings upsert rows=%s source=%s", len(rows), source)
         _upsert_events(conn, rows)
+        if rows:
+            notify_ingest(
+                conn,
+                NOTIFY_CHANNEL,
+                {
+                    "source": "earnings_event",
+                    "count": len(rows),
+                    "provider": source,
+                },
+            )
         
         # Post-process: Calculate YoY Growth
         # Only for rows we just updated/inserted
@@ -509,14 +756,23 @@ def main() -> None:
     if not logging.getLogger().handlers:
         logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     parser = argparse.ArgumentParser(description="Earnings calendar pipeline")
-    subparsers = parser.add_subparsers(dest="command", required=True)
-
-    run_parser = subparsers.add_parser("run", help="Fetch earnings calendar")
-    run_parser.add_argument("--past-days", type=int, help="Override past window days")
-    run_parser.add_argument("--future-days", type=int, help="Override future window days")
+    parser.add_argument("command", nargs="?", default="run", choices=["run"])
+    parser.add_argument("--past-days", type=int, help="Override past window days")
+    parser.add_argument("--future-days", type=int, help="Override future window days")
+    parser.add_argument("--limit", type=int, help="Limit number of symbols")
+    parser.add_argument(
+        "--source",
+        choices=["nasdaq", "sec", "yfinance"],
+        help="Override earnings source",
+    )
     args = parser.parse_args()
-    if args.command == "run":
-        run(window_past=args.past_days, window_future=args.future_days)
+    if args.source:
+        os.environ["EARNINGS_SOURCE"] = args.source
+    run(
+        window_past=args.past_days,
+        window_future=args.future_days,
+        limit_symbols=args.limit,
+    )
 
 
 if __name__ == "__main__":

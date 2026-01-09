@@ -33,6 +33,7 @@ class SwingTradeState(TypedDict, total=False):
     ideas: dict[str, Any] | None
     rules: list[dict[str, Any]] | None
     stats: list[dict[str, Any]] | None
+    red_team: dict[str, Any] | None
     decision: dict[str, Any] | None
     veto: dict[str, Any] | None
     narrative: dict[str, Any] | None

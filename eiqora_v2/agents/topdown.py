@@ -1,7 +1,7 @@
 """
 TopDown Agent implementation.
 Analyzes macro market conditions and regime.
-Uses: market_bar_daily (SPY/QQQ), economic_indicator (FOMC/CPI/NFP)
+Uses: market_bar_daily (SPY/QQQ), economic_event (FOMC/CPI/NFP)
 """
 
 from typing import Any
@@ -35,7 +35,7 @@ class TopDownAgent(BaseAgent[TopDownOutput]):
     
     Data Sources:
     - market_bar_daily: SPY/QQQ/sector ETF technicals
-    - economic_indicator: FOMC/CPI/NFP calendar
+    - economic_event: FOMC/CPI/NFP calendar
     
     Evaluates:
     - SPY/QQQ trend and momentum

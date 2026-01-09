@@ -43,6 +43,21 @@ class SECFilingSummary(BaseModel):
     has_10k: bool = Field(default=False, description="Has 10-K in window")
 
 
+class InsiderSummary(BaseModel):
+    """Summary of recent insider transactions."""
+    available: bool = Field(default=False, description="Insider data available")
+    transactions_90d: int = Field(default=0, description="Total transactions in last 90 days")
+    buy_count: int = Field(default=0, description="Buy transactions count")
+    sell_count: int = Field(default=0, description="Sell transactions count")
+    total_buy_value: float = Field(default=0.0, description="Total buy value in USD")
+    total_sell_value: float = Field(default=0.0, description="Total sell value in USD")
+    net_value: float = Field(default=0.0, description="Net buy value in USD")
+    ceo_net_value: float = Field(default=0.0, description="CEO net buy value in USD")
+    cfo_net_value: float = Field(default=0.0, description="CFO net buy value in USD")
+    director_net_value: float = Field(default=0.0, description="Director net buy value in USD")
+    other_net_value: float = Field(default=0.0, description="Other insider net buy value in USD")
+
+
 class DataStatus(BaseModel):
     """Status of data sources."""
     news_fresh: bool = Field(description="News data is fresh")
@@ -64,6 +79,8 @@ class FundamentalOutput(BaseModel):
     earnings: EarningsSnapshot | None = Field(default=None, description="Latest earnings")
     
     sec_filings: SECFilingSummary | None = Field(default=None, description="SEC filing summary")
+
+    insider: InsiderSummary | None = Field(default=None, description="Insider transaction summary")
     
     data_status: DataStatus = Field(description="Data freshness status")
     

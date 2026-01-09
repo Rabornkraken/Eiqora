@@ -66,7 +66,7 @@ class LiveScheduler:
             _logger.info("📊 Running position monitor...")
             
             # TODO: Implement position monitoring
-            # - Check Alpaca for open positions
+            # - Check database for open positions
             # - Run PositionMonitorAgent on each
             # - Apply TIGHTEN/EXIT recommendations
             

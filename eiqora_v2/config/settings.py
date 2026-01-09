@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     
     # LLM Parameters
     LLM_TEMPERATURE: float = Field(default=0.7)
+    DEFAULT_MODEL: str = Field(default="deepseek/deepseek-v3.2")  # Default LLM model
     LLM_MAX_TOKENS: int = Field(default=4096)
     LLM_MAX_RETRIES: int = 2
     LLM_TIMEOUT_SECONDS: int = 60

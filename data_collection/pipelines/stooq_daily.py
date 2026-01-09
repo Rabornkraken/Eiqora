@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime
 from typing import Any
 
-from data_collection.common.db import insert_raw_object
+from data_collection.common.db import insert_raw_object, notify_ingest
 from data_collection.common.hashing import sha256_bytes
 from data_collection.common.http import build_session, request_with_retries
 from data_collection.common.symbols import get_config_symbols
@@ -37,6 +37,20 @@ def _get_symbols(conn, asof_date: date) -> list[str]:
 
 def _chunk(items: list[str], size: int) -> list[list[str]]:
     return [items[i : i + size] for i in range(0, len(items), size)]
+
+
+def _merge_symbols(primary: list[str], extra: list[str]) -> list[str]:
+    merged: list[str] = []
+    seen: set[str] = set()
+    for symbol in primary + extra:
+        if not symbol:
+            continue
+        normalized = symbol.strip().upper()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        merged.append(normalized)
+    return merged
 
 
 def _stooq_symbol(symbol: str, suffix: str, symbol_map: dict[str, str]) -> str:
@@ -150,10 +164,14 @@ def backfill(
     tz_name = config["project"]["timezone"]
     asof_date = asof_date or today_in_timezone(tz_name)
     symbols_config, _, _ = get_config_symbols(config)
+    context_symbols = config.get("universe", {}).get("include_context_symbols", [])
 
     provider = config.get("market_data", {}).get("provider", "stooq")
     if provider != "stooq":
-        raise RuntimeError(f"Unsupported market_data provider: {provider}")
+        _logger.warning(
+            "stooq_daily running even though market_data.provider=%s (expected stooq)",
+            provider,
+        )
 
     stooq_cfg = config["stooq"]
     base_url = stooq_cfg["base_url"]
@@ -175,6 +193,8 @@ def backfill(
 
     with get_connection() as conn:
         symbols = symbols_override or symbols_config or _get_symbols(conn, asof_date)
+        if not symbols_override and context_symbols:
+            symbols = _merge_symbols(symbols, list(context_symbols))
         if not symbols:
             raise RuntimeError(f"No symbols found for universe_snapshot {asof_date}")
         if limit:
@@ -270,11 +290,43 @@ def backfill(
         conn.commit()
 
 
+def run() -> None:
+    """Run daily bar collection for recent trading days (default command for scheduler)."""
+    config = load_config()
+    tz_name = config["project"]["timezone"]
+    end_date = today_in_timezone(tz_name)
+    # Fetch last 5 days to catch weekends and holidays
+    start_date = date(end_date.year, end_date.month, end_date.day - 5) if end_date.day > 5 else date(end_date.year, end_date.month - 1 if end_date.month > 1 else 12, max(1, end_date.day - 5 + 30))
+    
+    # Use timedelta for proper date arithmetic
+    from datetime import timedelta
+    start_date = end_date - timedelta(days=5)
+    
+    _logger.info(f"Running daily bar collection: {start_date} to {end_date}")
+    backfill(start=start_date, end=end_date)
+    try:
+        with get_connection() as conn:
+            notify_ingest(
+                conn,
+                os.getenv("EIQORA_INGEST_CHANNEL", "eiqora_ingest"),
+                {
+                    "source": "market_bar_daily",
+                    "latest_at": datetime.combine(end_date, datetime.min.time()).isoformat(),
+                },
+            )
+            conn.commit()
+    except Exception as exc:
+        _logger.warning("Failed to notify ingest channel for daily bars: %s", exc)
+
+
 def main() -> None:
     if not logging.getLogger().handlers:
         logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     parser = argparse.ArgumentParser(description="Daily OHLCV pipeline (Stooq)")
     subparsers = parser.add_subparsers(dest="command", required=True)
+
+    # Run command - default for scheduler
+    subparsers.add_parser("run", help="Fetch recent trading days (last 5 days)")
 
     backfill_parser = subparsers.add_parser("backfill", help="Backfill daily bars")
     backfill_parser.add_argument("--start", required=True, help="Start date (YYYY-MM-DD)")
@@ -284,7 +336,9 @@ def main() -> None:
     backfill_parser.add_argument("--limit", type=int, help="Limit number of symbols")
 
     args = parser.parse_args()
-    if args.command == "backfill":
+    if args.command == "run":
+        run()
+    elif args.command == "backfill":
         asof_date = parse_date(args.asof_date) if args.asof_date else None
         symbols_override = [s.strip() for s in args.symbols.split(",")] if args.symbols else None
         backfill(

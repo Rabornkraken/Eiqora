@@ -17,10 +17,11 @@ class LiveTradingOrchestrator(Orchestrator):
     
     Agent sequence:
     1-6: Standard agents (TopDown, Context, Chart, Fundamental, Idea, Exit)
-    7. Decision
-    8. Position Manager  ← NEW: checks portfolio, can override/adjust
-    9. Veto
-    10. Narrative (if approved)
+    7. Red Team
+    8. Decision
+    9. Position Manager  ← NEW: checks portfolio, can override/adjust
+    10. Veto
+    11. Narrative (if approved)
     """
     
     def _build_agent_chain(self) -> list:
@@ -55,11 +56,15 @@ class LiveTradingOrchestrator(Orchestrator):
         agents.append(IdeaGeneratorAgent())
         agents.append(ExitPolicyAgent())
         
-        # 7. Decision
+        # 7. Red Team
+        from eiqora_v2.agents.red_team import RedTeamAgent
+        agents.append(RedTeamAgent())
+
+        # 8. Decision
         from eiqora_v2.agents.decision import DecisionAgent
         agents.append(DecisionAgent())
         
-        # 8. Position Manager (NEW - live trading only)
+        # 9. Position Manager (NEW - live trading only)
         try:
             from eiqora_v2.agents.position_manager import PositionManagerAgent
             agents.append(PositionManagerAgent())
@@ -67,7 +72,7 @@ class LiveTradingOrchestrator(Orchestrator):
         except Exception as e:
             logger.warning(f"Could not load PositionManagerAgent: {e}")
         
-        # 9. Veto
+        # 10. Veto
         from eiqora_v2.agents.veto import VetoAgent
         agents.append(VetoAgent())
         

@@ -33,29 +33,35 @@ async def check_macro_blackout(asof_time: datetime, hours_ahead: int = 6) -> tup
     
     try:
         async with get_connection() as conn:
+            # Check if table has any data
+            count = await conn.fetchval("SELECT COUNT(*) FROM economic_event")
+            if count == 0:
+                # Table exists but empty - not a blackout
+                return False, None
+            
             events = await conn.fetch("""
-                SELECT event_name, event_time, importance
-                FROM economic_calendar
-                WHERE event_time BETWEEN $1 AND $2
-                  AND importance = 'HIGH'
-                ORDER BY event_time
-            """, asof_time, end_time)
+                SELECT event_name, event_date, event_time, impact
+                FROM economic_event
+                WHERE event_date = $1::date
+                  AND impact = 'HIGH'
+                ORDER BY event_date, event_time
+            """, asof_time.date())
             
             for event in events:
                 event_name = event['event_name']
                 # Check if this is a blackout event
                 for blackout_trigger in BLACKOUT_EVENTS:
                     if blackout_trigger.lower() in event_name.lower():
-                        hours_until = (event['event_time'] - asof_time).total_seconds() / 3600
                         logger.warning(
-                            f"MACRO BLACKOUT: {event_name} in {hours_until:.1f}h"
+                            f"MACRO BLACKOUT: {event_name} today (impact={event['impact']})"
                         )
                         return True, event_name
             
             return False, None
             
     except Exception as e:
-        logger.warning(f"Could not check macro blackout: {e}")
+        # Table doesn't exist or error - log at debug level and continue
+        logger.debug(f"Economic event check skipped: {e}")
         return False, None
 
 
@@ -214,7 +220,7 @@ async def get_economic_calendar(
     window_days_forward: int = 7,
 ) -> dict[str, Any]:
     """
-    Fetch upcoming and recent economic events from economic_indicator table.
+    Fetch upcoming and recent economic events from economic_event.
     
     Used by TopDownAgent to understand macro calendar context:
     - FOMC meeting dates (Fed policy)
@@ -249,43 +255,67 @@ async def get_economic_calendar(
         try:
             # Get upcoming events
             upcoming = await conn.fetch("""
-                SELECT indicator_name, event_date, period, value, previous_value
-                FROM economic_indicator
+                SELECT event_name, event_date, event_time, actual, forecast, previous, impact, source
+                FROM economic_event
                 WHERE event_date > $1::date
                   AND event_date <= $1::date + interval '1 day' * $2
-                ORDER BY event_date ASC
+                ORDER BY event_date ASC, event_time ASC NULLS LAST
             """, asof_time, window_days_forward)
             
-            result["upcoming_events"] = [dict(r) for r in upcoming]
+            result["upcoming_events"] = [
+                {
+                    "indicator_name": r["event_name"],
+                    "event_date": r["event_date"],
+                    "event_time": r["event_time"],
+                    "impact": r["impact"],
+                    "value": r["actual"],
+                    "forecast": r["forecast"],
+                    "previous_value": r["previous"],
+                    "source": r["source"],
+                }
+                for r in upcoming
+            ]
             
             # Get recent events (for context on what just happened)
             recent = await conn.fetch("""
-                SELECT indicator_name, event_date, period, value, previous_value
-                FROM economic_indicator
+                SELECT event_name, event_date, event_time, actual, forecast, previous, impact, source
+                FROM economic_event
                 WHERE event_date <= $1::date
                   AND event_date >= $1::date - interval '1 day' * $2
-                ORDER BY event_date DESC
+                ORDER BY event_date DESC, event_time DESC NULLS LAST
             """, asof_time, window_days_back)
             
-            result["recent_events"] = [dict(r) for r in recent]
+            result["recent_events"] = [
+                {
+                    "indicator_name": r["event_name"],
+                    "event_date": r["event_date"],
+                    "event_time": r["event_time"],
+                    "impact": r["impact"],
+                    "value": r["actual"],
+                    "forecast": r["forecast"],
+                    "previous_value": r["previous"],
+                    "source": r["source"],
+                }
+                for r in recent
+            ]
             
             # Find next FOMC
             fomc = await conn.fetchrow("""
-                SELECT event_date FROM economic_indicator
-                WHERE indicator_name ILIKE '%FOMC%'
+                SELECT event_date FROM economic_event
+                WHERE event_name ILIKE '%FOMC%'
                   AND event_date > $1::date
                 ORDER BY event_date ASC
                 LIMIT 1
             """, asof_time)
             if fomc:
                 result["next_fomc"] = fomc["event_date"]
-                asof_date = asof_time.date() if hasattr(asof_time, 'date') else asof_time
+                asof_date = asof_time.date() if hasattr(asof_time, "date") else asof_time
                 result["days_to_fomc"] = (fomc["event_date"] - asof_date).days
             
             # Find next CPI
             cpi = await conn.fetchrow("""
-                SELECT event_date FROM economic_indicator
-                WHERE indicator_name ILIKE '%CPI%'
+                SELECT event_date FROM economic_event
+                WHERE event_name ILIKE '%CPI%'
                   AND event_date > $1::date
                 ORDER BY event_date ASC
                 LIMIT 1
@@ -295,8 +325,8 @@ async def get_economic_calendar(
             
             # Find next NFP
             nfp = await conn.fetchrow("""
-                SELECT event_date FROM economic_indicator
-                WHERE indicator_name ILIKE '%NFP%' OR indicator_name ILIKE '%payroll%'
+                SELECT event_date FROM economic_event
+                WHERE event_name ILIKE '%NFP%' OR event_name ILIKE '%payroll%'
                   AND event_date > $1::date
                 ORDER BY event_date ASC
                 LIMIT 1
@@ -309,4 +339,3 @@ async def get_economic_calendar(
             result["error"] = str(e)
         
         return result
-

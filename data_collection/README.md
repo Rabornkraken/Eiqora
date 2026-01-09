@@ -1,10 +1,9 @@
 # Data collection
 
-Purpose-built home for ingestion pipelines and configs described in
-`docs/data_collection_pipeline_plan_updated_alpaca.md`.
+Purpose-built home for ingestion pipelines and configs.
 
 ## Layout
-- pipelines/: source-specific ingestion flows (Alpaca, SEC, GDELT, etc.)
+- pipelines/: source-specific ingestion flows (market data, SEC, GDELT, etc.)
 - config/: environment, credentials, and runtime settings
 - raw/: local raw data lake (when `RAW_STORAGE=local`)
 - config.yaml: project-wide pipeline configuration
@@ -21,7 +20,6 @@ python -m pipelines.stooq_daily backfill --start YYYY-MM-DD --end YYYY-MM-DD
 python -m pipelines.fred run
 python -m pipelines.earnings run
 python -m pipelines.yfinance_news run
-python -m pipelines.index_docs run
 ```
 
 ## Database
@@ -53,19 +51,15 @@ across pipelines (universe, news, market data, earnings, etc.). Leave it empty o
 the key to revert to SPY holdings as the source of truth.
 
 ## Per-source environment variables
-- `alpaca_ohlcv`: `ALPACA_API_KEY`, `ALPACA_API_SECRET`, `ALPACA_SYMBOLS`, `ALPACA_START`, `ALPACA_END`, `ALPACA_TIMEFRAME`
 - `sec_edgar`: `SEC_USER_AGENT`, `SEC_CIKS`, `SEC_FORMS`, `SEC_BATCH_SIZE`, `SEC_BATCH_OFFSET` (if `SEC_CIKS` is empty, uses symbols file + SEC ticker map). Parses 10-K/10-Q/8-K into `sec_filing_section` (full text), Form 4 into `insider_transaction`, and 13F into `sec_13f_holding`.
 - `gdelt`: `GDELT_QUERY` or `GDELT_QUERIES`, `GDELT_START_DATETIME`, `GDELT_END_DATETIME`, `GDELT_MAX_RECORDS`, `GDELT_BATCH_SIZE`, `GDELT_BATCH_OFFSET`, `GDELT_LOOKBACK_HOURS`, `GDELT_ARTICLE_CONCURRENCY`, `GDELT_ARTICLE_TIMEOUT_SECONDS`, `GDELT_ARTICLE_MAX_RETRIES`, `GDELT_ARTICLE_BACKOFF_SECONDS`, `GDELT_MAX_FETCH_MULTIPLIER`, `GDELT_PREFILTER_TITLES`, `GDELT_DOMAIN_DENYLIST`, `GDELT_BROWSER_PRIMARY`, `GDELT_BROWSER_FALLBACK`, `GDELT_BROWSER_TIMEOUT_SECONDS`, `GDELT_BROWSER_PROXY`, `GDELT_CDP_URL`
 - `yfinance_news`: `YFINANCE_NEWS_CONCURRENCY`, `YFINANCE_ARTICLE_TIMEOUT_SECONDS`, `YFINANCE_ARTICLE_MAX_RETRIES`, `YFINANCE_ARTICLE_BACKOFF_SECONDS`
 - `stooq_daily`: `STOOQ_CONCURRENCY`, `STOOQ_BATCH_SIZE`, `STOOQ_BATCH_OFFSET`
 - `earnings`: `NASDAQ_EARNINGS_CONCURRENCY`
-- `corporate_actions`: `ALPACA_CORP_ACTIONS_BATCH_SIZE`
 - `fred`: `FRED_CONCURRENCY`
 - `fred_macro`: `FRED_API_KEY`, `FRED_SERIES_IDS`, `FRED_START`, `FRED_END`
 - `usaspending`: `USASPENDING_ENDPOINT`, `USASPENDING_METHOD`, `USASPENDING_PARAMS_JSON`, `USASPENDING_PAYLOAD_JSON`
 - `sec_ftd`: `SEC_USER_AGENT`, `SEC_FTD_MONTHS`
-- `lobbying`: `LOBBYING_DOWNLOAD_URLS`
-- `openinsider`: `OPENINSIDER_URLS`
 
 ## Virtual environment
 This repo uses the existing `.venv` at the project root. Use it when running

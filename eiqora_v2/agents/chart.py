@@ -59,6 +59,8 @@ class ChartAgent(BaseAgent[ChartOutput]):
         """Build prompt with multi-timeframe analysis."""
         symbol = state["symbol"]
         asof_time = state["asof_time"]
+        context = state.get("context", {}) or {}
+        rel_strength = context.get("relative_strength", {})
         
         # Format recent bars
         bars_text = self._format_bars(data.get("prices", []))
@@ -108,7 +110,12 @@ DAILY INDICATORS (Setup Identification):
 - MACD: {indicators.get('macd', {}).get('histogram', 0):.2f}
 - ADX(14): {indicators.get('adx14', 25):.1f}
 - Bollinger: {indicators.get('bollinger', {}).get('price_position', 'N/A')}
-- State Tags: {', '.join(indicators.get('state_tags', []))}{hourly_section}
+- State Tags: {', '.join(indicators.get('state_tags', []))}
+
+RELATIVE STRENGTH (20d/60d vs benchmarks):
+- vs SPY: {rel_strength.get('vs_spy', {})}
+- vs Sector ETF: {rel_strength.get('vs_sector', {})}
+- vs QQQ: {rel_strength.get('vs_qqq', {})}{hourly_section}
 
 Classify the setup type using daily timeframe. Use hourly data to assess entry timing quality.
 If no clear setup exists, use setup_type="NO_SETUP" and direction="NEUTRAL".
@@ -163,4 +170,9 @@ Return ONLY valid JSON. No explanation."""
     
     def _build_state_update(self, state: SwingTradeState, result: ChartOutput) -> dict[str, Any]:
         """Build state update with chart output."""
-        return {"chart": result.model_dump()}
+        chart_output = result.model_dump()
+        context = state.get("context", {}) or {}
+        rel_strength = context.get("relative_strength")
+        if rel_strength:
+            chart_output["relative_strength"] = rel_strength
+        return {"chart": chart_output}

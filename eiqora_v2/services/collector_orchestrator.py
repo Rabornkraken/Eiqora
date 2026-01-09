@@ -48,11 +48,11 @@ async def check_data_freshness(symbol: str) -> dict:
     async with get_connection() as conn:
         now = datetime.utcnow()
         
-        # Check news (document table)
+        # Check news (yfinance_news table)
         news_row = await conn.fetchrow("""
             SELECT MAX(published_at) as last_at, 
                    COUNT(*) FILTER (WHERE published_at >= NOW() - interval '24 hours') as count_24h
-            FROM document
+            FROM yfinance_news
             WHERE ticker = $1
         """, symbol)
         

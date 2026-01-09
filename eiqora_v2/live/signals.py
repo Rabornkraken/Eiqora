@@ -1,7 +1,7 @@
 """
 Signal management for live trading.
 
-Stores trade signals to database and sends notifications.
+Stores trade signals to database using async connections.
 """
 
 import json
@@ -10,7 +10,7 @@ from datetime import date
 from typing import Any
 from uuid import uuid4
 
-import psycopg
+from eiqora_v2.tools.db import get_connection
 
 _logger = logging.getLogger(__name__)
 
@@ -18,12 +18,66 @@ _logger = logging.getLogger(__name__)
 class SignalManager:
     """Manages trade signal storage and notifications."""
     
-    def __init__(self, db_url: str):
-        self.db_url = db_url
+    def __init__(self):
+        pass  # Uses async db connection from tools.db
     
-    def store_signals(self, signals: list[dict[str, Any]]) -> list[str]:
+    async def store_signal(self, signal: dict[str, Any]) -> str:
         """
-        Store trade signals to database.
+        Store a single trade signal to database.
+        
+        Returns:
+            Signal ID
+        """
+        signal_id = str(uuid4())
+        
+        async with get_connection() as conn:
+            # Convert agent_outputs and trigger_detail to JSON
+            agent_outputs_json = json.dumps(signal.get("agent_outputs", {}), default=str)
+            trigger_detail_json = json.dumps(signal.get("trigger_detail", {}), default=str)
+            
+            await conn.execute("""
+                INSERT INTO trade_signal (
+                    id, symbol, signal_date, trigger_type, action,
+                    entry_price, stop_loss, take_profit, conviction,
+                    reasoning, agent_outputs, trigger_detail
+                ) VALUES (
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+                )
+                ON CONFLICT (symbol, signal_date, trigger_type) 
+                DO UPDATE SET
+                    action = EXCLUDED.action,
+                    entry_price = EXCLUDED.entry_price,
+                    stop_loss = EXCLUDED.stop_loss,
+                    take_profit = EXCLUDED.take_profit,
+                    conviction = EXCLUDED.conviction,
+                    reasoning = EXCLUDED.reasoning,
+                    agent_outputs = EXCLUDED.agent_outputs,
+                    trigger_detail = EXCLUDED.trigger_detail
+            """,
+                signal_id,
+                signal["symbol"],
+                signal["signal_date"],
+                signal["trigger_type"],
+                signal["action"],
+                signal.get("entry_price"),
+                signal.get("stop_loss"),
+                signal.get("take_profit"),
+                signal.get("conviction"),
+                signal.get("reasoning"),
+                agent_outputs_json,
+                trigger_detail_json,
+            )
+            
+            _logger.info(
+                f"Stored signal: {signal['symbol']} {signal['trigger_type']} "
+                f"@ ${signal.get('entry_price', 0):.2f}"
+            )
+        
+        return signal_id
+    
+    async def store_signals(self, signals: list[dict[str, Any]]) -> list[str]:
+        """
+        Store multiple trade signals to database.
         
         Returns:
             List of signal IDs
@@ -32,102 +86,42 @@ class SignalManager:
             return []
         
         signal_ids = []
-        
-        with psycopg.connect(self.db_url) as conn:
-            with conn.cursor() as cur:
-                for signal in signals:
-                    signal_id = str(uuid4())
-                    
-                    # Convert agent_outputs and trigger_detail to JSON
-                    agent_outputs_json = json.dumps(signal.get("agent_outputs", {}))
-                    trigger_detail_json = json.dumps(signal.get("trigger_detail", {}))
-                    
-                    cur.execute(
-                        """
-                        INSERT INTO trade_signal (
-                            id, symbol, signal_date, trigger_type, action,
-                            entry_price, stop_loss, take_profit, conviction,
-                            reasoning, agent_outputs, trigger_detail
-                        ) VALUES (
-                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
-                        )
-                        ON CONFLICT (symbol, signal_date, trigger_type) 
-                        DO UPDATE SET
-                            action = EXCLUDED.action,
-                            entry_price = EXCLUDED.entry_price,
-                            stop_loss = EXCLUDED.stop_loss,
-                            take_profit = EXCLUDED.take_profit,
-                            conviction = EXCLUDED.conviction,
-                            reasoning = EXCLUDED.reasoning,
-                            agent_outputs = EXCLUDED.agent_outputs,
-                            trigger_detail = EXCLUDED.trigger_detail
-                        RETURNING id
-                        """,
-                        (
-                            signal_id,
-                            signal["symbol"],
-                            signal["signal_date"],
-                            signal["trigger_type"],
-                            signal["action"],
-                            signal.get("entry_price"),
-                            signal.get("stop_loss"),
-                            signal.get("take_profit"),
-                            signal.get("conviction"),
-                            signal.get("reasoning"),
-                            agent_outputs_json,
-                            trigger_detail_json,
-                        ),
-                    )
-                    
-                    result = cur.fetchone()
-                    actual_id = result[0] if result else signal_id
-                    signal_ids.append(str(actual_id))
-                    
-                    _logger.info(
-                        f"Stored signal: {signal['symbol']} {signal['trigger_type']} "
-                        f"@ ${signal.get('entry_price', 0):.2f}"
-                    )
-                
-                conn.commit()
+        for signal in signals:
+            signal_id = await self.store_signal(signal)
+            signal_ids.append(signal_id)
         
         return signal_ids
     
-    def get_signals_for_date(self, signal_date: date) -> list[dict[str, Any]]:
+    async def get_signals_for_date(self, signal_date: date) -> list[dict[str, Any]]:
         """Retrieve all signals for a specific date."""
-        with psycopg.connect(self.db_url) as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT 
-                        id, symbol, signal_date, trigger_type, action,
-                        entry_price, stop_loss, take_profit, conviction,
-                        reasoning, created_at
-                    FROM trade_signal
-                    WHERE signal_date = %s
-                    ORDER BY created_at DESC
-                    """,
-                    (signal_date,),
-                )
-                
-                rows = cur.fetchall()
-                
-                signals = []
-                for row in rows:
-                    signals.append({
-                        "id": str(row[0]),
-                        "symbol": row[1],
-                        "signal_date": row[2],
-                        "trigger_type": row[3],
-                        "action": row[4],
-                        "entry_price": float(row[5]) if row[5] else None,
-                        "stop_loss": float(row[6]) if row[6] else None,
-                        "take_profit": float(row[7]) if row[7] else None,
-                        "conviction": float(row[8]) if row[8] else None,
-                        "reasoning": row[9],
-                        "created_at": row[10],
-                    })
-                
-                return signals
+        async with get_connection() as conn:
+            rows = await conn.fetch("""
+                SELECT 
+                    id, symbol, signal_date, trigger_type, action,
+                    entry_price, stop_loss, take_profit, conviction,
+                    reasoning, created_at
+                FROM trade_signal
+                WHERE signal_date = $1
+                ORDER BY created_at DESC
+            """, signal_date)
+            
+            signals = []
+            for row in rows:
+                signals.append({
+                    "id": str(row["id"]),
+                    "symbol": row["symbol"],
+                    "signal_date": row["signal_date"],
+                    "trigger_type": row["trigger_type"],
+                    "action": row["action"],
+                    "entry_price": float(row["entry_price"]) if row["entry_price"] else None,
+                    "stop_loss": float(row["stop_loss"]) if row["stop_loss"] else None,
+                    "take_profit": float(row["take_profit"]) if row["take_profit"] else None,
+                    "conviction": float(row["conviction"]) if row["conviction"] else None,
+                    "reasoning": row["reasoning"],
+                    "created_at": row["created_at"],
+                })
+            
+            return signals
     
     def send_notifications(self, signals: list[dict[str, Any]]) -> None:
         """
@@ -164,9 +158,9 @@ class SignalManager:
         
         _logger.info(f"{'='*60}\n")
     
-    def generate_daily_report(self, signal_date: date) -> str:
+    async def generate_daily_report(self, signal_date: date) -> str:
         """Generate a formatted daily signal report."""
-        signals = self.get_signals_for_date(signal_date)
+        signals = await self.get_signals_for_date(signal_date)
         
         go_count = sum(1 for s in signals if s["action"] == "GO")
         no_go_count = sum(1 for s in signals if s["action"] == "NO_GO")

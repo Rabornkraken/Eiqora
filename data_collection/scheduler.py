@@ -21,15 +21,18 @@ logging.basicConfig(
 logger = logging.getLogger('scheduler')
 
 
-def run_pipeline(pipeline_module: str) -> None:
+def run_pipeline(pipeline_module: str, *args) -> None:
     """Run a pipeline as a subprocess with real-time output."""
-    logger.info(f"Starting pipeline: {pipeline_module}")
+    logger.info(f"Starting pipeline: {pipeline_module} {' '.join(args)}")
     start = datetime.now()
     
     try:
         # Stream output in real-time instead of capturing
+        cmd = [sys.executable, '-m', pipeline_module]
+        if args:
+            cmd.extend(args)
         result = subprocess.run(
-            [sys.executable, '-m', pipeline_module],
+            cmd,
             timeout=3600,  # 1 hour timeout
         )
         
@@ -61,11 +64,21 @@ def create_scheduler() -> BlockingScheduler:
     # HIGH PRIORITY - Core data pipelines
     # ═══════════════════════════════════════════════════════════════════
     
+    # Watchlist Builder (daily at 8 AM after data is fresh)
+    scheduler.add_job(
+        run_pipeline,
+        'cron',
+        args=['data_collection.pipelines.build_watchlist'],
+        id='build_watchlist',
+        hour='8',
+        minute='0',
+    )
+
     # SEC RSS - Check for new filings every 15 minutes (market hours)
     scheduler.add_job(
         run_pipeline,
         'cron',
-        args=['data_collection.pipelines.sec_rss'],
+        args=['data_collection.pipelines.sec_rss', 'run'],
         id='sec_rss',
         minute='*/15',
         hour='6-20',  # 6 AM to 8 PM ET
@@ -85,7 +98,7 @@ def create_scheduler() -> BlockingScheduler:
     scheduler.add_job(
         run_pipeline,
         'cron',
-        args=['data_collection.pipelines.stooq_daily'],
+        args=['data_collection.pipelines.stooq_daily', 'run'],
         id='stooq_daily',
         hour=18,
         minute=30,
@@ -101,8 +114,8 @@ def create_scheduler() -> BlockingScheduler:
         'cron',
         args=['data_collection.pipelines.yfinance_news'],
         id='yfinance_news',
-        hour='*/4',
-        minute=15,
+        hour='*',
+        minute=20,
     )
     
     # ═══════════════════════════════════════════════════════════════════
@@ -128,7 +141,7 @@ def create_scheduler() -> BlockingScheduler:
         hour=7,
         minute=0,
     )
-    
+
     # XBRL Revenue Extraction - Weekly on Sunday at 2 AM
     scheduler.add_job(
         run_pipeline,
@@ -150,6 +163,17 @@ def create_scheduler() -> BlockingScheduler:
         hour=3,
         minute=0,
     )
+
+    # SEC FTD ETL - Monthly on the 2nd at 5:30 AM
+    scheduler.add_job(
+        run_pipeline,
+        'cron',
+        args=['data_collection.pipelines.sec_ftd.etl'],
+        id='sec_ftd_etl',
+        day=2,
+        hour=5,
+        minute=30,
+    )
     
     # Corporate Actions - Weekly on Sunday at 4 AM
     scheduler.add_job(
@@ -160,6 +184,17 @@ def create_scheduler() -> BlockingScheduler:
         day_of_week='sun',
         hour=4,
         minute=0,
+    )
+
+    # Ticker Profile Refresh - Weekly on Monday at 2:30 AM
+    scheduler.add_job(
+        run_pipeline,
+        'cron',
+        args=['data_collection.pipelines.profile_refresh'],
+        id='profile_refresh',
+        day_of_week='mon',
+        hour=2,
+        minute=30,
     )
     
     # ═══════════════════════════════════════════════════════════════════
@@ -217,6 +252,7 @@ def run_startup_pipelines():
     # Critical pipelines to run at startup (module, command, env_vars)
     startup_pipelines = [
         ('data_collection.pipelines.universe', 'run', {}),
+        ('data_collection.pipelines.stooq_daily', 'run', {}),  # Update market_bar_daily
         ('data_collection.pipelines.vix', 'run', {}),
         ('data_collection.pipelines.earnings', 'run', {}),
         ('data_collection.pipelines.sec_rss', 'run', {}),

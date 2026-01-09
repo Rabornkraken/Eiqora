@@ -2,11 +2,19 @@
 
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass
 from typing import Any, Iterable
+from pathlib import Path
 
 import psycopg
+from psycopg import sql
+from dotenv import load_dotenv
+
+# Load .env file from project root
+_project_root = Path(__file__).parent.parent.parent
+load_dotenv(_project_root / ".env")
 
 
 class DatabaseError(RuntimeError):
@@ -23,14 +31,12 @@ def _build_database_url() -> str:
     if url:
         return url.replace("postgresql+psycopg://", "postgresql://")
 
-    user = os.getenv("POSTGRES_USER")
-    password = os.getenv("POSTGRES_PASSWORD")
-    db_name = os.getenv("POSTGRES_DB")
+    # Use defaults matching eiqora_v2/config/settings.py
+    user = os.getenv("POSTGRES_USER", "postgres")
+    password = os.getenv("POSTGRES_PASSWORD", "postgres")
+    db_name = os.getenv("POSTGRES_DB", "finance")
     host = os.getenv("POSTGRES_HOST", "localhost")
     port = os.getenv("POSTGRES_PORT", "5432")
-
-    if not all([user, password, db_name]):
-        raise DatabaseError("Set DATABASE_URL or POSTGRES_USER/POSTGRES_PASSWORD/POSTGRES_DB")
 
     return f"postgresql://{user}:{password}@{host}:{port}/{db_name}"
 
@@ -55,3 +61,19 @@ def insert_raw_object(
     """
     # No-op: raw_object table removed, return dummy ID
     return 0
+
+
+def notify_ingest(
+    conn: psycopg.Connection,
+    channel: str,
+    payload: dict[str, Any] | None = None,
+) -> None:
+    """Emit a Postgres NOTIFY message with a JSON payload."""
+    message = json.dumps(payload or {}, ensure_ascii=True, default=str)
+    with conn.cursor() as cursor:
+        cursor.execute(
+            sql.SQL("NOTIFY {}, {}").format(
+                sql.Identifier(channel),
+                sql.Literal(message),
+            )
+        )

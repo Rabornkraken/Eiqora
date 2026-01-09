@@ -25,6 +25,29 @@ class MomentumMetrics(BaseModel):
     ret_60d: float | None = Field(default=None, description="60-day return")
 
 
+class RelativeStrengthPair(BaseModel):
+    """Relative performance vs a benchmark."""
+
+    benchmark: str = Field(description="Benchmark symbol")
+    symbol_ret_20d: float | None = Field(default=None, description="Symbol 20-day return")
+    benchmark_ret_20d: float | None = Field(default=None, description="Benchmark 20-day return")
+    rel_ret_20d: float | None = Field(default=None, description="Symbol - benchmark 20-day return")
+    symbol_ret_60d: float | None = Field(default=None, description="Symbol 60-day return")
+    benchmark_ret_60d: float | None = Field(default=None, description="Benchmark 60-day return")
+    rel_ret_60d: float | None = Field(default=None, description="Symbol - benchmark 60-day return")
+    data_quality: Literal["OK", "STALE", "MISSING"] = Field(default="OK")
+
+
+class RelativeStrengthMetrics(BaseModel):
+    """Relative strength metrics vs benchmarks."""
+
+    sector_etf: str | None = Field(default=None, description="Sector ETF benchmark")
+    vs_spy: RelativeStrengthPair | None = None
+    vs_sector: RelativeStrengthPair | None = None
+    vs_qqq: RelativeStrengthPair | None = None
+    missing: list[str] = Field(default_factory=list)
+
+
 class ContextOutput(BaseModel):
     """Output schema for Context Agent."""
     
@@ -42,6 +65,11 @@ class ContextOutput(BaseModel):
     )
     
     current_price: float = Field(gt=0, description="Current stock price")
+
+    relative_strength: RelativeStrengthMetrics | None = Field(
+        default=None,
+        description="Relative strength vs benchmarks"
+    )
     
     data_quality: Literal["GOOD", "SPARSE", "STALE"] = Field(
         default="GOOD",

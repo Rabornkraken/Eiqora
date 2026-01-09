@@ -513,6 +513,373 @@ def list_analyses():
         for k, v in ANALYSIS_STORE.items()
     ]
 
+# ========================================
+# NEW ENDPOINTS FOR FRONTEND V2
+# ========================================
+
+@app.get("/api/dashboard-stats")
+async def get_dashboard_stats():
+    """
+    Get dashboard statistics for the landing page header.
+    Returns professional trading metrics.
+    """
+    from datetime import datetime
+    
+    # Dummy data with professional metrics
+    starting_equity = 100000
+    current_equity = 125430.25
+    total_return = ((current_equity - starting_equity) / starting_equity) * 100
+    
+    total_trades = 42  # Only counting GO trades (actual trades)
+    winning_trades = 28
+    win_rate = (winning_trades / total_trades) * 100 if total_trades > 0 else 0
+    
+    return {
+        "total_analyses": 156,
+        "total_trades": total_trades,
+        "win_rate": f"{win_rate:.1f}%",
+        "total_return": f"+{total_return:.2f}%",
+        "current_equity": f"${current_equity:,.2f}",
+        "sharpe_ratio": "1.85",
+        "last_updated": datetime.now().isoformat()
+    }
+
+@app.get("/api/equity-history")
+async def get_equity_history():
+    """
+    Get equity history for the line chart.
+    Returns dummy data for demo purposes showing a realistic equity curve.
+    """
+    from datetime import datetime, timedelta
+    import random
+    
+    # Generate 30 days of dummy equity data with realistic fluctuations
+    base_date = datetime.now() - timedelta(days=30)
+    equity = 100000
+    equity_data = []
+    
+    for i in range(31):
+        # Random walk with slight upward bias
+        change = random.uniform(-2000, 3000)
+        equity = max(90000, equity + change)  # Don't go below 90k
+        
+        equity_data.append({
+            "date": (base_date + timedelta(days=i)).strftime("%Y-%m-%d"),
+            "equity": round(equity, 2)
+        })
+    
+    return equity_data
+
+@app.get("/api/decisions")
+async def get_decisions(
+    limit: int = 100,
+    offset: int = 0,
+    symbol: str = None,
+    decision: str = None
+):
+    """
+    Get list of trading decisions from analysis_log.
+    Returns dummy data for demo purposes.
+    """
+    from datetime import datetime, timedelta
+    import random
+    from uuid import uuid4
+    
+    # Dummy symbols and reasons
+    symbols = ["NVDA", "TSLA", "AAPL", "MSFT", "META", "GOOGL", "AMZN", "AMD"]
+    triggers = ["news", "technical_breakout", "earnings", "sec_filing", "sentiment_shift"]
+    
+    go_reasons = [
+        "Strong bullish momentum with high volume confirmation",
+        "Positive earnings surprise with raised guidance",
+        "Technical breakout above key resistance at $150",
+        "Institutional accumulation detected, bullish sentiment",
+        "Sector rotation favoring tech, strong fundamentals"
+    ]
+    
+    no_go_reasons = [
+        "Red team flagged significant downside risk in current macro environment",
+        "Position manager rejected due to portfolio heat cap exceeded",
+        "Weak technical setup, bearish divergence on RSI",
+        "Fundamental concerns: declining margins and revenue miss",
+        "Risk-reward ratio unfavorable, stop loss too wide"
+    ]
+    
+    # Generate dummy decisions
+    decisions = []
+    base_time = datetime.now() - timedelta(days=15)
+    
+    for i in range(min(limit, 20)):  # Generate 20 dummy decisions
+        is_go = random.random() < 0.3  # 30% GO rate
+        
+        decisions.append({
+            "analysis_id": str(uuid4()),
+            "symbol": random.choice(symbols),
+            "analysis_time": (base_time + timedelta(hours=i*6)).isoformat(),
+            "trigger_type": random.choice(triggers),
+            "final_decision": "GO" if is_go else "NO_GO",
+            "decision_reason": random.choice(go_reasons if is_go else no_go_reasons)
+        })
+    
+    return decisions
+
+@app.get("/api/decisions/{analysis_id}")
+async def get_decision_details(analysis_id: str):
+    """
+    Get full details of a single analysis including all agent outputs.
+    Returns dummy data for demo purposes.
+    """
+    from datetime import datetime
+    import random
+    
+    # Generate dummy detailed analysis
+    symbols = ["NVDA", "TSLA", "AAPL"]
+    symbol = random.choice(symbols)
+    is_go = random.random() < 0.3
+    
+    return {
+        "analysis_id": analysis_id,
+        "symbol": symbol,
+        "analysis_time": datetime.now().isoformat(),
+        "trigger_type": "technical_breakout",
+        "trigger_detail": {
+            "type": "breakout",
+            "price": 245.50,
+            "resistance_level": 240.00
+        },
+        "final_decision": "GO" if is_go else "NO_GO",
+        "decision_reason": "Strong bullish momentum confirmed by all agents" if is_go else "Red team identified significant downside risks",
+        "topdown_output": {
+            "market_regime": "BULLISH",
+            "spy_trend": "Strong uptrend, above 50-day MA",
+            "vix_level": 14.5,
+            "assessment": "Favorable macro conditions for equity longs"
+        },
+        "context_output": {
+            "price": 245.50,
+            "volume": "Above average",
+            "relative_strength": "Outperforming sector by 3.2%",
+            "summary": f"{symbol} showing strong momentum with increasing volume"
+        },
+        "chart_output": {
+            "pattern": "Bull flag breakout",
+            "support": 235.00,
+            "resistance": 250.00,
+            "technical_score": 8.5,
+            "summary": "Clean technical setup with well-defined risk/reward"
+        },
+        "fundamental_output": {
+            "revenue_growth": "12% YoY",
+            "earnings_surprise": "+5%",
+            "guidance": "Raised for next quarter",
+            "analyst_rating": "Buy (15/20 analysts)",
+            "summary": "Fundamentals remain strong with positive earnings momentum"
+        },
+        "idea_generator_output": {
+            "thesis": f"Ride the momentum in {symbol} following technical breakout and earnings beat",
+            "entry": 245.50,
+            "target": 265.00,
+            "stop_loss": 237.00,
+            "r_multiple": 2.3
+        },
+        "exit_policy_output": {
+            "initial_stop": 237.00,
+            "trailing_stop": "8 ATR",
+            "profit_target_1": 255.00,
+            "profit_target_2": 265.00,
+            "time_stop": "30 days"
+        },
+        "red_team_output": {
+            "decision": "APPROVE" if is_go else "REJECT",
+            "risks_identified": [
+                "High valuation multiples vulnerable to rate changes",
+                "Recent sector rotation away from tech",
+                "Macroeconomic headwinds building"
+            ] if not is_go else ["Minimal risk in current setup"],
+            "summary": "Approved with normal position sizing" if is_go else "Rejected due to unfavorable risk-reward in current environment"
+        },
+        "decision_output": {
+            "final_call": "GO" if is_go else "NO_GO",
+            "conviction": 0.75 if is_go else 0.25,
+            "position_size": "2.5% of portfolio" if is_go else "N/A",
+            "reasoning": "All agents align on bullish setup" if is_go else "Risk management concerns override technical setup"
+        },
+        "position_manager_output": {
+            "approved": is_go,
+            "portfolio_impact": "0.25% risk per trade" if is_go else "No impact",
+            "total_exposure": "23% of portfolio" if is_go else "N/A"
+        },
+        "risk_model_output": {
+            "position_size_pct": 2.5 if is_go else 0,
+            "risk_per_trade_pct": 3.5,
+            "portfolio_heat": 23.4,
+            "max_heat_allowable": 90.0
+        }
+    }
+
+
+@app.get("/api/positions")
+async def get_positions():
+    """
+    Get current portfolio positions/holdings.
+    Returns dummy data for demo purposes.
+    """
+    from datetime import datetime, timedelta
+    
+    # Dummy positions data
+    positions = [
+        {
+            "symbol": "NVDA",
+            "shares": 150,
+            "entry_price": 450.25,
+            "current_price": 498.30,
+            "market_value": 150 * 498.30,
+            "entry_date": (datetime.now() - timedelta(days=15)).isoformat()
+        },
+        {
+            "symbol": "TSLA",
+            "shares": 200,
+            "entry_price": 245.80,
+            "current_price": 251.45,
+            "market_value": 200 * 251.45,
+            "entry_date": (datetime.now() - timedelta(days=8)).isoformat()
+        },
+        {
+            "symbol": "AAPL",
+            "shares": 300,
+            "entry_price": 185.50,
+            "current_price": 188.92,
+            "market_value": 300 * 188.92,
+            "entry_date": (datetime.now() - timedelta(days=22)).isoformat()
+        },
+        {
+            "symbol": "GOOGL",
+            "shares": 100,
+            "entry_price": 138.20,
+            "current_price": 142.75,
+            "market_value": 100 * 142.75,
+            "entry_date": (datetime.now() - timedelta(days=5)).isoformat()
+        },
+    ]
+    
+    return positions
+
+
+@app.get("/api/trading-history")
+async def get_trading_history():
+    """
+    Get completed trading history.
+    Returns dummy data for demo purposes.
+    """
+    from datetime import datetime, timedelta
+    import random
+    
+    # Dummy trading history
+    trades = [
+        {
+            "symbol": "META",
+            "action": "BUY",
+            "shares": 100,
+            "entry_price": 285.50,
+            "exit_price": 312.80,
+            "entry_date": (datetime.now() - timedelta(days=45)).isoformat(),
+            "exit_date": (datetime.now() - timedelta(days=28)).isoformat()
+        },
+        {
+            "symbol": "AMD",
+            "action": "BUY",
+            "shares": 250,
+            "entry_price": 112.30,
+            "exit_price": 125.90,
+            "entry_date": (datetime.now() - timedelta(days=60)).isoformat(),
+            "exit_date": (datetime.now() - timedelta(days=42)).isoformat()
+        },
+        {
+            "symbol": "NFLX",
+            "action": "BUY",
+            "shares": 50,
+            "entry_price": 420.15,
+            "exit_price": 385.20,
+            "entry_date": (datetime.now() - timedelta(days=35)).isoformat(),
+            "exit_date": (datetime.now() - timedelta(days=18)).isoformat()
+        },
+        {
+            "symbol": "MSFT",
+            "action": "BUY",
+            "shares": 150,
+            "entry_price": 338.25,
+            "exit_price": 358.40,
+            "entry_date": (datetime.now() - timedelta(days=52)).isoformat(),
+            "exit_date": (datetime.now() - timedelta(days=25)).isoformat()
+        },
+        {
+            "symbol": "AMZN",
+            "action": "BUY",
+            "shares": 80,
+            "entry_price": 142.50,
+            "exit_price": 155.30,
+            "entry_date": (datetime.now() - timedelta(days=70)).isoformat(),
+            "exit_date": (datetime.now() - timedelta(days=48)).isoformat()
+        },
+        {
+            "symbol": "COIN",
+            "action": "BUY",
+            "shares": 120,
+            "entry_price": 78.90,
+            "exit_price": 72.15,
+            "entry_date": (datetime.now() - timedelta(days=38)).isoformat(),
+            "exit_date": (datetime.now() - timedelta(days=21)).isoformat()
+        },
+    ]
+    
+    return trades
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+@app.get("/api/positions")
+async def get_positions():
+    """
+    Get current portfolio positions/holdings.
+    Returns dummy data for demo purposes.
+    """
+    from datetime import datetime, timedelta
+    
+    # Dummy positions data
+    positions = [
+        {
+            "symbol": "NVDA",
+            "shares": 150,
+            "entry_price": 450.25,
+            "current_price": 498.30,
+            "market_value": 150 * 498.30,
+            "entry_date": (datetime.now() - timedelta(days=15)).isoformat()
+        },
+        {
+            "symbol": "TSLA",
+            "shares": 200,
+            "entry_price": 245.80,
+            "current_price": 251.45,
+            "market_value": 200 * 251.45,
+            "entry_date": (datetime.now() - timedelta(days=8)).isoformat()
+        },
+        {
+            "symbol": "AAPL",
+            "shares": 300,
+            "entry_price": 185.50,
+            "current_price": 188.92,
+            "market_value": 300 * 188.92,
+            "entry_date": (datetime.now() - timedelta(days=22)).isoformat()
+        },
+        {
+            "symbol": "GOOGL",
+            "shares": 100,
+            "entry_price": 138.20,
+            "current_price": 142.75,
+            "market_value": 100 * 142.75,
+            "entry_date": (datetime.now() - timedelta(days=5)).isoformat()
+        },
+    ]
+    
+    return positions

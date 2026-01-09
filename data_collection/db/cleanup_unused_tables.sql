@@ -10,7 +10,7 @@
 
 -- 1. document_fts (Full-text search index)
 --    - 0 rows
---    - Only written by index_docs.py pipeline (not currently running)
+--    - Document indexing pipeline removed
 --    - Never queried by agents
 DROP TABLE IF EXISTS document_fts CASCADE;
 

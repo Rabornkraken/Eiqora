@@ -53,7 +53,10 @@ async def gather_quantitative_signals(
         
         # === CORPORATE ACTIONS ===
         signals["corporate_actions"] = await _get_corporate_signals(conn, symbol, asof_date)
-        
+
+        # === FTD (Fails-to-Deliver) ===
+        signals["ftd"] = await _get_ftd_signals(conn, symbol, asof_date)
+
         return signals
 
 
@@ -215,27 +218,47 @@ async def _get_institutional_signals(conn, symbol: str, asof: datetime) -> dict:
 
 
 async def _get_sentiment_signals(conn, symbol: str, asof: datetime) -> dict:
-    """Aggregate news sentiment signals."""
+    """Aggregate news sentiment signals from YFinance news with FinBERT scores."""
     start_date = asof - timedelta(days=90)
     
-    # Note: document table doesn't have sentiment_score yet
-    # Just count articles and return headlines for LLM to interpret
+    # Query YFinance news with FinBERT sentiment scores
     rows = await conn.fetch("""
-        SELECT published_at, title
-        FROM document
-        WHERE ticker = $1 
-          AND published_at BETWEEN $2 AND $3
-        ORDER BY published_at DESC
+        SELECT yn.published_at, yn.title, nr.score as sentiment_score
+        FROM yfinance_news yn
+        LEFT JOIN yfinance_news_relevance nr ON yn.doc_id = nr.doc_id
+        WHERE yn.ticker = $1 
+          AND yn.published_at BETWEEN $2 AND $3
+        ORDER BY yn.published_at DESC
     """, symbol, start_date, asof)
     
     if not rows:
         return {"available": False, "article_count_90d": 0}
     
+    # Calculate sentiment statistics
+    scored_articles = [r for r in rows if r['sentiment_score'] is not None]
+    
+    avg_sentiment = None
+    positive_count = 0
+    negative_count = 0
+    neutral_count = 0
+    
+    if scored_articles:
+        scores = [float(r['sentiment_score']) for r in scored_articles]
+        avg_sentiment = sum(scores) / len(scores)
+        
+        positive_count = sum(1 for s in scores if s > 2.0)
+        negative_count = sum(1 for s in scores if s < -2.0)
+        neutral_count = len(scores) - positive_count - negative_count
+    
     return {
         "available": True,
         "article_count_90d": len(rows),
+        "scored_count": len(scored_articles),
+        "avg_sentiment": avg_sentiment,
+        "positive_count": positive_count,  # FinBERT score > 2.0
+        "negative_count": negative_count,  # FinBERT score < -2.0
+        "neutral_count": neutral_count,
         "recent_headlines": [r['title'] for r in rows[:10]],
-        "note": "Sentiment scoring not yet implemented - LLM should interpret headlines"
     }
 
 
@@ -266,6 +289,43 @@ async def _get_corporate_signals(conn, symbol: str, asof: datetime) -> dict:
         "split_count_1y": len(splits),
         "latest_dividend": float(dividends[0]['cash_amount']) if dividends and dividends[0]['cash_amount'] else None,
     }
+
+
+async def _get_ftd_signals(conn, symbol: str, asof: datetime) -> dict:
+    """Aggregate SEC fails-to-deliver signals."""
+    start_date = asof.date() - timedelta(days=90)
+    try:
+        rows = await conn.fetch(
+            """
+            SELECT settlement_date, quantity, price
+            FROM sec_ftd
+            WHERE ticker = $1
+              AND settlement_date >= $2
+            ORDER BY settlement_date DESC
+            """,
+            symbol,
+            start_date,
+        )
+    except Exception:
+        return {"available": False}
+
+    if not rows:
+        return {"available": False}
+
+    quantities = [float(r["quantity"] or 0) for r in rows]
+    last = rows[0]
+
+    return {
+        "available": True,
+        "records_90d": len(rows),
+        "total_quantity_90d": sum(quantities),
+        "avg_quantity_90d": sum(quantities) / len(quantities) if quantities else None,
+        "max_quantity_90d": max(quantities) if quantities else None,
+        "last_settlement_date": str(last["settlement_date"]) if last["settlement_date"] else None,
+        "last_quantity": float(last["quantity"] or 0),
+        "last_price": float(last["price"] or 0) if last["price"] is not None else None,
+    }
+
 
 
 async def main():
