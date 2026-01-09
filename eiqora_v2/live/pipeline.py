@@ -207,6 +207,17 @@ class LiveTradingPipeline:
                     if position_size_pct is not None
                     else pm_size
                 )
+
+            if position_size_pct is not None:
+                try:
+                    size_val = float(position_size_pct)
+                    if size_val > 1.0:
+                        size_val = size_val / 100.0
+                    if size_val > 1.0:
+                        size_val = 1.0
+                    position_size_pct = size_val
+                except (TypeError, ValueError):
+                    position_size_pct = None
             
             signal = {
                 "symbol": trigger.symbol,

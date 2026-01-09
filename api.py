@@ -9,8 +9,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import yfinance as yf
 
-# Import Eiqora Core
-from eiqora.graph.workflow import create_graph
+# Import OLD Eiqora Core (commented out - not needed for database endpoints)
+# from eiqora.graph.workflow import create_graph
+
+# Import Database utilities
+from eiqora_v2.tools.db import get_connection
+from eiqora_v2.tools.positions import get_open_positions
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO)
@@ -521,54 +525,97 @@ def list_analyses():
 async def get_dashboard_stats():
     """
     Get dashboard statistics for the landing page header.
-    Returns professional trading metrics.
+    Queries real database for trading metrics.
     """
     from datetime import datetime
     
-    # Dummy data with professional metrics
-    starting_equity = 100000
-    current_equity = 125430.25
-    total_return = ((current_equity - starting_equity) / starting_equity) * 100
-    
-    total_trades = 42  # Only counting GO trades (actual trades)
-    winning_trades = 28
-    win_rate = (winning_trades / total_trades) * 100 if total_trades > 0 else 0
-    
-    return {
-        "total_analyses": 156,
-        "total_trades": total_trades,
-        "win_rate": f"{win_rate:.1f}%",
-        "total_return": f"+{total_return:.2f}%",
-        "current_equity": f"${current_equity:,.2f}",
-        "sharpe_ratio": "1.85",
-        "last_updated": datetime.now().isoformat()
-    }
+    async with get_connection() as conn:
+        # Total analyses count
+        total_analyses = await conn.fetchval(
+            "SELECT COUNT(*) FROM analysis_log"
+        ) or 0
+        
+        # GO trades count (actual trades)
+        go_count = await conn.fetchval(
+            "SELECT COUNT(*) FROM analysis_log WHERE final_decision = 'GO'"
+        ) or 0
+        
+        # Win rate from closed positions
+        win_rate_result = await conn.fetchrow("""
+            SELECT 
+                COUNT(*) FILTER (WHERE realized_pnl_pct > 0) as wins,
+                COUNT(*) as total
+            FROM position
+            WHERE status = 'CLOSED'
+        """)
+        
+        if win_rate_result and win_rate_result['total'] > 0:
+            win_rate = (win_rate_result['wins'] / win_rate_result['total']) * 100
+            win_rate_str = f"{win_rate:.1f}%"
+        else:
+            win_rate_str = "N/A"
+        
+        # Current equity and total return
+        account = await conn.fetchrow(
+            "SELECT equity, starting_equity, realized_pnl FROM account_state WHERE account_id = 'main'"
+        )
+        
+        if account and account['equity']:
+            current_equity = float(account['equity'])
+            starting_equity = float(account['starting_equity']) if account['starting_equity'] else 100000
+            total_return_pct = ((current_equity - starting_equity) / starting_equity) * 100
+            total_return = f"+{total_return_pct:.2f}%" if total_return_pct >= 0 else f"{total_return_pct:.2f}%"
+            current_equity_str = f"${current_equity:,.2f}"
+        else:
+            # Fallback if no account data
+            current_equity_str = "$100,000.00"
+            total_return = "+0.00%"
+        
+        # Sharpe ratio placeholder (requires advanced calculation)
+        sharpe_ratio = "N/A"
+        
+        return {
+            "total_analyses": total_analyses,
+            "total_trades": go_count,
+            "win_rate": win_rate_str,
+            "total_return": total_return,
+            "current_equity": current_equity_str,
+            "sharpe_ratio": sharpe_ratio,
+            "last_updated": datetime.now().isoformat()
+        }
 
 @app.get("/api/equity-history")
 async def get_equity_history():
     """
-    Get equity history for the line chart.
-    Returns dummy data for demo purposes showing a realistic equity curve.
+    Get equity history for the line chart from account_snapshot table.
     """
-    from datetime import datetime, timedelta
-    import random
+    from datetime import datetime
     
-    # Generate 30 days of dummy equity data with realistic fluctuations
-    base_date = datetime.now() - timedelta(days=30)
-    equity = 100000
-    equity_data = []
-    
-    for i in range(31):
-        # Random walk with slight upward bias
-        change = random.uniform(-2000, 3000)
-        equity = max(90000, equity + change)  # Don't go below 90k
+    async with get_connection() as conn:
+        rows = await conn.fetch("""
+            SELECT 
+                asof_ts::date as date,
+                equity
+            FROM account_snapshot
+            WHERE account_id = 'main'
+            ORDER BY asof_ts ASC
+            LIMIT 365
+        """)
         
-        equity_data.append({
-            "date": (base_date + timedelta(days=i)).strftime("%Y-%m-%d"),
-            "equity": round(equity, 2)
-        })
-    
-    return equity_data
+        if not rows:
+            # Fallback: return starting equity
+            return [{
+                "date": datetime.now().strftime("%Y-%m-%d"),
+                "equity": 100000
+            }]
+        
+        return [
+            {
+                "date": row["date"].isoformat(),
+                "equity": float(row["equity"])
+            }
+            for row in rows
+        ]
 
 @app.get("/api/decisions")
 async def get_decisions(
@@ -578,308 +625,182 @@ async def get_decisions(
     decision: str = None
 ):
     """
-    Get list of trading decisions from analysis_log.
-    Returns dummy data for demo purposes.
+    Get list of trading decisions from analysis_log table.
     """
-    from datetime import datetime, timedelta
-    import random
-    from uuid import uuid4
-    
-    # Dummy symbols and reasons
-    symbols = ["NVDA", "TSLA", "AAPL", "MSFT", "META", "GOOGL", "AMZN", "AMD"]
-    triggers = ["news", "technical_breakout", "earnings", "sec_filing", "sentiment_shift"]
-    
-    go_reasons = [
-        "Strong bullish momentum with high volume confirmation",
-        "Positive earnings surprise with raised guidance",
-        "Technical breakout above key resistance at $150",
-        "Institutional accumulation detected, bullish sentiment",
-        "Sector rotation favoring tech, strong fundamentals"
-    ]
-    
-    no_go_reasons = [
-        "Red team flagged significant downside risk in current macro environment",
-        "Position manager rejected due to portfolio heat cap exceeded",
-        "Weak technical setup, bearish divergence on RSI",
-        "Fundamental concerns: declining margins and revenue miss",
-        "Risk-reward ratio unfavorable, stop loss too wide"
-    ]
-    
-    # Generate dummy decisions
-    decisions = []
-    base_time = datetime.now() - timedelta(days=15)
-    
-    for i in range(min(limit, 20)):  # Generate 20 dummy decisions
-        is_go = random.random() < 0.3  # 30% GO rate
+    async with get_connection() as conn:
+        # Build query with optional filters
+        query = "SELECT analysis_id, symbol, analysis_time, trigger_type, final_decision, decision_reason FROM analysis_log"
+        conditions = []
+        params = []
+        param_idx = 1
         
-        decisions.append({
-            "analysis_id": str(uuid4()),
-            "symbol": random.choice(symbols),
-            "analysis_time": (base_time + timedelta(hours=i*6)).isoformat(),
-            "trigger_type": random.choice(triggers),
-            "final_decision": "GO" if is_go else "NO_GO",
-            "decision_reason": random.choice(go_reasons if is_go else no_go_reasons)
-        })
-    
-    return decisions
+        if symbol:
+            conditions.append(f"symbol = ${param_idx}")
+            params.append(symbol)
+            param_idx += 1
+        
+        if decision:
+            conditions.append(f"final_decision = ${param_idx}")
+            params.append(decision.upper())
+            param_idx += 1
+        
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+        
+        query += f" ORDER BY analysis_time DESC LIMIT ${param_idx} OFFSET ${param_idx + 1}"
+        params.extend([limit, offset])
+        
+        rows = await conn.fetch(query, *params)
+        
+        return [
+            {
+                "analysis_id": str(row["analysis_id"]),
+                "symbol": row["symbol"],
+                "analysis_time": row["analysis_time"].isoformat(),
+                "trigger_type": row["trigger_type"],
+                "final_decision": row["final_decision"],
+                "decision_reason": row["decision_reason"]
+            }
+            for row in rows
+        ]
 
 @app.get("/api/decisions/{analysis_id}")
 async def get_decision_details(analysis_id: str):
     """
-    Get full details of a single analysis including all agent outputs.
-    Returns dummy data for demo purposes.
+    Get full details of a single analysis including all agent outputs from database.
     """
-    from datetime import datetime
-    import random
+    import json
     
-    # Generate dummy detailed analysis
-    symbols = ["NVDA", "TSLA", "AAPL"]
-    symbol = random.choice(symbols)
-    is_go = random.random() < 0.3
-    
-    return {
-        "analysis_id": analysis_id,
-        "symbol": symbol,
-        "analysis_time": datetime.now().isoformat(),
-        "trigger_type": "technical_breakout",
-        "trigger_detail": {
-            "type": "breakout",
-            "price": 245.50,
-            "resistance_level": 240.00
-        },
-        "final_decision": "GO" if is_go else "NO_GO",
-        "decision_reason": "Strong bullish momentum confirmed by all agents" if is_go else "Red team identified significant downside risks",
-        "topdown_output": {
-            "market_regime": "BULLISH",
-            "spy_trend": "Strong uptrend, above 50-day MA",
-            "vix_level": 14.5,
-            "assessment": "Favorable macro conditions for equity longs"
-        },
-        "context_output": {
-            "price": 245.50,
-            "volume": "Above average",
-            "relative_strength": "Outperforming sector by 3.2%",
-            "summary": f"{symbol} showing strong momentum with increasing volume"
-        },
-        "chart_output": {
-            "pattern": "Bull flag breakout",
-            "support": 235.00,
-            "resistance": 250.00,
-            "technical_score": 8.5,
-            "summary": "Clean technical setup with well-defined risk/reward"
-        },
-        "fundamental_output": {
-            "revenue_growth": "12% YoY",
-            "earnings_surprise": "+5%",
-            "guidance": "Raised for next quarter",
-            "analyst_rating": "Buy (15/20 analysts)",
-            "summary": "Fundamentals remain strong with positive earnings momentum"
-        },
-        "idea_generator_output": {
-            "thesis": f"Ride the momentum in {symbol} following technical breakout and earnings beat",
-            "entry": 245.50,
-            "target": 265.00,
-            "stop_loss": 237.00,
-            "r_multiple": 2.3
-        },
-        "exit_policy_output": {
-            "initial_stop": 237.00,
-            "trailing_stop": "8 ATR",
-            "profit_target_1": 255.00,
-            "profit_target_2": 265.00,
-            "time_stop": "30 days"
-        },
-        "red_team_output": {
-            "decision": "APPROVE" if is_go else "REJECT",
-            "risks_identified": [
-                "High valuation multiples vulnerable to rate changes",
-                "Recent sector rotation away from tech",
-                "Macroeconomic headwinds building"
-            ] if not is_go else ["Minimal risk in current setup"],
-            "summary": "Approved with normal position sizing" if is_go else "Rejected due to unfavorable risk-reward in current environment"
-        },
-        "decision_output": {
-            "final_call": "GO" if is_go else "NO_GO",
-            "conviction": 0.75 if is_go else 0.25,
-            "position_size": "2.5% of portfolio" if is_go else "N/A",
-            "reasoning": "All agents align on bullish setup" if is_go else "Risk management concerns override technical setup"
-        },
-        "position_manager_output": {
-            "approved": is_go,
-            "portfolio_impact": "0.25% risk per trade" if is_go else "No impact",
-            "total_exposure": "23% of portfolio" if is_go else "N/A"
-        },
-        "risk_model_output": {
-            "position_size_pct": 2.5 if is_go else 0,
-            "risk_per_trade_pct": 3.5,
-            "portfolio_heat": 23.4,
-            "max_heat_allowable": 90.0
+    async with get_connection() as conn:
+        row = await conn.fetchrow("""
+            SELECT *
+            FROM analysis_log
+            WHERE analysis_id = $1
+        """, analysis_id)
+        
+        if not row:
+            raise HTTPException(status_code=404, detail="Analysis not found")
+        
+        # Helper to parse JSONB fields
+        def parse_json(value):
+            if value is None:
+                return {}
+            if isinstance(value, str):
+                return json.loads(value)
+            return value
+        
+        return {
+            "analysis_id": str(row["analysis_id"]),
+            "symbol": row["symbol"],
+            "analysis_time": row["analysis_time"].isoformat(),
+            "trigger_type": row["trigger_type"],
+            "final_decision": row["final_decision"],
+            "decision_reason": row["decision_reason"],
+            "trigger_detail": parse_json(row.get("trigger_detail")),
+            "topdown_output": parse_json(row.get("topdown_output")),
+            "context_output": parse_json(row.get("context_output")),
+            "chart_output": parse_json(row.get("chart_output")),
+            "fundamental_output": parse_json(row.get("fundamental_output")),
+            "idea_generator_output": parse_json(row.get("idea_generator_output")),
+            "exit_policy_output": parse_json(row.get("exit_policy_output")),
+            "red_team_output": parse_json(row.get("red_team_output")),
+            "decision_output": parse_json(row.get("decision_output")),
+            "position_manager_output": parse_json(row.get("position_manager_output")),
+            "risk_model_output": parse_json(row.get("risk_model_output")),
         }
-    }
 
 
 @app.get("/api/positions")
 async def get_positions():
     """
-    Get current portfolio positions/holdings.
-    Returns dummy data for demo purposes.
+    Get current portfolio positions/holdings from database.
     """
-    from datetime import datetime, timedelta
-    
-    # Dummy positions data
-    positions = [
-        {
-            "symbol": "NVDA",
-            "shares": 150,
-            "entry_price": 450.25,
-            "current_price": 498.30,
-            "market_value": 150 * 498.30,
-            "entry_date": (datetime.now() - timedelta(days=15)).isoformat()
-        },
-        {
-            "symbol": "TSLA",
-            "shares": 200,
-            "entry_price": 245.80,
-            "current_price": 251.45,
-            "market_value": 200 * 251.45,
-            "entry_date": (datetime.now() - timedelta(days=8)).isoformat()
-        },
-        {
-            "symbol": "AAPL",
-            "shares": 300,
-            "entry_price": 185.50,
-            "current_price": 188.92,
-            "market_value": 300 * 188.92,
-            "entry_date": (datetime.now() - timedelta(days=22)).isoformat()
-        },
-        {
-            "symbol": "GOOGL",
-            "shares": 100,
-            "entry_price": 138.20,
-            "current_price": 142.75,
-            "market_value": 100 * 142.75,
-            "entry_date": (datetime.now() - timedelta(days=5)).isoformat()
-        },
-    ]
-    
-    return positions
+    try:
+        positions = await get_open_positions(refresh_prices=True)
+        
+        # Transform to frontend format
+        result = []
+        for pos in positions:
+            # Calculate shares - try actual shares first, then calculate from size_pct
+            shares = pos.get("shares")
+            if shares is None and pos.get("size_pct"):
+                # Rough approximation if we don't have actual shares
+                # This shouldn't happen in production but provides fallback
+                shares = 100  # Placeholder
+            
+            shares_value = float(shares) if shares else 0
+            entry_price = float(pos["entry_price"])
+            current_price = float(pos["current_price"])
+            
+            result.append({
+                "symbol": pos["symbol"],
+                "shares": shares_value,
+                "entry_price": entry_price,
+                "current_price": current_price,
+                "market_value": current_price * shares_value,
+                "unrealized_pnl": float(pos.get("unrealized_pnl", 0)),
+                "unrealized_pnl_pct": float(pos.get("unrealized_pnl_pct", 0)),
+                "entry_date": pos["entry_date"].isoformat() if pos.get("entry_date") else None,
+                "days_held": pos.get("days_held", 0)
+            })
+        
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching positions: {e}")
+        import traceback
+        traceback.print_exc()
+        # Return empty array instead of 500 error
+        return []
 
 
 @app.get("/api/trading-history")
-async def get_trading_history():
+async def get_trading_history(limit: int = 50):
     """
-    Get completed trading history.
-    Returns dummy data for demo purposes.
+    Get completed trading history from database.
     """
-    from datetime import datetime, timedelta
-    import random
-    
-    # Dummy trading history
-    trades = [
-        {
-            "symbol": "META",
-            "action": "BUY",
-            "shares": 100,
-            "entry_price": 285.50,
-            "exit_price": 312.80,
-            "entry_date": (datetime.now() - timedelta(days=45)).isoformat(),
-            "exit_date": (datetime.now() - timedelta(days=28)).isoformat()
-        },
-        {
-            "symbol": "AMD",
-            "action": "BUY",
-            "shares": 250,
-            "entry_price": 112.30,
-            "exit_price": 125.90,
-            "entry_date": (datetime.now() - timedelta(days=60)).isoformat(),
-            "exit_date": (datetime.now() - timedelta(days=42)).isoformat()
-        },
-        {
-            "symbol": "NFLX",
-            "action": "BUY",
-            "shares": 50,
-            "entry_price": 420.15,
-            "exit_price": 385.20,
-            "entry_date": (datetime.now() - timedelta(days=35)).isoformat(),
-            "exit_date": (datetime.now() - timedelta(days=18)).isoformat()
-        },
-        {
-            "symbol": "MSFT",
-            "action": "BUY",
-            "shares": 150,
-            "entry_price": 338.25,
-            "exit_price": 358.40,
-            "entry_date": (datetime.now() - timedelta(days=52)).isoformat(),
-            "exit_date": (datetime.now() - timedelta(days=25)).isoformat()
-        },
-        {
-            "symbol": "AMZN",
-            "action": "BUY",
-            "shares": 80,
-            "entry_price": 142.50,
-            "exit_price": 155.30,
-            "entry_date": (datetime.now() - timedelta(days=70)).isoformat(),
-            "exit_date": (datetime.now() - timedelta(days=48)).isoformat()
-        },
-        {
-            "symbol": "COIN",
-            "action": "BUY",
-            "shares": 120,
-            "entry_price": 78.90,
-            "exit_price": 72.15,
-            "entry_date": (datetime.now() - timedelta(days=38)).isoformat(),
-            "exit_date": (datetime.now() - timedelta(days=21)).isoformat()
-        },
-    ]
-    
-    return trades
+    async with get_connection() as conn:
+        rows = await conn.fetch("""
+            SELECT 
+                symbol,
+                direction,
+                entry_price,
+                exit_price,
+                entry_date,
+                exit_date,
+                shares,
+                realized_pnl,
+                realized_pnl_pct,
+                exit_type,
+                exit_reason
+            FROM position
+            WHERE status = 'CLOSED'
+            ORDER BY exit_date DESC
+            LIMIT $1
+        """, limit)
+        
+        result = []
+        for row in rows:
+            # Calculate hold period
+            entry = row["entry_date"]
+            exit_date = row["exit_date"]
+            hold_period = (exit_date - entry).days if exit_date and entry else 0
+            
+            result.append({
+                "symbol": row["symbol"],
+                "action": "SELL" if row.get("direction") == "SHORT" else "BUY",
+                "shares": float(row["shares"]) if row["shares"] else 0,
+                "entry_price": float(row["entry_price"]),
+                "exit_price": float(row["exit_price"]) if row["exit_price"] else 0,
+                "entry_date": entry.isoformat() if entry else None,
+                "exit_date": exit_date.isoformat() if exit_date else None,
+                "hold_period": hold_period,
+                "pnl": float(row["realized_pnl"]) if row["realized_pnl"] else 0,
+                "pnl_pct": float(row["realized_pnl_pct"]) if row["realized_pnl_pct"] else 0,
+            })
+        
+        return result
 
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-@app.get("/api/positions")
-async def get_positions():
-    """
-    Get current portfolio positions/holdings.
-    Returns dummy data for demo purposes.
-    """
-    from datetime import datetime, timedelta
-    
-    # Dummy positions data
-    positions = [
-        {
-            "symbol": "NVDA",
-            "shares": 150,
-            "entry_price": 450.25,
-            "current_price": 498.30,
-            "market_value": 150 * 498.30,
-            "entry_date": (datetime.now() - timedelta(days=15)).isoformat()
-        },
-        {
-            "symbol": "TSLA",
-            "shares": 200,
-            "entry_price": 245.80,
-            "current_price": 251.45,
-            "market_value": 200 * 251.45,
-            "entry_date": (datetime.now() - timedelta(days=8)).isoformat()
-        },
-        {
-            "symbol": "AAPL",
-            "shares": 300,
-            "entry_price": 185.50,
-            "current_price": 188.92,
-            "market_value": 300 * 188.92,
-            "entry_date": (datetime.now() - timedelta(days=22)).isoformat()
-        },
-        {
-            "symbol": "GOOGL",
-            "shares": 100,
-            "entry_price": 138.20,
-            "current_price": 142.75,
-            "market_value": 100 * 142.75,
-            "entry_date": (datetime.now() - timedelta(days=5)).isoformat()
-        },
-    ]
-    
-    return positions

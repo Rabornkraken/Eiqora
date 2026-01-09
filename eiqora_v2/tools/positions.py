@@ -22,6 +22,20 @@ DEFAULT_STARTING_EQUITY = float(os.getenv("ACCOUNT_STARTING_EQUITY", "100000"))
 DEFAULT_CASH_BALANCE = float(os.getenv("ACCOUNT_CASH_BALANCE", str(DEFAULT_STARTING_EQUITY)))
 
 
+def _normalize_position_pct(value: Any) -> float | None:
+    try:
+        pct = float(value)
+    except (TypeError, ValueError):
+        return None
+    if pct <= 0:
+        return pct
+    if pct > 1.0:
+        pct = pct / 100.0
+    if pct > 1.0:
+        pct = 1.0
+    return pct
+
+
 async def _ensure_account_state(conn, account_id: str = DEFAULT_ACCOUNT_ID) -> dict[str, Any]:
     row = await conn.fetchrow(
         "SELECT * FROM account_state WHERE account_id = $1",
@@ -87,7 +101,7 @@ def _resolve_notional_and_shares(
 ) -> tuple[float | None, float | None]:
     notional_value = _row_value(row, "notional_value")
     shares = _row_value(row, "shares")
-    size_pct = _row_value(row, "position_size_pct")
+    size_pct = _normalize_position_pct(_row_value(row, "position_size_pct"))
 
     if notional_value is None and size_pct is not None:
         try:
@@ -117,7 +131,7 @@ async def _refresh_account_state(
     if cash_balance is None:
         cash_balance = state.get("starting_equity", DEFAULT_STARTING_EQUITY)
 
-    base_equity = state.get("equity") or state.get("starting_equity") or DEFAULT_STARTING_EQUITY
+    base_equity = state.get("starting_equity") or DEFAULT_STARTING_EQUITY
 
     rows = await conn.fetch(
         """
@@ -282,9 +296,10 @@ async def open_position(
 
     async with get_connection() as conn:
         account_state = await _ensure_account_state(conn)
-        base_equity = account_state.get("equity") or account_state.get("starting_equity") or DEFAULT_STARTING_EQUITY
+        base_equity = account_state.get("starting_equity") or DEFAULT_STARTING_EQUITY
         notional_value = None
         shares = None
+        position_size_pct = _normalize_position_pct(position_size_pct)
         if position_size_pct is not None and entry_price > 0:
             try:
                 notional_value = float(base_equity) * float(position_size_pct)
@@ -552,6 +567,19 @@ async def _refresh_position_row(
         base_equity=base_equity,
         entry_price=entry_price,
     )
+    if _row_value(row, "shares") is None and shares is not None:
+        await conn.execute(
+            """
+            UPDATE position
+            SET shares = $2,
+                notional_value = $3,
+                last_updated = NOW()
+            WHERE position_id = $1
+            """,
+            row["position_id"],
+            shares,
+            notional_value,
+        )
     if shares is None:
         unrealized_pnl = pnl_per_share
     else:
@@ -708,7 +736,7 @@ async def get_position_by_symbol(
 
         if refresh_prices:
             account_state = await _ensure_account_state(conn)
-            base_equity = account_state.get("equity") or account_state.get("starting_equity") or DEFAULT_STARTING_EQUITY
+            base_equity = account_state.get("starting_equity") or DEFAULT_STARTING_EQUITY
             return await _refresh_position_row(conn, row, asof_time, base_equity=base_equity)
 
         return {

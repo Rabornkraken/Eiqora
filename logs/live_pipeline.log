@@ -446,3 +446,198 @@
 2026-01-09 21:05:30,736 [INFO] No ingest notifications in the last 900 seconds
 2026-01-09 21:20:30,745 [INFO] No ingest notifications in the last 900 seconds
 2026-01-09 21:35:30,758 [INFO] No ingest notifications in the last 900 seconds
+2026-01-09 21:50:30,764 [INFO] No ingest notifications in the last 900 seconds
+2026-01-09 22:05:30,772 [INFO] No ingest notifications in the last 900 seconds
+2026-01-09 22:17:55,712 [INFO] Watchlist already built for 2026-01-09; skipping rebuild
+2026-01-09 22:18:34,748 [INFO] Ingest update received (earnings_event); running scan
+2026-01-09 22:18:34,750 [INFO] === POSITION MONITORING: 2026-01-09 14:18:34.748319+00:00 ===
+2026-01-09 22:18:34,857 [INFO] Monitoring 3 positions: CAT, V, BAC
+2026-01-09 22:18:34,873 [WARNING] ⚠️  Found 1 thesis-breaking triggers for positions
+2026-01-09 22:18:34,874 [INFO] 
+⚠️  Reassessing position: PositionTrigger(CAT, major_negative_news, MEDIUM)
+2026-01-09 22:18:34,888 [INFO] Using cached profile for CAT (age: 4d)
+2026-01-09 22:18:34,888 [INFO] Running position_reassessment for CAT
+2026-01-09 22:18:36,502 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-09 22:18:50,060 [INFO] position_reassessment completed successfully
+2026-01-09 22:18:50,060 [INFO] Decision: HOLD (confidence: 0.95)
+2026-01-09 22:18:50,061 [INFO] Reasoning: The news article highlights insider ownership concentration, which is a corporate governance topic and not directly related to the core bull case thesis of earnings growth, margin expansion, and data center power demand. This is not a fundamental change to the company's business model, growth drivers, or financial health. It does not contradict the bull case assumptions nor confirm any of the known risks (macro slowdown, interest rates). The market reaction is likely to be muted or temporary noise, as this type of news does not typically alter long-term investment theses based on operational performance.
+2026-01-09 22:18:50,061 [INFO] 
+=== Position Monitoring: 0 exit decision(s) ===
+
+2026-01-09 22:18:50,061 [INFO] 
+============================================================
+2026-01-09 22:18:50,061 [INFO] TRIGGER SCAN: 2026-01-09 14:18 UTC
+2026-01-09 22:18:50,061 [INFO] ============================================================
+2026-01-09 22:18:50,079 [INFO] Scanning 9 watchlist symbols for triggers...
+2026-01-09 22:18:50,346 [INFO] Found 1 new triggers (filtered from 1, suppressed=0)
+2026-01-09 22:18:50,346 [INFO] Found 1 triggers
+2026-01-09 22:18:50,348 [INFO] Processing trigger: Trigger(ABBV, sector_laggard, MEDIUM)
+2026-01-09 22:18:50,349 [INFO] Using cached profile for ABBV (age: 4d)
+2026-01-09 22:18:50,349 [INFO] Running LLM pipeline for ABBV (sector_laggard)
+2026-01-09 22:18:50,349 [INFO] Starting LIVE orchestrator for ABBV
+2026-01-09 22:18:50,350 [INFO] Agent chain: ['topdown', 'context', 'chart', 'fundamental', 'idea_generator', 'exit_policy', 'red_team', 'decision', 'position_manager', 'sanity_veto']
+2026-01-09 22:18:50,350 [INFO]   Running topdown...
+2026-01-09 22:18:50,350 [INFO] Running topdown for ABBV
+2026-01-09 22:18:52,238 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-09 22:18:55,939 [INFO] topdown completed successfully
+2026-01-09 22:18:55,940 [INFO]   Running context...
+2026-01-09 22:18:55,964 [INFO]   Running chart...
+2026-01-09 22:18:55,964 [INFO] Running chart for ABBV
+2026-01-09 22:19:05,275 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-09 22:19:51,130 [WARNING] Schema validation error on attempt 1: 2 validation errors for ChartOutput
+setup_type
+  Field required [type=missing, input_value={'analysis': {'price_acti...No clear swing setup.'}}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/missing
+setup_quality
+  Field required [type=missing, input_value={'analysis': {'price_acti...No clear swing setup.'}}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/missing
+2026-01-09 22:19:52,157 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-09 22:19:57,947 [INFO] chart completed successfully
+2026-01-09 22:19:57,947 [INFO]   Running fundamental...
+2026-01-09 22:19:57,947 [INFO] Running fundamental for ABBV
+2026-01-09 22:19:57,947 [INFO]   Using profile baseline: 3 known risks, 3 catalysts
+2026-01-09 22:19:57,979 [INFO] fundamental completed successfully (news=25, sec=0)
+2026-01-09 22:19:57,979 [INFO]   Running idea_generator...
+2026-01-09 22:19:57,979 [INFO] Running idea_generator for ABBV
+2026-01-09 22:20:01,587 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-09 22:20:03,382 [INFO] idea_generator completed successfully
+2026-01-09 22:20:03,382 [INFO]   Running exit_policy...
+2026-01-09 22:20:03,383 [INFO] Running exit_policy for ABBV
+2026-01-09 22:20:04,670 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-09 22:20:10,965 [INFO] exit_policy completed successfully
+2026-01-09 22:20:10,965 [INFO]   Running red_team...
+2026-01-09 22:20:10,965 [INFO] Running red_team for ABBV
+2026-01-09 22:20:15,679 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-09 22:20:17,849 [INFO] red_team completed successfully
+2026-01-09 22:20:17,849 [INFO]   Running decision...
+2026-01-09 22:20:17,849 [INFO] Running decision for ABBV
+2026-01-09 22:20:19,649 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-09 22:20:20,940 [INFO] decision completed successfully
+2026-01-09 22:20:20,940 [INFO]   Running position_manager...
+2026-01-09 22:20:20,940 [INFO] Running position_manager for ABBV
+2026-01-09 22:20:22,218 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-09 22:20:26,962 [INFO] position_manager completed successfully
+2026-01-09 22:20:26,962 [INFO]   Running sanity_veto...
+2026-01-09 22:20:26,962 [INFO] Running sanity_veto for ABBV
+2026-01-09 22:20:27,724 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-09 22:20:30,209 [INFO] sanity_veto completed successfully
+2026-01-09 22:20:30,209 [INFO] Live orchestrator complete for ABBV
+2026-01-09 22:20:30,236 [INFO] Logged analysis: ABBV sector_laggard -> NO_GO (id=55dd3686...)
+2026-01-09 22:20:30,237 [INFO] ❌ NO_GO: ABBV (sector_laggard) - No setup or ideas provided for ABBV, so no trading opportunity exists.
+2026-01-09 22:20:30,237 [INFO] 
+============================================================
+2026-01-09 22:20:30,237 [INFO] SCAN COMPLETE: 0 GO signal(s)
+2026-01-09 22:20:30,237 [INFO] ============================================================
+
+2026-01-09 22:20:33,238 [INFO] Ingest update received (market_bar_hourly); running scan
+2026-01-09 22:20:33,239 [INFO] === POSITION MONITORING: 2026-01-08 15:30:00-05:00 ===
+2026-01-09 22:20:33,281 [INFO] Monitoring 3 positions: CAT, V, BAC
+2026-01-09 22:20:33,301 [WARNING] ⚠️  Found 2 thesis-breaking triggers for positions
+2026-01-09 22:20:33,301 [INFO] 
+⚠️  Reassessing position: PositionTrigger(CAT, major_negative_news, MEDIUM)
+2026-01-09 22:20:33,318 [INFO] Using cached profile for CAT (age: 4d)
+2026-01-09 22:20:33,318 [INFO] Running position_reassessment for CAT
+2026-01-09 22:20:34,188 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-09 22:20:54,482 [INFO] position_reassessment completed successfully
+2026-01-09 22:20:54,482 [INFO] Decision: HOLD (confidence: 0.90)
+2026-01-09 22:20:54,482 [INFO] Reasoning: The news article's title suggests a tariff-related threat and mentions 'Supreme Court Doom' for two stocks, but it provides no concrete details linking to CAT's core business model or structural growth drivers (data center power demand, earnings/margin expansion). This appears to be speculative, politically charged market noise without specific regulatory or operational impact on CAT. The original thesis accounts for macroeconomic and interest rate risks, but this event does not represent a fundamental change to CAT's competitive position, growth catalysts, or financial health. The market may react negatively to headlines, but the thesis remains intact as the core bull case assumptions are unchanged.
+2026-01-09 22:20:54,482 [INFO] 
+⚠️  Reassessing position: PositionTrigger(BAC, major_negative_news, MEDIUM)
+2026-01-09 22:20:54,510 [INFO] Using cached profile for BAC (age: 4d)
+2026-01-09 22:20:54,510 [INFO] Running position_reassessment for BAC
+2026-01-09 22:21:04,710 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-09 22:21:12,486 [INFO] position_reassessment completed successfully
+2026-01-09 22:21:12,487 [INFO] Decision: HOLD (confidence: 0.99)
+2026-01-09 22:21:12,487 [INFO] Reasoning: The new event involves a downgrade of Digital Realty, a data center REIT, which is completely unrelated to Bank of America (BAC). This event does not impact BAC's core business model, earnings execution, net interest income prospects, or any other aspect of the original thesis. It neither contradicts the bull case assumptions nor confirms any known risks for BAC. The event is irrelevant noise for the BAC position.
+2026-01-09 22:21:12,487 [INFO] 
+=== Position Monitoring: 0 exit decision(s) ===
+
+2026-01-09 22:21:12,487 [INFO] 
+============================================================
+2026-01-09 22:21:12,487 [INFO] TRIGGER SCAN: 2026-01-08 15:30 UTC-05:00
+2026-01-09 22:21:12,487 [INFO] ============================================================
+2026-01-09 22:21:12,504 [INFO] Scanning 11 watchlist symbols for triggers...
+2026-01-09 22:21:12,742 [INFO] Found 1 new triggers (filtered from 1, suppressed=4)
+2026-01-09 22:21:12,742 [INFO] Found 1 triggers
+2026-01-09 22:21:12,744 [INFO] Processing trigger: Trigger(ABBV, sector_laggard, MEDIUM)
+2026-01-09 22:21:12,745 [INFO] Using cached profile for ABBV (age: 4d)
+2026-01-09 22:21:12,745 [INFO] Running LLM pipeline for ABBV (sector_laggard)
+2026-01-09 22:21:12,745 [INFO] Starting LIVE orchestrator for ABBV
+2026-01-09 22:21:12,745 [INFO] Agent chain: ['topdown', 'context', 'chart', 'fundamental', 'idea_generator', 'exit_policy', 'red_team', 'decision', 'position_manager', 'sanity_veto']
+2026-01-09 22:21:12,746 [INFO]   Running topdown...
+2026-01-09 22:21:12,747 [INFO] Running topdown for ABBV
+2026-01-09 22:21:13,676 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-09 22:21:23,147 [INFO] topdown completed successfully
+2026-01-09 22:21:23,147 [INFO]   Running context...
+2026-01-09 22:21:23,190 [INFO]   Running chart...
+2026-01-09 22:21:23,190 [INFO] Running chart for ABBV
+2026-01-09 22:21:24,617 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-09 22:22:09,243 [INFO] chart completed successfully
+2026-01-09 22:22:09,243 [INFO]   Running fundamental...
+2026-01-09 22:22:09,244 [INFO] Running fundamental for ABBV
+2026-01-09 22:22:09,244 [INFO]   Using profile baseline: 3 known risks, 3 catalysts
+2026-01-09 22:22:09,267 [INFO] fundamental completed successfully (news=23, sec=0)
+2026-01-09 22:22:09,267 [INFO]   Running idea_generator...
+2026-01-09 22:22:09,267 [INFO] Running idea_generator for ABBV
+2026-01-09 22:22:12,968 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-09 22:22:16,410 [INFO] idea_generator completed successfully
+2026-01-09 22:22:16,410 [INFO]   Running exit_policy...
+2026-01-09 22:22:16,411 [INFO] Running exit_policy for ABBV
+2026-01-09 22:22:19,017 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-09 22:22:21,560 [WARNING] Auto-truncated string fields to satisfy schema max_length.
+2026-01-09 22:22:21,561 [INFO] exit_policy completed successfully
+2026-01-09 22:22:21,561 [INFO]   Running red_team...
+2026-01-09 22:22:21,561 [INFO] Running red_team for ABBV
+2026-01-09 22:22:24,379 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-09 22:22:39,713 [INFO] red_team completed successfully
+2026-01-09 22:22:39,713 [INFO]   Running decision...
+2026-01-09 22:22:39,713 [INFO] Running decision for ABBV
+2026-01-09 22:22:40,450 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-09 22:22:59,147 [INFO] decision completed successfully
+2026-01-09 22:22:59,147 [INFO]   Running position_manager...
+2026-01-09 22:22:59,147 [INFO] Running position_manager for ABBV
+2026-01-09 22:23:03,254 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-09 22:23:13,732 [INFO] position_manager completed successfully
+2026-01-09 22:23:13,732 [INFO]   Running sanity_veto...
+2026-01-09 22:23:13,732 [INFO] Running sanity_veto for ABBV
+2026-01-09 22:23:14,860 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-09 22:23:30,797 [INFO] sanity_veto completed successfully
+2026-01-09 22:23:30,798 [INFO]   Trade vetoed: Direction contradicts strong trend (LONG when DOWNTREND + STRONG_TREND)
+2026-01-09 22:23:30,799 [INFO] Live orchestrator complete for ABBV
+2026-01-09 22:23:30,820 [INFO] Logged analysis: ABBV sector_laggard -> NO_GO (id=3b276254...)
+2026-01-09 22:23:30,821 [INFO] ❌ NO_GO: ABBV (sector_laggard) - Risk gate passes (SL% = 0.037 < 0.08), conviction is MEDIUM, setup_quality = 0.7 >= 0.65, stats unav
+2026-01-09 22:23:30,821 [INFO] 
+============================================================
+2026-01-09 22:23:30,822 [INFO] SCAN COMPLETE: 0 GO signal(s)
+2026-01-09 22:23:30,822 [INFO] ============================================================
+
+2026-01-09 22:23:33,824 [INFO] Ingest update received (yfinance_news); running scan
+2026-01-09 22:23:33,825 [INFO] === POSITION MONITORING: 2026-01-09 14:23:33.824187+00:00 ===
+2026-01-09 22:23:33,899 [INFO] Monitoring 3 positions: CAT, V, BAC
+2026-01-09 22:23:33,916 [WARNING] ⚠️  Found 2 thesis-breaking triggers for positions
+2026-01-09 22:23:33,916 [INFO] 
+⚠️  Reassessing position: PositionTrigger(CAT, major_negative_news, MEDIUM)
+2026-01-09 22:23:33,930 [INFO] Using cached profile for CAT (age: 4d)
+2026-01-09 22:23:33,930 [INFO] Running position_reassessment for CAT
+2026-01-09 22:23:44,146 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-09 22:23:50,671 [INFO] position_reassessment completed successfully
+2026-01-09 22:23:50,672 [INFO] Decision: HOLD (confidence: 0.90)
+2026-01-09 22:23:50,672 [INFO] Reasoning: The new event is a news article with a negative sentiment score, titled '3 Construction & Mining Equipment Stocks to Watch Despite Industry Headwinds'. This does not invalidate the original thesis for CAT. The original thesis is based on strong earnings track record, margin expansion, and a new structural growth driver from data center power demand. The article mentions 'industry headwinds', which aligns with the known risks of macroeconomic slowdown and interest rate impacts that were already accepted. The event does not introduce new fundamental information; it is likely a summary of existing concerns. The bull case assumptions about data center demand and operational strength remain unchallenged. The market's reaction to such news is often short-term noise, and the thesis is not broken.
+2026-01-09 22:23:50,672 [INFO] 
+⚠️  Reassessing position: PositionTrigger(V, major_negative_news, MEDIUM)
+2026-01-09 22:23:50,712 [INFO] Using cached profile for V (age: 4d)
+2026-01-09 22:23:50,712 [INFO] Running position_reassessment for V
+2026-01-09 22:24:00,844 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-09 22:24:16,600 [INFO] position_reassessment completed successfully
+2026-01-09 22:24:16,601 [INFO] Decision: HOLD (confidence: 0.85)
+2026-01-09 22:24:16,601 [INFO] Reasoning: The event discusses Visa using Solana blockchain rails but notes banks have concerns, which is a development in Visa's technological infrastructure and partnerships. This does not directly contradict the original bull case of global digital payment adoption and network scale; if anything, exploring blockchain could enhance long-term efficiency. The known risks of macroeconomic downturns and regulatory pressure remain unchanged, and this news does not represent a fundamental threat to Visa's business model, competitive moat, or core revenue drivers. The negative sentiment likely reflects market noise or speculative worries rather than a thesis-breaking change.
+2026-01-09 22:24:16,601 [INFO] 
+=== Position Monitoring: 0 exit decision(s) ===
+
+2026-01-09 22:24:16,601 [INFO] 
+============================================================
+2026-01-09 22:24:16,601 [INFO] TRIGGER SCAN: 2026-01-09 14:23 UTC
+2026-01-09 22:24:16,601 [INFO] ============================================================
+2026-01-09 22:24:16,609 [INFO] Scanning 9 watchlist symbols for triggers...
+2026-01-09 22:24:16,876 [INFO] Found 0 new triggers (filtered from 1, suppressed=5)
+2026-01-09 22:24:16,877 [INFO] No triggers found

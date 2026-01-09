@@ -47,9 +47,12 @@ async def _load_positions() -> list[dict[str, Any]]:
 
 def _normalize_size(value: Any, default: float) -> float:
     try:
-        return float(value)
+        size = float(value)
     except (TypeError, ValueError):
         return default
+    if size > 1.0:
+        size = size / 100.0
+    return size
 
 
 async def size_position(
