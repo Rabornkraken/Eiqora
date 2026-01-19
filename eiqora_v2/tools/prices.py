@@ -26,11 +26,12 @@ async def get_prices(
         asof_time: Point-in-time reference (no data after this time)
     
     Returns:
-        List of price bar dicts with keys: date, open, high, low, close, volume, vwap
+        List of price bar dicts with keys: date, open, high, low, close, volume, vwap, mfi_14, cmf_20, obv, ad_line
     """
     async with get_connection() as conn:
         rows = await conn.fetch("""
-            SELECT date, open, high, low, close, volume, vwap
+            SELECT date, open, high, low, close, volume, vwap,
+                   mfi_14, cmf_20, obv, ad_line
             FROM market_bar_daily
             WHERE symbol = $1
               AND date <= $2::date
@@ -67,11 +68,13 @@ async def get_return_metrics(
     last_date = df.index.max().date() if len(df.index) > 0 else None
     current_price = float(close.iloc[-1])
 
+    ret_5d = float((close.iloc[-1] / close.iloc[-5] - 1)) if len(close) >= 5 else None
     ret_20d = float((close.iloc[-1] / close.iloc[-20] - 1)) if len(close) >= 20 else None
     ret_60d = float((close.iloc[-1] / close.iloc[-60] - 1)) if len(close) >= 60 else None
 
     return {
         "current_price": current_price,
+        "ret_5d": ret_5d,
         "ret_20d": ret_20d,
         "ret_60d": ret_60d,
         "last_date": last_date,
@@ -225,6 +228,7 @@ async def get_indicators(
     }
     
     # Momentum (returns)
+    ret_5d = float((close.iloc[-1] / close.iloc[-5] - 1)) if len(close) >= 5 else None
     ret_20d = float((close.iloc[-1] / close.iloc[-20] - 1)) if len(close) >= 20 else None
     ret_60d = float((close.iloc[-1] / close.iloc[-60] - 1)) if len(close) >= 60 else None
     
@@ -266,6 +270,26 @@ async def get_indicators(
     elif macd["bearish_cross"]:
         state_tags.append("MACD_BEARISH_CROSS")
     
+    # Extract money flow indicators from latest bar (if available)
+    latest_bar = prices[-1]
+    mfi_14 = float(latest_bar.get('mfi_14')) if latest_bar.get('mfi_14') is not None else None
+    cmf_20 = float(latest_bar.get('cmf_20')) if latest_bar.get('cmf_20') is not None else None
+    obv_db = float(latest_bar.get('obv')) if latest_bar.get('obv') is not None else None
+    ad_line = float(latest_bar.get('ad_line')) if latest_bar.get('ad_line') is not None else None
+    
+    # Money flow state tags
+    if mfi_14 is not None:
+        if mfi_14 > 80:
+            state_tags.append("MFI_OVERBOUGHT")
+        elif mfi_14 < 20:
+            state_tags.append("MFI_OVERSOLD")
+    
+    if cmf_20 is not None:
+        if cmf_20 > 0.15:
+            state_tags.append("STRONG_ACCUMULATION")
+        elif cmf_20 < -0.15:
+            state_tags.append("STRONG_DISTRIBUTION")
+    
     return {
         "current_price": current_price,
         "ma20": ma20,
@@ -281,7 +305,13 @@ async def get_indicators(
         "adx14": adx14,
         "stochastic": stochastic,
         "obv": obv_data,
+        # Money Flow Indicators (from DB)
+        "mfi_14": mfi_14,
+        "cmf_20": cmf_20,
+        "obv_db": obv_db,
+        "ad_line": ad_line,
         # Momentum
+        "ret_5d": ret_5d,
         "ret_20d": ret_20d,
         "ret_60d": ret_60d,
         "volume_z_20d": volume_z_20d,
@@ -404,9 +434,10 @@ async def get_hourly_indicators(
     
     async with get_connection() as conn:
         # Get the most recent hourly bars (capped at asof_time)
-        asof_ts = asof_time
-        if asof_ts.tzinfo is not None:
-            asof_ts = asof_ts.astimezone(timezone.utc).replace(tzinfo=None)
+        if asof_time.tzinfo is None:
+            asof_ts = asof_time.replace(tzinfo=timezone.utc)
+        else:
+            asof_ts = asof_time.astimezone(timezone.utc)
         
         try:
             rows = await conn.fetch("""

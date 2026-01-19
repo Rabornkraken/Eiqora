@@ -45,7 +45,7 @@ ANALYSIS_STORE: Dict[str, Dict[str, Any]] = {}
 
 class AnalysisRequest(BaseModel):
     ticker: str
-    initial_capital: float = 100000.0
+    initial_capital: float = 10000.0
     initial_position: int = 0
     num_of_news: int = 20
     show_reasoning: bool = True
@@ -560,19 +560,52 @@ async def get_dashboard_stats():
             "SELECT equity, starting_equity, realized_pnl FROM account_state WHERE account_id = 'main'"
         )
         
-        if account and account['equity']:
-            current_equity = float(account['equity'])
-            starting_equity = float(account['starting_equity']) if account['starting_equity'] else 100000
+        starting_equity = 10000.0
+        if account and account["starting_equity"] is not None:
+            starting_equity = float(account["starting_equity"])
+
+        if account and account["equity"] is not None:
+            current_equity = float(account["equity"])
             total_return_pct = ((current_equity - starting_equity) / starting_equity) * 100
             total_return = f"+{total_return_pct:.2f}%" if total_return_pct >= 0 else f"{total_return_pct:.2f}%"
             current_equity_str = f"${current_equity:,.2f}"
         else:
             # Fallback if no account data
-            current_equity_str = "$100,000.00"
+            current_equity_str = f"${starting_equity:,.2f}"
             total_return = "+0.00%"
         
-        # Sharpe ratio placeholder (requires advanced calculation)
+        sharpe_stats = await conn.fetchrow(
+            """
+            WITH daily_equity AS (
+                SELECT DISTINCT ON (asof_ts::date)
+                    asof_ts::date AS day,
+                    equity::float AS equity
+                FROM account_snapshot
+                WHERE account_id = 'main'
+                ORDER BY asof_ts::date, asof_ts DESC
+            ),
+            returns AS (
+                SELECT
+                    day,
+                    (equity / LAG(equity) OVER (ORDER BY day) - 1.0) AS ret
+                FROM daily_equity
+            )
+            SELECT
+                AVG(ret) AS avg_ret,
+                STDDEV_SAMP(ret) AS std_ret,
+                COUNT(ret) AS n
+            FROM returns
+            WHERE ret IS NOT NULL
+            """
+        )
+
         sharpe_ratio = "N/A"
+        if sharpe_stats and sharpe_stats["n"] and sharpe_stats["std_ret"] is not None:
+            avg_ret = float(sharpe_stats["avg_ret"] or 0.0)
+            std_ret = float(sharpe_stats["std_ret"] or 0.0)
+            if sharpe_stats["n"] >= 2 and std_ret > 0:
+                sharpe = (avg_ret / std_ret) * (252 ** 0.5)
+                sharpe_ratio = f"{sharpe:.2f}"
         
         return {
             "total_analyses": total_analyses,
@@ -587,35 +620,70 @@ async def get_dashboard_stats():
 @app.get("/api/equity-history")
 async def get_equity_history():
     """
-    Get equity history for the line chart from account_snapshot table.
+    Get equity history for the line chart.
+    Returns historical snapshots PLUS current live equity based on latest prices.
     """
     from datetime import datetime
+    from eiqora_v2.tools.positions import get_open_positions
     
     async with get_connection() as conn:
-        rows = await conn.fetch("""
-            SELECT 
-                asof_ts::date as date,
+        # Get historical daily snapshots
+        rows = await conn.fetch(
+            """
+            SELECT
+                date,
                 equity
-            FROM account_snapshot
-            WHERE account_id = 'main'
-            ORDER BY asof_ts ASC
+            FROM (
+                SELECT DISTINCT ON (asof_ts::date)
+                    asof_ts::date AS date,
+                    equity::float AS equity
+                FROM account_snapshot
+                WHERE account_id = 'main'
+                ORDER BY asof_ts::date, asof_ts DESC
+            ) daily_equity
+            ORDER BY date ASC
             LIMIT 365
-        """)
+            """
+        )
         
-        if not rows:
-            # Fallback: return starting equity
-            return [{
+        # Convert historical snapshots to list
+        result = [{"date": str(row["date"]), "equity": row["equity"]} for row in rows]
+        
+        # Refresh prices to get current live equity
+        positions = await get_open_positions(refresh_prices=True)
+        
+        # Get the updated account state (refreshed by get_open_positions)
+        account = await conn.fetchrow(
+            "SELECT equity, starting_equity, updated_at FROM account_state WHERE account_id = 'main'"
+        )
+        
+        if account and account["equity"]:
+            current_equity = float(account["equity"])
+            current_date = (account["updated_at"] or datetime.now()).strftime("%Y-%m-%d")
+            
+            # Add current live value as the latest point
+            # Remove any existing entry for today and add the live one
+            result = [r for r in result if r["date"] != current_date]
+            result.append({
+                "date": current_date,
+                "equity": current_equity
+            })
+        
+        # If no data at all, return starting equity as fallback
+        if len(result) == 0:
+            fallback_equity = 10000.0
+            if account:
+                fallback_equity = float(account.get("equity") or account.get("starting_equity") or 10000.0)
+            
+            result.append({
                 "date": datetime.now().strftime("%Y-%m-%d"),
-                "equity": 100000
-            }]
+                "equity": fallback_equity
+            })
         
-        return [
-            {
-                "date": row["date"].isoformat(),
-                "equity": float(row["equity"])
-            }
-            for row in rows
-        ]
+        # Ensure chronological order
+        result.sort(key=lambda x: x["date"])
+        
+        return result
 
 @app.get("/api/decisions")
 async def get_decisions(
@@ -714,6 +782,7 @@ async def get_decision_details(analysis_id: str):
 async def get_positions():
     """
     Get current portfolio positions/holdings from database.
+    Now uses get_open_positions to ensure prices and P&L are refreshed.
     """
     try:
         positions = await get_open_positions(refresh_prices=True)
@@ -721,23 +790,16 @@ async def get_positions():
         # Transform to frontend format
         result = []
         for pos in positions:
-            # Calculate shares - try actual shares first, then calculate from size_pct
-            shares = pos.get("shares")
-            if shares is None and pos.get("size_pct"):
-                # Rough approximation if we don't have actual shares
-                # This shouldn't happen in production but provides fallback
-                shares = 100  # Placeholder
-            
-            shares_value = float(shares) if shares else 0
+            shares = float(pos["shares"]) if pos.get("shares") is not None else 0.0
             entry_price = float(pos["entry_price"])
-            current_price = float(pos["current_price"])
+            current_price = float(pos["current_price"]) if pos.get("current_price") else entry_price
             
             result.append({
                 "symbol": pos["symbol"],
-                "shares": shares_value,
+                "shares": shares,
                 "entry_price": entry_price,
                 "current_price": current_price,
-                "market_value": current_price * shares_value,
+                "market_value": current_price * shares,
                 "unrealized_pnl": float(pos.get("unrealized_pnl", 0)),
                 "unrealized_pnl_pct": float(pos.get("unrealized_pnl_pct", 0)),
                 "entry_date": pos["entry_date"].isoformat() if pos.get("entry_date") else None,
@@ -799,6 +861,79 @@ async def get_trading_history(limit: int = 50):
             })
         
         return result
+
+
+@app.get("/api/account")
+async def get_account():
+    """
+    Get account summary including cash balance and total equity.
+    """
+    async with get_connection() as conn:
+        account = await conn.fetchrow(
+            "SELECT cash_balance, equity, realized_pnl, unrealized_pnl FROM account_state WHERE account_id = 'main'"
+        )
+        
+        if not account:
+            return {
+                "cash_balance": 10000.0,
+                "equity": 10000.0,
+                "realized_pnl": 0.0,
+                "unrealized_pnl": 0.0
+            }
+        
+        return {
+            "cash_balance": float(account["cash_balance"]) if account["cash_balance"] else 0.0,
+            "equity": float(account["equity"]) if account["equity"] else 0.0,
+            "realized_pnl": float(account["realized_pnl"]) if account["realized_pnl"] else 0.0,
+            "unrealized_pnl": float(account["unrealized_pnl"]) if account["unrealized_pnl"] else 0.0
+        }
+
+
+@app.get("/api/watchlist")
+async def get_watchlist(date: str = None):
+    """
+    Get daily watchlist of monitored symbols.
+    Returns the current day's watchlist sorted by total score.
+    """
+    async with get_connection() as conn:
+        if date:
+            # Use specific date
+            scan_date = date
+            rows = await conn.fetch("""
+                SELECT symbol, total_score, technical_score, profile_score
+                FROM daily_watchlist
+                WHERE scan_date = $1
+                ORDER BY total_score DESC NULLS LAST
+            """, date)
+        else:
+            # Get latest scan date
+            scan_date = await conn.fetchval(
+                "SELECT MAX(scan_date) FROM daily_watchlist"
+            )
+            if not scan_date:
+                return {"scan_date": None, "symbols_count": 0, "watchlist": []}
+            
+            rows = await conn.fetch("""
+                SELECT symbol, total_score, technical_score, profile_score
+                FROM daily_watchlist
+                WHERE scan_date = $1
+                ORDER BY total_score DESC NULLS LAST
+            """, scan_date)
+        
+        return {
+            "scan_date": scan_date.isoformat() if hasattr(scan_date, 'isoformat') else str(scan_date),
+            "symbols_count": len(rows),
+            "watchlist": [
+                {
+                    "symbol": r["symbol"],
+                    "total_score": float(r["total_score"]) if r["total_score"] else 0,
+                    "technical_score": float(r["technical_score"]) if r["technical_score"] else 0,
+                    "profile_score": float(r["profile_score"]) if r["profile_score"] else 0,
+                    "rank": idx + 1
+                }
+                for idx, r in enumerate(rows)
+            ]
+        }
 
 
 if __name__ == "__main__":

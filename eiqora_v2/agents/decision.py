@@ -1,23 +1,13 @@
 """
 Decision Agent implementation.
-Makes GO/NO_GO decision based on stats and gate checks.
+Makes GO/NO_GO decision based on setup quality and conviction.
 """
 
 from typing import Any
 
 from eiqora_v2.agents.base import BaseAgent
-from eiqora_v2.schemas.decision import DecisionOutput, TradeRule, StatsResult
+from eiqora_v2.schemas.decision import DecisionOutput, TradeRule
 from eiqora_v2.schemas.state import SwingTradeState
-
-
-# Decision gates for mega-cap stocks
-MEGA_CAP_GATES = {
-    "min_win_rate": 0.45,
-    "min_expected_return": 0.02,
-    "min_sample_size": 20,
-    "max_risk_score": 0.7,
-    "max_sl_pct": 0.08,  # 8% max stop loss
-}
 
 
 class DecisionAgent(BaseAgent[DecisionOutput]):
@@ -25,8 +15,7 @@ class DecisionAgent(BaseAgent[DecisionOutput]):
     Decision Agent: makes final GO/NO_GO decision.
     
     Evaluates:
-    - Stats from analog evaluation (win rate, expected return)
-    - Gate checks (sample size, risk limits)
+    - Setup quality and conviction
     - Exit policy feasibility
     
     Outputs a complete trade rule if GO.
@@ -42,7 +31,6 @@ class DecisionAgent(BaseAgent[DecisionOutput]):
             "rules": state.get("rules", []),
             "context": state.get("context", {}),
             "chart": state.get("chart", {}),
-            "stats": state.get("stats", []),
             "profile": state.get("profile", {}),  # Baseline risks
             "fundamental": state.get("fundamental", {}),
             "red_team": state.get("red_team", {}),
@@ -56,7 +44,6 @@ class DecisionAgent(BaseAgent[DecisionOutput]):
         rules = data.get("rules", [])
         context = data.get("context", {})
         chart = data.get("chart", {})
-        stats = data.get("stats", [])
         profile = data.get("profile", {})
         fundamental = data.get("fundamental", {})
         red_team = data.get("red_team", {})
@@ -84,15 +71,6 @@ No ideas to evaluate for {symbol}. Return NO_GO decision.
                 exit_policy = rule["exit_policy"]
                 break
         
-        # Get stats if available
-        stats_text = "No stats available (Stats Service not run)"
-        if stats:
-            stats_text = "\n".join([
-                f"- Plan {s.get('plan_id')}: win_rate={s.get('win_rate', 'N/A')}, "
-                f"exp_return={s.get('expected_return', 'N/A')}, samples={s.get('sample_size', 0)}"
-                for s in stats
-            ])
-        
         vol_basis = context.get("vol_basis", {})
         rv20 = vol_basis.get("value", 0.02)
 
@@ -110,8 +88,6 @@ No ideas to evaluate for {symbol}. Return NO_GO decision.
         else:
             sl_level = None
             sl_pct = None
-        risk_gate_ok = sl_pct is not None and sl_pct <= MEGA_CAP_GATES["max_sl_pct"]
-        stats_available = bool(stats)
         setup_type = chart.get("setup_type", "NO_SETUP")
         setup_quality = (chart.get("setup_quality") or {}).get("score")
         
@@ -131,12 +107,23 @@ INSIDER ACTIVITY (last 90 days):
 - CFO net: {insider.get('cfo_net_value') if isinstance(insider, dict) else 'N/A'}
 - Director net: {insider.get('director_net_value') if isinstance(insider, dict) else 'N/A'}
 
-MEGA-CAP GATES:
-- Min Win Rate: {MEGA_CAP_GATES['min_win_rate']}
-- Min Expected Return: {MEGA_CAP_GATES['min_expected_return']}
-- Min Sample Size: {MEGA_CAP_GATES['min_sample_size']}
-- Max Risk Score: {MEGA_CAP_GATES['max_risk_score']}
-- Max SL %: {MEGA_CAP_GATES['max_sl_pct']}
+SIGNAL QUALITY (Trigger Assessment):
+- Quality Score: {state.get('trigger_detail', {}).get('quality_score', 'N/A')} / 1.0
+- Quality Level: {state.get('trigger_detail', {}).get('quality_level', 'Unknown')}
+- Quality Flags: {', '.join(state.get('trigger_detail', {}).get('quality_flags', []))}
+- Confluence: {state.get('trigger_detail', {}).get('has_confluence', False)} ({state.get('trigger_detail', {}).get('trigger_count', 1)} triggers)
+
+Use signal quality to calibrate conviction:
+- Quality > 0.75: Consider HIGH conviction if other factors align
+- Quality 0.50-0.75: Standard evaluation
+- Quality < 0.50: Reduce conviction or pass unless setup is exceptional
+
+EXIT POLICY (from exit_policy agent):
+{exit_policy if exit_policy else 'Not available - use defaults'}
+
+**IMPORTANT: Use exit policy values in your rule output!**
+If exit_policy provides sl_mult/sl_level, use those values.
+Do NOT hardcode sl_mult=2.0 - respect the agent's adaptive choices.
 
 PRIMARY IDEA:
 - ID: {primary_idea.get('idea_id')}
@@ -147,17 +134,11 @@ PRIMARY IDEA:
 EXIT POLICY:
 {exit_policy if exit_policy else 'Not defined'}
 
-STATS:
-{stats_text}
-Stats available: {stats_available}
-
 CONTEXT:
 - Current Price: ${current_price:.2f}
 - RV20: {rv20:.4f}
 - SL Level (model): {f'${sl_level:.2f}' if sl_level else 'N/A'}
 - SL % (fraction): {sl_pct if sl_pct is not None else 'N/A'} (percent: {(sl_pct * 100):.2f} if sl_pct is not None else 'N/A')
-- Max SL %: {MEGA_CAP_GATES['max_sl_pct']} (8% = 0.08)
-- Risk gate precheck: {"PASS" if risk_gate_ok else "FAIL"}
 - Relative Strength: vs SPY={rel_strength.get('vs_spy', {})}, vs Sector={rel_strength.get('vs_sector', {})}, vs QQQ={rel_strength.get('vs_qqq', {})}
 
 CHART:
@@ -175,27 +156,25 @@ RED TEAM:
 
 Evaluate all gates and provide decision.
 Consider: do baseline risks create additional concerns for this trade?
-If stats are unavailable, do NOT infer win_rate/expected_return/sample_size. You may still return GO if setup_quality >= 0.65, conviction is HIGH or MEDIUM, and risk gate passes. Otherwise use REVIEW/NO_GO.
+You may return GO if setup_quality >= 0.65 and conviction is HIGH or MEDIUM. Otherwise use REVIEW/NO_GO.
 """
     
     def _get_system_prompt(self) -> str:
         return """You are a Decision Agent that makes final trading decisions.
 
 GATE EVALUATION:
-1. stats_gate: win_rate >= 0.45 AND expected_return >= 0.02 AND sample_size >= 20.
-   If stats are unavailable, do not include stats_gate in gates_failed or gates_passed and do NOT invent metrics.
-2. risk_gate: sl_pct <= 0.08 (8% = 0.08 as a fraction).
-3. conviction_gate: conviction is HIGH or MEDIUM for GO.
-4. data_quality_gate: stats status is OK or sample_size is reasonable. If stats are unavailable, do not include data_quality_gate in gates_failed or gates_passed.
+1. conviction_gate: conviction is HIGH or MEDIUM for GO.
+2. setup_quality_gate: setup_quality >= 0.65 for GO.
 
 DECISION RULES:
-- GO: Risk gate passes, conviction is HIGH or MEDIUM, setup_quality >= 0.65, and stats either pass or are unavailable.
-- REVIEW: Stats unavailable and setup_quality is 0.4-0.65, or conviction is LOW but setup exists.
-- NO_GO: No setup, risk gate fails, or setup_quality < 0.4.
+- GO: Conviction is HIGH or MEDIUM, setup_quality >= 0.65.
+- REVIEW: setup_quality is 0.4-0.65, or conviction is LOW but setup exists.
+- NO_GO: No setup or setup_quality < 0.4.
  - NO_GO: If red_team critical=true or decision=BLOCK.
 
 TRADE RULE (if GO):
 Create complete rule with entry trigger, exit bracket, and invalidation level.
+**Use exit_policy bracket values (sl_mult, tp_mult, sl_level, tp_level) if available.**
 
 OUTPUT SCHEMA:
 {
@@ -206,14 +185,15 @@ OUTPUT SCHEMA:
     "direction": "LONG|SHORT",
     "entry_trigger_type": "BREAK_YDAY_HIGH",
     "entry_level": 275.50,
-    "tp_mult": 4.0,
-    "sl_mult": 2.0,
-    "time_stop_days": 30,
+    "tp_mult": <from exit_policy or 3.5>,
+    "tp_level": <from exit_policy or null>,
+    "sl_mult": <from exit_policy or 1.5>,
+    "sl_level": <from exit_policy or null>,
+    "time_stop_days": <from exit_policy or 30>,
     "invalidation_type": "CLOSE_BELOW_LEVEL",
-    "invalidation_level": 270.0,
-    "stats": null
+    "invalidation_level": 270.0
   } or null,
-  "gates_passed": ["stats_gate", "risk_gate"],
+  "gates_passed": ["setup_quality_gate"],
   "gates_failed": [],
   "reason": "<decision reasoning>",
   "risk_score": 0.4
@@ -225,8 +205,32 @@ Return ONLY valid JSON."""
         """Build state update with decision."""
         decision_dict = result.model_dump()
         red_team = state.get("red_team", {}) or {}
+        short_perspective = state.get("short_perspective", {}) or {}
 
-        if isinstance(red_team, dict) and red_team.get("critical"):
+        # Check Short Perspective first (contrarian rebuttal)
+        if isinstance(short_perspective, dict) and short_perspective.get("recommend_reject_long"):
+            short_case = short_perspective.get("short_case_strength", "NONE")
+            reasoning = short_perspective.get("reasoning", "Compelling short case")
+            
+            # Only reject on STRONG short case
+            if short_case == "STRONG":
+                reason_prefix = f"Short Perspective REJECT: {reasoning}"
+                merged_reason = f"{reason_prefix} {decision_dict.get('reason', '')}".strip()
+                if len(merged_reason) > 1000:
+                    merged_reason = merged_reason[:1000]
+
+                decision_dict["decision"] = "NO_GO"
+                decision_dict["rule"] = None
+                decision_dict["reason"] = merged_reason
+                decision_dict["risk_score"] = max(decision_dict.get("risk_score", 0.0), 0.85)
+
+                gates_failed = decision_dict.get("gates_failed", [])
+                if "short_perspective" not in gates_failed:
+                    gates_failed.append("short_perspective")
+                decision_dict["gates_failed"] = gates_failed
+
+        # Check Red Team (if not already rejected by Short Perspective)
+        if decision_dict.get("decision") != "NO_GO" and isinstance(red_team, dict) and red_team.get("critical"):
             reason_prefix = f"RedTeam BLOCK: {red_team.get('summary', 'Critical risk flagged')}"
             merged_reason = f"{reason_prefix} {decision_dict.get('reason', '')}".strip()
             if len(merged_reason) > 1000:

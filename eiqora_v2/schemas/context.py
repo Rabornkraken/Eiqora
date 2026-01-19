@@ -48,6 +48,18 @@ class RelativeStrengthMetrics(BaseModel):
     missing: list[str] = Field(default_factory=list)
 
 
+class OptionsSentiment(BaseModel):
+    """Options market sentiment indicators."""
+    
+    available: bool = Field(description="Whether options data is available")
+    pcr_volume: float | None = Field(default=None, description="Put/call ratio by volume")
+    pcr_oi: float | None = Field(default=None, description="Put/call ratio by open interest")
+    sentiment: Literal["BULLISH", "BEARISH", "NEUTRAL"] | None = Field(default=None)
+    atm_iv: float | None = Field(default=None, description="At-the-money implied volatility")
+    max_pain: float | None = Field(default=None, description="Max pain strike price")
+    spot_price: float | None = Field(default=None, description="Spot price at options data collection")
+
+
 class ContextOutput(BaseModel):
     """Output schema for Context Agent."""
     
@@ -65,6 +77,8 @@ class ContextOutput(BaseModel):
     )
     
     current_price: float = Field(gt=0, description="Current stock price")
+    
+    atr14: float = Field(gt=0, description="14-period Average True Range for stop loss calculation")
 
     relative_strength: RelativeStrengthMetrics | None = Field(
         default=None,
@@ -74,4 +88,9 @@ class ContextOutput(BaseModel):
     data_quality: Literal["GOOD", "SPARSE", "STALE"] = Field(
         default="GOOD",
         description="Data quality flag"
+    )
+    
+    options: OptionsSentiment | None = Field(
+        default=None,
+        description="Options market sentiment (if available)"
     )

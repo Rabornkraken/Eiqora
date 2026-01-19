@@ -13,11 +13,28 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+log_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'logs')
+os.makedirs(log_dir, exist_ok=True)
+log_file = os.path.join(log_dir, 'data_collector.log')
+
+# Create handlers
+file_handler = logging.FileHandler(log_file)
+console_handler = logging.StreamHandler()
+
+# Create formatter
+formatter = logging.Formatter(
+    '%(asctime)s [%(levelname)s] %(name)s: %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
+file_handler.setFormatter(formatter)
+console_handler.setFormatter(formatter)
+
+# Configure root logger
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.INFO)
+root_logger.addHandler(file_handler)
+root_logger.addHandler(console_handler)
+
 logger = logging.getLogger('scheduler')
 
 
@@ -84,13 +101,34 @@ def create_scheduler() -> BlockingScheduler:
         hour='6-20',  # 6 AM to 8 PM ET
     )
     
-    # Earnings Calendar - Daily at 6 AM ET
+    # Earnings Calendar - Evening collection (after market close for next-day trading)
+    # Primary: Catches after-hours earnings releases immediately
     scheduler.add_job(
         run_pipeline,
         'cron',
         args=['data_collection.pipelines.earnings'],
-        id='earnings',
+        id='earnings_evening',
+        hour=16,  # 4 PM ET (after market close)
+        minute=30,
+    )
+    
+    # Earnings Calendar - Morning backup (catches any missed/late releases)
+    scheduler.add_job(
+        run_pipeline,
+        'cron',
+        args=['data_collection.pipelines.earnings'],
+        id='earnings_morning',
         hour=6,
+        minute=0,
+    )
+
+    # Analyst Ratings - Daily at 5 AM ET
+    scheduler.add_job(
+        run_pipeline,
+        'cron',
+        args=['data_collection.pipelines.analyst_ratings'],
+        id='analyst_ratings',
+        hour=5,
         minute=0,
     )
     
@@ -116,6 +154,38 @@ def create_scheduler() -> BlockingScheduler:
         id='yfinance_news',
         hour='*',
         minute=20,
+    )
+    
+    # Options Data - Daily after market close
+    scheduler.add_job(
+        run_pipeline,
+        'cron',
+        args=['data_collection.pipelines.options_summary'],
+        id='options_summary',
+        hour=16,  # 4 PM ET, after market close
+        minute=45,
+    )
+    
+    # Money Flow Indicators - Daily after market close (after options)
+    scheduler.add_job(
+        run_pipeline,
+        'cron',
+        args=['data_collection.pipelines.money_flow_indicators'],
+        id='money_flow_indicators',
+        hour=17,  # 5 PM ET, after options data
+        minute=0,
+    )
+    
+    # Hourly Technical Indicators - Every hour during market hours
+    # Runs at :15 (10 minutes after hourly bars collected at :05)
+    scheduler.add_job(
+        run_pipeline,
+        'cron',
+        args=['data_collection.pipelines.hourly_indicators'],
+        id='hourly_indicators',
+        day_of_week='mon-fri',
+        hour='10-16',  # Market hours (10 AM - 4 PM ET)
+        minute=15,
     )
     
     # ═══════════════════════════════════════════════════════════════════
@@ -183,6 +253,17 @@ def create_scheduler() -> BlockingScheduler:
         id='corporate_actions',
         day_of_week='sun',
         hour=4,
+        minute=0,
+    )
+
+    # Stock Correlations - Weekly on Sunday at 5 AM
+    scheduler.add_job(
+        run_pipeline,
+        'cron',
+        args=['data_collection.pipelines.stock_correlations'],
+        id='stock_correlations',
+        day_of_week='sun',
+        hour=5,
         minute=0,
     )
 
@@ -255,8 +336,13 @@ def run_startup_pipelines():
         ('data_collection.pipelines.stooq_daily', 'run', {}),  # Update market_bar_daily
         ('data_collection.pipelines.vix', 'run', {}),
         ('data_collection.pipelines.earnings', 'run', {}),
+        ('data_collection.pipelines.analyst_ratings', 'run', {}),
+        ('data_collection.pipelines.options_summary', None, {}),  # Populate options data for profiles
         ('data_collection.pipelines.sec_rss', 'run', {}),
         ('data_collection.pipelines.hourly_bars_auto', None, {}),
+        # Seed reference data
+        ('data_collection.pipelines.seed_stock_relationships', None, {}),
+        ('data_collection.pipelines.seed_influential_figures', None, {}),
     ]
     
     # Run sequential pipelines first

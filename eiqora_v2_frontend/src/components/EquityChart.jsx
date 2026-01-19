@@ -21,7 +21,14 @@ function EquityChart() {
             }
         };
 
+        // Fetch immediately on mount
         fetchData();
+
+        // Set up polling to refresh every 30 seconds for live updates
+        const intervalId = setInterval(fetchData, 30000); // 30 seconds
+
+        // Cleanup interval on unmount
+        return () => clearInterval(intervalId);
     }, []);
 
     if (loading) {
@@ -52,7 +59,7 @@ function EquityChart() {
     }
 
     // Starting balance for reference line
-    const startingBalance = 100000;
+    const startingBalance = 10000;
 
     // Get colors from CSS variables
     const lineColor = getComputedStyle(document.documentElement)
@@ -84,8 +91,10 @@ function EquityChart() {
                     <YAxis
                         stroke="var(--text-secondary)"
                         style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11 }}
-                        tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
-                        domain={['dataMin - 5000', 'dataMax + 5000']}
+                        tickFormatter={(value) => `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+                        domain={['auto', 'auto']}
+                        scale="linear"
+                        tickCount={8}
                     />
                     <Tooltip
                         contentStyle={{

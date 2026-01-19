@@ -151,11 +151,12 @@ class LLMDecisionMaker:
         """
         try:
             from eiqora_v2.orchestrator import BacktestOrchestrator
+            from eiqora_v2.config.orchestrator import OrchestratorConfig
             
             logger.info(f"    🤖 Running LLM multi-agent pipeline for {ticker}...")
             
             # Run the full multi-agent pipeline
-            orchestrator = BacktestOrchestrator()
+            orchestrator = BacktestOrchestrator(config=OrchestratorConfig.backtest())
             result = await orchestrator.run(
                 symbol=ticker,
                 asof_time=datetime.combine(as_of_date, datetime.min.time()).replace(tzinfo=timezone.utc),
@@ -1122,8 +1123,8 @@ class RealisticBacktestEngine:
         sl_distance = None
         
         if rule and rv20:
-            tp_mult = rule.get("tp_mult", 4.0)
-            sl_mult = rule.get("sl_mult", 2.0)
+            tp_mult = rule.get("tp_mult")  # Often null for decision-based
+            sl_mult = rule.get("sl_mult", 3.0)  # Wide catastrophic backstop
             tp_distance = entry_price * rv20 * tp_mult
             sl_distance = entry_price * rv20 * sl_mult
         else:

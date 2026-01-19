@@ -21,6 +21,15 @@ class RedTeamAgent(BaseAgent[RedTeamOutput]):
 
     async def _gather_data(self, state: SwingTradeState) -> dict[str, Any]:
         """Gather context for red team review."""
+        from eiqora_v2.tools.event_risk import check_upcoming_events, format_event_warnings
+        
+        symbol = state["symbol"]
+        asof_time = state["asof_time"]
+        
+        # Check for upcoming events that could affect entry timing
+        upcoming_events = await check_upcoming_events(symbol, asof_time, lookforward_days=7)
+        event_warning = format_event_warnings(upcoming_events)
+        
         return {
             "ideas": state.get("ideas", {}),
             "rules": state.get("rules", []),
@@ -30,6 +39,8 @@ class RedTeamAgent(BaseAgent[RedTeamOutput]):
             "topdown": state.get("topdown", {}),
             "profile": state.get("profile", {}),
             "trigger_detail": state.get("trigger_detail") or (state.get("trigger") or {}).get("detail"),
+            "upcoming_events": upcoming_events,
+            "event_warning": event_warning,
         }
 
     def _build_prompt(self, state: SwingTradeState, data: dict[str, Any]) -> str:
@@ -67,6 +78,8 @@ decision=ALLOW, critical=false, key_risks=[], missing_data=[], summary="No idea 
         sentiment = fundamental.get("sentiment", {}) if isinstance(fundamental, dict) else {}
         data_status = fundamental.get("data_status", {}) if isinstance(fundamental, dict) else {}
         baseline_risks = profile.get("risks", [])
+        upcoming_events = data.get("upcoming_events", {})
+        event_warning = data.get("event_warning", "")
 
         return f"""
 Red-team the trade idea for {symbol}.
@@ -103,6 +116,9 @@ FUNDAMENTAL:
 - News Count: {sentiment.get('news_count', 0)}
 - Data Freshness: news={data_status.get('news_fresh', False)}, sec={data_status.get('sec_fresh', False)}, earnings={data_status.get('earnings_fresh', False)}
 
+UPCOMING EVENTS (Next 7 Days):
+{event_warning}
+
 PROFILE RISKS (weekly):
 - {', '.join(baseline_risks[:3]) if baseline_risks else 'None'}
 
@@ -115,9 +131,10 @@ Find contradictions, missing data, or fatal flaws. Be strict about:
 - Exit policy missing or inconsistent.
 - Data quality stale or missing.
 - Fundamental risk that undermines thesis.
+- **UPCOMING EVENTS: Earnings within 2 days = HIGH RISK, consider CAUTION or BLOCK**
 
 If any critical issue exists, set decision=BLOCK and critical=true.
-If issues are moderate, decision=CAUTION and critical=false.
+If issues are moderate (e.g. earnings in 3-5 days), decision=CAUTION and critical=false.
 If clean, decision=ALLOW and critical=false.
 
 Return key_risks and missing_data lists (max 4 items each).

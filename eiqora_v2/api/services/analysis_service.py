@@ -8,6 +8,7 @@ from typing import Dict, Any, Optional
 import asyncio
 
 from ..models.analysis import AnalysisResponse, AnalysisDetail
+from eiqora_v2.config.orchestrator import OrchestratorConfig
 
 
 class AnalysisService:
@@ -72,7 +73,7 @@ class AnalysisService:
             from eiqora_v2.orchestrator import BacktestOrchestrator
 
             # Create orchestrator
-            orchestrator = BacktestOrchestrator(include_fundamental=True)
+            orchestrator = BacktestOrchestrator(config=OrchestratorConfig.analysis())
 
             # Update status - starting
             analysis["steps"].append("orchestrator_initialized")

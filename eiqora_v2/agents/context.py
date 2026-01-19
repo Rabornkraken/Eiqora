@@ -36,15 +36,22 @@ class ContextAgent(BaseAgent[ContextOutput]):
     output_schema = ContextOutput
     
     async def _gather_data(self, state: SwingTradeState) -> dict[str, Any]:
-        """Fetch daily technical indicators."""
+        """Fetch daily technical indicators and options sentiment."""
         symbol = state["symbol"]
         asof_time = state["asof_time"]
+
+        market_data = state.get("market_data") or {}
+        indicators = market_data.get("daily_indicators")
+
+        if indicators is None:
+            indicators = await get_indicators(symbol, 60, asof_time)
         
-        # Get daily indicators
-        indicators = await get_indicators(symbol, 60, asof_time)
-        
+        # Fetch options sentiment
+        options = await self._get_options_sentiment(symbol, asof_time)
+
         return {
             "daily": indicators,
+            "options": options,
         }
     
     def _build_prompt(self, state: SwingTradeState, data: dict[str, Any]) -> str:
@@ -95,8 +102,10 @@ class ContextAgent(BaseAgent[ContextOutput]):
                 volume_z_20d=float(daily.get("volume_z_20d") or 0.0),
                 state_tags=list(daily.get("state_tags") or []),
                 current_price=current_price,
+                atr14=float(daily.get("atr14") or current_price * 0.02),  # ATR for stop loss
                 relative_strength=rel_strength,
                 data_quality=self._data_quality(daily, asof_time),
+                options=data.get("options"),  # Add options sentiment
             )
 
             return {"context": output.model_dump()}
@@ -224,3 +233,51 @@ class ContextAgent(BaseAgent[ContextOutput]):
 
         rel.missing = missing
         return rel
+
+    async def _get_options_sentiment(self, symbol: str, asof_time: Any) -> dict:
+        """Get latest options sentiment from options_daily_summary table."""
+        from eiqora_v2.tools.db import get_connection
+        
+        if not asof_time:
+            return {"available": False}
+        
+        try:
+            async with get_connection() as conn:
+                row = await conn.fetchrow("""
+                    SELECT 
+                        put_call_ratio_volume,
+                        put_call_ratio_oi,
+                        atm_iv,
+                        max_pain_strike,
+                        spot_price
+                    FROM options_daily_summary
+                    WHERE symbol = $1 AND date <= $2
+                    ORDER BY date DESC LIMIT 1
+                """, symbol, asof_time.date())
+                
+                if not row:
+                    return {"available": False}
+                
+                pcr_vol = float(row['put_call_ratio_volume']) if row['put_call_ratio_volume'] else None
+                
+                # Interpret sentiment
+                sentiment = "NEUTRAL"
+                if pcr_vol:
+                    if pcr_vol > 1.0:
+                        sentiment = "BEARISH"  # More puts than calls
+                    elif pcr_vol < 0.7:
+                        sentiment = "BULLISH"  # More calls than puts
+                
+                return {
+                    "available": True,
+                    "pcr_volume": pcr_vol,
+                    "pcr_oi": float(row['put_call_ratio_oi']) if row['put_call_ratio_oi'] else None,
+                    "sentiment": sentiment,
+                    "atm_iv": float(row['atm_iv']) if row['atm_iv'] else None,
+                    "max_pain": float(row['max_pain_strike']) if row['max_pain_strike'] else None,
+                    "spot_price": float(row['spot_price']) if row['spot_price'] else None,
+                }
+        
+        except Exception as e:
+            self.logger.warning(f"{symbol}: Options sentiment fetch failed - {e}")
+            return {"available": False}

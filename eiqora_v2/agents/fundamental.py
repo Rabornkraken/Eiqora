@@ -75,6 +75,9 @@ class FundamentalAgent(BaseAgent[FundamentalOutput]):
             # Step 3c: Get insider summary
             insider_summary = await self._get_insider_summary(symbol, asof_time)
             
+            # Step 3d: Get influential statements
+            influential_statements = await self._get_influential_statements(symbol, asof_time)
+            
             # Step 4: Analyze sentiment from news headlines
             sentiment_overall, pos_count, neg_count, neutral_count = await self._analyze_sentiment(news_docs)
             
@@ -123,8 +126,11 @@ class FundamentalAgent(BaseAgent[FundamentalOutput]):
                 error=None,
             )
             
-            self.logger.info(f"{self.name} completed successfully (news={news_count}, sec={len(sec_filings)})")
-            return {"fundamental": output.model_dump()}
+            self.logger.info(f"{self.name} completed successfully (news={news_count}, sec={len(sec_filings)}, statements={len(influential_statements)})")
+            return {
+                "fundamental": output.model_dump(),
+                "influential_statements": influential_statements,  # Add to state for other agents
+            }
             
         except Exception as e:
             self.logger.error(f"{self.name} failed: {e}")
@@ -317,3 +323,51 @@ class FundamentalAgent(BaseAgent[FundamentalOutput]):
     def _build_state_update(self, state: SwingTradeState, result: FundamentalOutput) -> dict[str, Any]:
         """Build state update."""
         return {"fundamental": result.model_dump()}
+
+    async def _get_influential_statements(
+        self,
+        symbol: str,
+        asof_time: datetime,
+        window_days: int = 7
+    ) -> list[dict]:
+        """Get recent statements from influential figures mentioning this symbol."""
+        try:
+            async with get_connection() as conn:
+                rows = await conn.fetch("""
+                    SELECT 
+                        f.name,
+                        f.category,
+                        f.organization,
+                        f.influence_score,
+                        s.statement_text,
+                        s.statement_source,
+                        s.sentiment,
+                        s.statement_date
+                    FROM influential_statements s
+                    JOIN influential_figures f ON s.figure_id = f.figure_id
+                    WHERE $1 = ANY(s.mentioned_symbols)
+                      AND s.statement_date >= $2::timestamp - make_interval(days => $3)
+                    ORDER BY f.influence_score DESC, s.statement_date DESC
+                    LIMIT 5
+                """, symbol, asof_time, window_days)
+                
+                if not rows:
+                    return []
+                
+                return [
+                    {
+                        "figure": r['name'],
+                        "category": r['category'],
+                        "organization": r['organization'],
+                        "influence": float(r['influence_score']),
+                        "statement": r['statement_text'],
+                        "source": r['statement_source'],
+                        "sentiment": r['sentiment'],
+                        "date": r['statement_date'].isoformat() if r['statement_date'] else None,
+                    }
+                    for r in rows
+                ]
+        
+        except Exception as e:
+            self.logger.warning(f"{symbol}: Influential statements fetch failed - {e}")
+            return []

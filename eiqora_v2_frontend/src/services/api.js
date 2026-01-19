@@ -43,4 +43,10 @@ export const getTradingHistory = async () => {
     return response.data;
 };
 
+// Account summary (cash balance, equity)
+export const getAccount = async () => {
+    const response = await api.get('/account');
+    return response.data;
+};
+
 export default api;

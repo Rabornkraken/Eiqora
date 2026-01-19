@@ -16,7 +16,7 @@ def run_build_watchlist():
     async def build():
         try:
             _logger.info("Building daily watchlist...")
-            selector = CandidateSelector(threshold=0.70)
+            selector = CandidateSelector(threshold=0.60)
             scan_time = datetime.now(timezone.utc)
             
             watchlist = await selector.build_watchlist(scan_time)

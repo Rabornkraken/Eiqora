@@ -74,7 +74,7 @@ class IdeaGeneratorAgent(BaseAgent[IdeaGeneratorOutput]):
         sec_filings = fundamental.get("sec_filings", {}) if isinstance(fundamental, dict) else {}
         insider = fundamental.get("insider", {}) if isinstance(fundamental, dict) else {}
         data_status = fundamental.get("data_status", {}) if isinstance(fundamental, dict) else {}
-
+        
         def _fmt_headlines(items: list[str]) -> str:
             return ", ".join([h for h in items if h]) if items else "None"
 
@@ -92,6 +92,79 @@ class IdeaGeneratorAgent(BaseAgent[IdeaGeneratorOutput]):
                 lines.append(
                     f"- {title} ({source}, {published_at})\n  Snippet: {snippet}"
                 )
+            return "\n".join(lines)
+        
+        def _fmt_earnings(earn: dict) -> str:
+            """Format earnings data narratively."""
+            if not earn or not earn.get("available"):
+                return "No recent earnings data"
+            
+            lines = []
+            eps_actual = earn.get("eps_actual")
+            eps_est = earn.get("eps_estimate")
+            eps_surprise = earn.get("eps_surprise_pct")
+            
+            if eps_actual is not None and eps_est is not None:
+                beat_miss = "BEAT" if eps_actual > eps_est else "MISSED"
+                lines.append(f"- {beat_miss} estimate: ${eps_actual:.2f} actual vs ${eps_est:.2f} est")
+                if eps_surprise is not None:
+                    lines.append(f"  Surprise: {eps_surprise:+.1f}%")
+            
+            rev_growth = earn.get("revenue_growth_yoy")
+            if rev_growth is not None:
+                lines.append(f"- Revenue growth: {rev_growth:+.1f}% YoY")
+            
+            guidance = earn.get("guidance")
+            if guidance:
+                lines.append(f"- Guidance: {guidance}")
+            
+            fiscal_q = earn.get("fiscal_quarter")
+            if fiscal_q:
+                lines.append(f"  ({fiscal_q})")
+            
+            return "\n".join(lines) if lines else "Earnings data incomplete"
+        
+        def _fmt_insider(ins: dict) -> str:
+            """Format insider trading data narratively."""
+            if not ins or not ins.get("available"):
+                return "No insider trading data"
+            
+            buy_count = ins.get("buy_count", 0)
+            sell_count = ins.get("sell_count", 0)
+            net_value = ins.get("net_value", 0)
+            
+            if buy_count == 0 and sell_count == 0:
+                return "No insider activity in last 90 days"
+            
+            # Determine sentiment
+            if net_value > 100000:
+                sentiment = "BULLISH (significant net buying)"
+            elif net_value > 10000:
+                sentiment = "SLIGHTLY BULLISH (net buying)"
+            elif net_value < -100000:
+                sentiment = "BEARISH (significant net selling)"
+            elif net_value < -10000:
+                sentiment = "SLIGHTLY BEARISH (net selling)"
+            else:
+                sentiment = "NEUTRAL (balanced)"
+            
+            lines = [
+                f"- Activity: {buy_count} buys, {sell_count} sells",
+                f"- Net value: ${net_value:,.0f}",
+                f"- Sentiment: {sentiment}"
+            ]
+            
+            # Add breakdown by role if available
+            by_role = ins.get("by_role", {})
+            if by_role:
+                role_lines = []
+                for role, data in by_role.items():
+                    if data.get("net_value", 0) != 0:
+                        role_lines.append(f"  {role}: ${data['net_value']:,.0f}")
+                if role_lines:
+                    lines.append("- By role:")
+                    lines.extend(role_lines)
+            
             return "\n".join(lines)
         
         prompt = f"""
@@ -113,7 +186,7 @@ CHART ANALYSIS:
 - Setup Quality Score: {chart.get('setup_quality', {}).get('score', 0)}
 - Key Levels: {chart.get('key_levels', {})}
 
-STOCK CONTEXT:
+        STOCK CONTEXT:
 - Current Price: ${context.get('current_price', 0):.2f}
 - Trend: {context.get('trend', {})}
 - Volatility (RV20): {context.get('vol_basis', {}).get('value', 0):.4f}
@@ -138,15 +211,28 @@ TOPDOWN REGIME:
 
         prompt += f"""
 FUNDAMENTAL SNAPSHOT:
-- News Sentiment: {sentiment.get('overall', 'NEUTRAL')}
-- News Count: {sentiment.get('news_count', 0)}
-- Positive/Negative/Neutral: {sentiment.get('positive_count', 'N/A')}/{sentiment.get('negative_count', 'N/A')}/{sentiment.get('neutral_count', 'N/A')}
+
+News Sentiment:
+- Overall: {sentiment.get('overall', 'NEUTRAL')}
+- Articles: {sentiment.get('news_count', 0)} ({sentiment.get('positive_count', 0)} pos / {sentiment.get('negative_count', 0)} neg / {sentiment.get('neutral_count', 0)} neutral)
 - Key Topics: {_fmt_headlines(sentiment.get('key_topics', []))}
 - Notable Headlines: {_fmt_headlines(sentiment.get('notable_headlines', []))}
-- Earnings: eps_actual={earnings.get('eps_actual', 'N/A')}, eps_estimate={earnings.get('eps_estimate', 'N/A')}, eps_surprise_pct={earnings.get('eps_surprise_pct', 'N/A')}, revenue_growth_yoy={earnings.get('revenue_growth_yoy', 'N/A')}, guidance={earnings.get('guidance', 'N/A')}
-- SEC Filings: has_8k={sec_filings.get('has_8k', False)}, has_10q={sec_filings.get('has_10q', False)}, has_10k={sec_filings.get('has_10k', False)}
-- Insider: available={insider.get('available', False)}, buys/sells={insider.get('buy_count', 'N/A')}/{insider.get('sell_count', 'N/A')}, net_value={insider.get('net_value', 'N/A')}
-- Data Freshness: news_fresh={data_status.get('news_fresh', False)}, sec_fresh={data_status.get('sec_fresh', False)}, earnings_fresh={data_status.get('earnings_fresh', False)}
+
+Earnings (Most Recent):
+{_fmt_earnings(earnings)}
+
+Insider Trading (Last 90 days):
+{_fmt_insider(insider)}
+
+SEC Filings (Last 30 days):
+- 8-K filed: {sec_filings.get('has_8k', False)}
+- 10-Q filed: {sec_filings.get('has_10q', False)}
+- 10-K filed: {sec_filings.get('has_10k', False)}
+
+Data Freshness:
+- News: {'Fresh' if data_status.get('news_fresh') else 'Stale'}
+- SEC: {'Fresh' if data_status.get('sec_fresh') else 'Stale'}
+- Earnings: {'Fresh' if data_status.get('earnings_fresh') else 'Stale'}
 
 RECENT NEWS SNIPPETS:
 {_fmt_news(news_docs)}
@@ -172,7 +258,7 @@ RULES:
 2. Thesis must be specific and reference the setup, not just "it looks bullish".
 3. When news or fundamental context is available, incorporate it into the thesis or catalyst.
 4. Direction must align with chart setup direction.
-5. Do not invent performance expectations - that comes from Stats Service.
+5. Do not invent performance expectations.
 6. Generate unique idea_id for each idea (format: "idea_<random>").
 
 OUTPUT SCHEMA:

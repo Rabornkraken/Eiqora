@@ -4,7 +4,7 @@ Provides deep fundamental and narrative context with layered lookbacks.
 """
 
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Any
 from pydantic import BaseModel, Field
 
 from eiqora_v2.schemas.fundamental import EarningsSnapshot
@@ -53,4 +53,4 @@ class TickerProfile(BaseModel):
     
     # --- PRE-COMPUTED SCORE (stored to avoid recalculation) ---
     profile_score: float = Field(default=0.0, description="Pre-computed P score (0-0.50)")
-    score_breakdown: dict[str, float] = Field(default_factory=dict, description="Individual score components")
+    score_breakdown: dict[str, Any] = Field(default_factory=dict, description="Individual score components and explanations")

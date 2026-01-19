@@ -1,51 +1,9 @@
 """
-Analog Planner and Decision output schemas.
+Decision output schemas.
 """
 
 from typing import Literal
 from pydantic import BaseModel, Field
-
-
-class AnalogFilter(BaseModel):
-    """Filters for analog selection."""
-    sector_etf: str | None = Field(default=None, description="Sector ETF filter")
-    vol_bucket: Literal["LOW", "MED", "HIGH"] | None = Field(default=None)
-    trend_bucket: Literal["UP", "DOWN", "SIDEWAYS"] | None = Field(default=None)
-    regime: str | None = Field(default=None, description="Market regime filter")
-
-
-class AnalogPlan(BaseModel):
-    """A single analog query plan."""
-    plan_id: str = Field(description="Unique plan ID")
-    idea_id: str = Field(description="ID of the idea this plan evaluates")
-    event_type: str = Field(description="Setup/event type for analog matching")
-    filters: AnalogFilter = Field(description="Filters to apply")
-    lookback_years: int = Field(default=8, ge=1, le=20)
-    min_samples: int = Field(default=30, ge=8, le=100)
-
-
-class AnalogPlannerOutput(BaseModel):
-    """Output schema for Analog Planner Agent."""
-    
-    plans: list[AnalogPlan] = Field(
-        default_factory=list,
-        description="Analog query plans to execute"
-    )
-
-
-class StatsResult(BaseModel):
-    """Statistics from analog evaluation (from Stats Service, not LLM)."""
-    plan_id: str = Field(description="Plan ID these stats apply to")
-    status: Literal["OK", "INSUFFICIENT_DATA", "ERROR"] = Field(description="Query status")
-    sample_size: int = Field(ge=0, description="Number of analogs found")
-    win_rate: float | None = Field(default=None, ge=0.0, le=1.0)
-    expected_return: float | None = Field(default=None)
-    median_return: float | None = Field(default=None)
-    p10: float | None = Field(default=None, description="10th percentile return")
-    p90: float | None = Field(default=None, description="90th percentile return")
-    avg_hold_days: float | None = Field(default=None)
-    stability: float | None = Field(default=None, ge=0.0, le=1.0, description="Stats stability score")
-    relaxations_applied: list[str] = Field(default_factory=list)
 
 
 class TradeRule(BaseModel):
@@ -67,9 +25,6 @@ class TradeRule(BaseModel):
     invalidation_type: str = Field(description="Invalidation trigger type")
     invalidation_level: float = Field(description="Invalidation price level")
     
-    # Stats reference
-    stats: StatsResult | None = Field(default=None)
-
 
 class DecisionOutput(BaseModel):
     """Output schema for Decision Agent."""

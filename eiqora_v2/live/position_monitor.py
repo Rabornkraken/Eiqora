@@ -8,12 +8,14 @@ the original trade thesis is invalidated.
 import asyncio
 import logging
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 from typing import Any, Literal
 
 from eiqora_v2.tools.db import get_connection
 from eiqora_v2.tools.positions import get_open_positions
 
 _logger = logging.getLogger(__name__)
+EASTERN_TZ = ZoneInfo("America/New_York")
 
 
 class PositionTrigger:
@@ -45,9 +47,6 @@ class PositionMonitor:
     - sec_8k_material: New material 8-K filing
     - earnings_miss: Earnings significantly missed estimates
     - major_negative_news: High-impact negative news (sentiment < -0.7)
-    - stop_loss_hit: Price hit stop loss (auto-exit, no LLM)
-    - take_profit_hit: Price hit take profit (auto-exit, no LLM)
-    - time_stop_hit: Position reached time stop (auto-exit, no LLM)
     """
     
     def __init__(self):
@@ -64,7 +63,7 @@ class PositionMonitor:
             List of position triggers (HIGH/CRITICAL only)
         """
         if check_time is None:
-            check_time = datetime.now(timezone.utc)
+            check_time = datetime.now(EASTERN_TZ)
         
         # Get open positions
         positions = await get_open_positions(asof_time=check_time)
@@ -79,64 +78,7 @@ class PositionMonitor:
         
         for position in positions:
             symbol = position["symbol"]
-            direction = str(position.get("direction", "LONG")).upper()
-            current_price = position.get("current_price")
-            stop_loss = position.get("stop_loss")
-            take_profit = position.get("take_profit")
-            time_stop_date = position.get("time_stop_date")
-            if isinstance(time_stop_date, datetime) and time_stop_date.tzinfo is None:
-                time_stop_date = time_stop_date.replace(tzinfo=timezone.utc)
-
-            # Auto-exit checks (no LLM)
-            if current_price is not None:
-                if stop_loss is not None:
-                    if (direction == "LONG" and current_price <= stop_loss) or (
-                        direction == "SHORT" and current_price >= stop_loss
-                    ):
-                        all_triggers.append(
-                            PositionTrigger(
-                                symbol=symbol,
-                                trigger_type="stop_loss_hit",
-                                severity="CRITICAL",
-                                details={
-                                    "current_price": current_price,
-                                    "stop_loss": stop_loss,
-                                },
-                                detected_at=check_time,
-                            )
-                        )
-                        continue
-                if take_profit is not None:
-                    if (direction == "LONG" and current_price >= take_profit) or (
-                        direction == "SHORT" and current_price <= take_profit
-                    ):
-                        all_triggers.append(
-                            PositionTrigger(
-                                symbol=symbol,
-                                trigger_type="take_profit_hit",
-                                severity="CRITICAL",
-                                details={
-                                    "current_price": current_price,
-                                    "take_profit": take_profit,
-                                },
-                                detected_at=check_time,
-                            )
-                        )
-                        continue
-
-            if time_stop_date and check_time >= time_stop_date:
-                all_triggers.append(
-                    PositionTrigger(
-                        symbol=symbol,
-                        trigger_type="time_stop_hit",
-                        severity="HIGH",
-                        details={
-                            "time_stop_date": str(time_stop_date),
-                        },
-                        detected_at=check_time,
-                    )
-                )
-                continue
+            # Auto-exit checks handled in account refresh loop (stop loss, take profit, time stop).
             
             # Check for thesis-breaking events
             sec_trigger = await self.check_sec_8k_trigger(symbol, check_time)

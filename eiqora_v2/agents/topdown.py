@@ -76,6 +76,7 @@ class TopDownAgent(BaseAgent[TopDownOutput]):
                 if not indicators.get("error"):
                     sector_data[etf] = {
                         "ret_20d": indicators.get("ret_20d"),
+                        "ret_5d": indicators.get("ret_5d"),  # Short-term momentum
                         "trend": indicators.get("trend", {}).get("ma20"),
                     }
             except Exception:
@@ -104,9 +105,21 @@ class TopDownAgent(BaseAgent[TopDownOutput]):
         sectors = data.get("sectors", {})
         econ = data.get("economic_calendar", {})
         
-        # Format sector performance
+        # Format sector performance with short-term momentum
+        def format_sector(etf, d):
+            ret_20d = d.get('ret_20d', 0) or 0
+            ret_5d = d.get('ret_5d', 0) or 0
+            trend = d.get('trend', 'N/A')
+            # Flag sectors where 5d momentum diverges from 20d (potential rotation)
+            divergence = ""
+            if ret_20d > 0.02 and ret_5d < -0.01:
+                divergence = " ⚠️ WEAKENING"
+            elif ret_20d < -0.02 and ret_5d > 0.01:
+                divergence = " 🔄 RECOVERING"
+            return f"  {etf}: 5d={ret_5d:.1%}, 20d={ret_20d:.1%}, MA20={trend}{divergence}"
+        
         sector_text = "\n".join([
-            f"  {etf}: 20d return={d.get('ret_20d', 'N/A'):.1%}, MA20={d.get('trend', 'N/A')}"
+            format_sector(etf, d)
             for etf, d in sectors.items()
         ]) if sectors else "  No sector data"
         

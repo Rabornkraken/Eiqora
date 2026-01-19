@@ -8,8 +8,10 @@ Usage:
 import asyncio
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
+import pytest
 from eiqora_v2.live.scanner import LiveScanner
 from eiqora_v2.live.signals import SignalManager
 
@@ -18,6 +20,7 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 
+@pytest.mark.asyncio
 async def test_scanner():
     """Test the live scanner end-to-end."""
     print("\n" + "="*60)
@@ -27,7 +30,7 @@ async def test_scanner():
     # Initialize
     db_url = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/finance")
     scanner = LiveScanner(db_url=db_url)
-    signal_manager = SignalManager(db_url=db_url)
+    signal_manager = SignalManager()
     
     # Test 1: Load universe
     print("Test 1: Loading universe...")
@@ -35,16 +38,19 @@ async def test_scanner():
     print(f"✅ Loaded {len(symbols)} symbols")
     print(f"   Sample: {symbols[:5]}")
     
-    # Test 2: Scan for triggers
-    print("\nTest 2: Scanning for triggers...")
-    scan_date = datetime.now(timezone.utc).date()
-    triggers = await scanner.scan_all_tickers(scan_date)
-    print(f"✅ Found {len(triggers)} triggers")
+    # Test 2: Scan for candidates
+    print("\nTest 2: Scanning for candidates...")
+    scan_date = datetime.now(ZoneInfo("America/New_York")).date()
+    candidates = await scanner.scan_with_quality_filter(scan_date)
+    print(f"✅ Found {len(candidates)} candidates")
     
-    if triggers:
-        print(f"   Sample triggers:")
-        for trigger in triggers[:3]:
-            print(f"   - {trigger.ticker}: {trigger.type}")
+    if candidates:
+        print("   Sample candidates:")
+        for symbol, score, _ in candidates[:3]:
+            print(f"   - {symbol}: score={score:.2f}")
+
+    if os.getenv("EIQORA_RUN_LLM_TESTS") != "1":
+        pytest.skip("LLM-backed scan disabled (set EIQORA_RUN_LLM_TESTS=1 to enable).")
     
     # Test 3: Generate trade signals
     print("\nTest 3: Generating trade signals...")
@@ -54,7 +60,7 @@ async def test_scanner():
     # Test 4: Store signals
     if signals:
         print("\nTest 4: Storing signals to database...")
-        signal_ids = signal_manager.store_signals(signals)
+        signal_ids = await signal_manager.store_signals(signals)
         print(f"✅ Stored {len(signal_ids)} signals")
         
         # Test 5: Send notifications
@@ -63,7 +69,7 @@ async def test_scanner():
         
         # Test 6: Generate report
         print("\nTest 6: Generating daily report...")
-        report = signal_manager.generate_daily_report(scan_date)
+        report = await signal_manager.generate_daily_report(scan_date)
         print(report)
     else:
         print("\n⚠️  No GO signals today - normal for calm markets")

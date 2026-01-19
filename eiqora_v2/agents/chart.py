@@ -31,22 +31,32 @@ class ChartAgent(BaseAgent[ChartOutput]):
         """Fetch price data, daily indicators, and hourly indicators."""
         symbol = state["symbol"]
         asof_time = state["asof_time"]
-        
+
+        market_data = state.get("market_data") or {}
+
         # Get recent price bars
-        prices = await get_prices(symbol, 60, asof_time)
-        
+        prices = market_data.get("prices")
+        if prices is None:
+            prices = await get_prices(symbol, 60, asof_time)
+
         if len(prices) < 10:
             return {"error": f"Insufficient price data: {len(prices)} bars"}
-        
+
         # Get daily indicators (trend/setup)
-        indicators = await get_indicators(symbol, 60, asof_time)
-        
+        indicators = market_data.get("daily_indicators")
+        if indicators is None:
+            indicators = await get_indicators(symbol, 60, asof_time)
+
         # Get hourly indicators (entry timing)
-        hourly = await get_hourly_indicators(symbol, asof_time.date(), asof_time)
-        
+        hourly = market_data.get("hourly_indicators")
+        if hourly is None:
+            hourly = await get_hourly_indicators(symbol, asof_time.date(), asof_time)
+
         # Get key levels
-        levels = await get_price_levels(symbol, 60, asof_time)
-        
+        levels = market_data.get("price_levels")
+        if levels is None:
+            levels = await get_price_levels(symbol, 60, asof_time)
+
         return {
             "prices": prices[-20:],  # Last 20 bars for prompt
             "indicators": indicators,
@@ -166,7 +176,7 @@ OUTPUT SCHEMA:
 }
 
 For NO_SETUP, set direction="NEUTRAL", entry_trigger=null, invalidation=null.
-Return ONLY valid JSON. No explanation."""
+Return ONLY valid JSON. No explanation."""""
     
     def _build_state_update(self, state: SwingTradeState, result: ChartOutput) -> dict[str, Any]:
         """Build state update with chart output."""
@@ -175,4 +185,5 @@ Return ONLY valid JSON. No explanation."""
         rel_strength = context.get("relative_strength")
         if rel_strength:
             chart_output["relative_strength"] = rel_strength
+        
         return {"chart": chart_output}

@@ -121,9 +121,6 @@ class NarrativeOutput(BaseModel):
     
     exit_plan: str = Field(max_length=200, description="Exit execution plan")
     
-    stats_summary: str = Field(max_length=150, description="Historical stats summary")
-
-
 class MarketContext(BaseModel):
     """Current market conditions for position monitoring."""
     vix_current: float | None = None
@@ -168,4 +165,3 @@ class PositionMonitorOutput(BaseModel):
         default_factory=list,
         description="Active risk factors (FOMC, VIX_SPIKE, EARNINGS, etc.)"
     )
-

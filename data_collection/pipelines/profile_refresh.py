@@ -77,7 +77,7 @@ async def refresh_profiles(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Refresh ticker profiles if stale.")
     parser.add_argument("--max-age-days", type=int, default=7, help="Max age (days) before refresh.")
-    parser.add_argument("--concurrency", type=int, default=int(os.getenv("PROFILE_REFRESH_CONCURRENCY", "3")))
+    parser.add_argument("--concurrency", type=int, default=int(os.getenv("PROFILE_REFRESH_CONCURRENCY", "10")))
     parser.add_argument("--limit", type=int, default=None, help="Limit number of symbols (debug).")
     args = parser.parse_args()
 

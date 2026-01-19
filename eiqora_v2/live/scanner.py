@@ -8,7 +8,8 @@ Two-stage filtering:
 
 import asyncio
 import logging
-from datetime import date, datetime, timezone, time
+from datetime import date, datetime, time
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,7 @@ from eiqora_v2.tools.db import get_connection
 from eiqora_v2.tools.prices import get_indicators, get_hourly_indicators
 
 _logger = logging.getLogger(__name__)
+EASTERN_TZ = ZoneInfo("America/New_York")
 
 
 class LiveScanner:
@@ -206,9 +208,9 @@ class LiveScanner:
             List of (symbol, score, breakdown) tuples for candidates that pass
         """
         if scan_date is None:
-            scan_date = datetime.now(timezone.utc).date()
+            scan_date = datetime.now(EASTERN_TZ).date()
         if scan_time is None:
-            scan_time = datetime.now(timezone.utc)
+            scan_time = datetime.now(EASTERN_TZ)
         
         symbols = self.load_universe()
         candidates = []
@@ -273,9 +275,9 @@ class LiveScanner:
             List of GO signals with entry/TP/SL levels
         """
         if scan_date is None:
-            scan_date = datetime.now(timezone.utc).date()
+            scan_date = datetime.now(EASTERN_TZ).date()
         if scan_time is None:
-            scan_time = datetime.now(timezone.utc)
+            scan_time = datetime.now(EASTERN_TZ)
         
         _logger.info(f"\n{'='*60}")
         _logger.info(f"HOURLY SCAN: {scan_date} {scan_time.strftime('%H:%M %Z')}")

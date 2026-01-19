@@ -4,6 +4,7 @@ import EquityChart from './components/EquityChart';
 import DecisionsTable from './components/DecisionsTable';
 import Portfolio from './components/Portfolio';
 import TradingHistory from './components/TradingHistory';
+import Watchlist from './components/Watchlist';
 
 function App() {
   // Initialize state from URL query param or default to 'equity'
@@ -73,11 +74,17 @@ function App() {
               <EquityChart />
             </div>
 
-            <div style={{ marginBottom: '2rem' }}>
-              <h2 className="chart-title" style={{ marginBottom: '1rem' }}>
-                Trading Decisions
-              </h2>
-              <DecisionsTable />
+            {/* Side-by-side Watchlist and Decisions */}
+            <div className="two-column-grid">
+              <div className="column-left">
+                <Watchlist />
+              </div>
+              <div className="column-right">
+                <div className="decisions-section">
+                  <h3>Trading Decisions</h3>
+                  <DecisionsTable />
+                </div>
+              </div>
             </div>
           </div>
         )}

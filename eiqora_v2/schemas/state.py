@@ -23,6 +23,14 @@ class SwingTradeState(TypedDict, total=False):
     # Trigger information
     trigger_type: str  # SEC_8K, NEWS, CHART_SETUP, etc.
     trigger_refs: list[str]
+    trigger_priority: str
+    trigger_detail: dict[str, Any]
+
+    # Enriched deterministic context
+    profile: dict[str, Any] | None
+    market_data: dict[str, Any] | None
+    data_freshness: dict[str, Any] | None
+    enrichment_errors: list[str] | None
     
     # Agent outputs (accumulated as graph executes)
     triage: dict[str, Any] | None
@@ -32,9 +40,11 @@ class SwingTradeState(TypedDict, total=False):
     chart: dict[str, Any] | None
     ideas: dict[str, Any] | None
     rules: list[dict[str, Any]] | None
-    stats: list[dict[str, Any]] | None
+    exit_policy: dict[str, Any] | None
     red_team: dict[str, Any] | None
+    short_perspective: dict[str, Any] | None
     decision: dict[str, Any] | None
+    position_manager: dict[str, Any] | None
     veto: dict[str, Any] | None
     narrative: dict[str, Any] | None
     

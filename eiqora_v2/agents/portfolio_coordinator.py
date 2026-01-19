@@ -67,7 +67,7 @@ Return empty approved and rejected lists.
         signals_text = "\n".join([
             f"  {i+1}. {s.get('symbol')}: {s.get('direction')} {s.get('setup_type')}, "
             f"conviction={s.get('conviction')}, risk={s.get('risk_score', 0):.2f}, "
-            f"WR={s.get('win_rate', 0):.1%}, clusters={s.get('clusters', [])}"
+            f"clusters={s.get('clusters', [])}"
             for i, s in enumerate(signals)
         ])
         
@@ -81,7 +81,7 @@ MARKET CONTEXT:
 - Regime: {regime}
 - Bias: {bias}
 
-SIGNALS (ranked by conviction + stats):
+SIGNALS (ranked by conviction + risk):
 {signals_text}
 
 CONSTRAINTS:
@@ -98,12 +98,11 @@ Explain any rejections.
 
 RANKING CRITERIA (in priority order):
 1. HIGH conviction signals first
-2. Higher win rate / expected return
-3. Lower risk score
-4. Diversification across clusters
+2. Lower risk score
+3. Diversification across clusters
 
 CONSTRAINT APPLICATION:
-1. Sort signals by quality (conviction + stats)
+1. Sort signals by quality (conviction + risk)
 2. Add best signal if no constraint violated
 3. Check cluster limits before adding
 4. Check sector limits before adding
@@ -148,7 +147,6 @@ def coordinate_signals(
         signals,
         key=lambda s: (
             0 if s.conviction == "HIGH" else 1 if s.conviction == "MEDIUM" else 2,
-            -(s.win_rate or 0),
             s.risk_score,
         )
     )

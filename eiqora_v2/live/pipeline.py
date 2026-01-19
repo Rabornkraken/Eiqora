@@ -9,10 +9,11 @@ Connects:
 """
 
 import asyncio
-import json
 import logging
 import os
-from datetime import datetime, timezone, date
+import contextlib
+from datetime import datetime, date
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from typing import Any
 
@@ -21,13 +22,21 @@ from eiqora_v2.live.trigger_monitor import TriggerMonitor, Trigger
 from eiqora_v2.live.position_monitor import PositionMonitor, PositionTrigger
 from eiqora_v2.live.signals import SignalManager
 from eiqora_v2.live.orchestrator import LiveTradingOrchestrator
+from eiqora_v2.live.trigger_dispatcher import (
+    TriggerDispatcher,
+    TriggerEvent,
+    TRIGGER_SOURCES,
+    WATCHLIST_SOURCES,
+    build_event_from_payloads,
+)
 from eiqora_v2.services.profile_generator import ProfileGenerator
+from eiqora_v2.services.context_enrichment import ContextEnricher
 from eiqora_v2.agents.position_reassessment import PositionReassessmentAgent
 
 _logger = logging.getLogger(__name__)
+EASTERN_TZ = ZoneInfo("America/New_York")
+ACCOUNT_REFRESH_SECONDS = max(0, int(os.getenv("ACCOUNT_REFRESH_SECONDS", "900")))
 INGEST_CHANNEL = os.getenv("EIQORA_INGEST_CHANNEL", "eiqora_ingest")
-TRIGGER_SOURCES = {"market_bar_hourly", "yfinance_news", "earnings_event", "sec_filing"}
-WATCHLIST_SOURCES = {"market_bar_daily"}
 TRIGGER_CONCURRENCY = max(1, int(os.getenv("TRIGGER_CONCURRENCY", "3")))
 
 
@@ -47,7 +56,9 @@ class LiveTradingPipeline:
         self.signal_manager = SignalManager()
         self.orchestrator = LiveTradingOrchestrator()  # Uses Position Manager
         self.profile_generator = ProfileGenerator()
+        self.context_enricher = ContextEnricher(self.profile_generator)
         self.reassessment_agent = PositionReassessmentAgent()  # NEW
+        self.trigger_dispatcher = TriggerDispatcher(self)
     
     async def build_daily_watchlist(
         self,
@@ -55,7 +66,7 @@ class LiveTradingPipeline:
     ) -> list[dict[str, Any]]:
         """Build daily watchlist using candidate selector."""
         if scan_time is None:
-            scan_time = datetime.now(timezone.utc)
+            scan_time = datetime.now(EASTERN_TZ)
         
         _logger.info(f"Building daily watchlist for {scan_time.date()}")
         
@@ -77,6 +88,7 @@ class LiveTradingPipeline:
                 scan_date,
             )
             return row is not None
+
     
     async def process_trigger(
         self,
@@ -89,7 +101,11 @@ class LiveTradingPipeline:
             Trade signal if GO, None otherwise
         """
         import time
-        from eiqora_v2.live.analysis_logger import is_trigger_processed, log_analysis
+        from eiqora_v2.live.analysis_logger import (
+            is_trigger_processed,
+            log_analysis,
+            log_suppressed_trigger,
+        )
         from eiqora_v2.tools.positions import has_open_position
         
         # Check if this trigger was already processed
@@ -105,15 +121,60 @@ class LiveTradingPipeline:
         _logger.info(f"Processing trigger: {trigger}")
         start_time = time.time()
         
-        # Get profile for context
-        profile_score = None
-        try:
-            profile = await self.profile_generator.get_profile(trigger.symbol)
-            profile_dict = profile.model_dump()
-            profile_score = profile.profile_score
-        except Exception as e:
-            _logger.warning(f"Could not get profile for {trigger.symbol}: {e}")
-            profile_dict = None
+        # Enrich with deterministic context (profile + market data)
+        enrichment = await self.context_enricher.enrich(
+            symbol=trigger.symbol,
+            asof_time=trigger.detected_at,
+            include_profile=True,
+        )
+        profile_dict = enrichment.get("profile")
+        profile_score = enrichment.get("profile_score")
+        market_data = enrichment.get("market_data") or {}
+        freshness = enrichment.get("data_freshness") or {}
+        enrichment_errors = enrichment.get("errors") or []
+
+        if not freshness.get("daily_ok", True):
+            reason = f"stale_daily_data gap_days={freshness.get('daily_gap_days')}"
+            _logger.info("⏭️  Skipping %s due to %s", trigger.symbol, reason)
+            await log_suppressed_trigger(
+                symbol=trigger.symbol,
+                trigger_type=trigger.trigger_type,
+                trigger_detail=trigger.details,
+                detected_at=trigger.detected_at,
+                suppressed_reason=reason,
+                technical_score=trigger.details.get("technical_score"),
+                profile_score=profile_score or trigger.details.get("profile_score"),
+            )
+            return None
+
+        if not freshness.get("hourly_ok", True):
+            reason = f"stale_hourly_data gap_hours={freshness.get('hourly_gap_hours')}"
+            _logger.info("⏭️  Skipping %s due to %s", trigger.symbol, reason)
+            await log_suppressed_trigger(
+                symbol=trigger.symbol,
+                trigger_type=trigger.trigger_type,
+                trigger_detail=trigger.details,
+                detected_at=trigger.detected_at,
+                suppressed_reason=reason,
+                technical_score=trigger.details.get("technical_score"),
+                profile_score=profile_score or trigger.details.get("profile_score"),
+            )
+            return None
+        
+        # Assess signal quality based on confirmations
+        from eiqora_v2.services.signal_quality import assess_full_signal_quality
+        
+        signal_quality = assess_full_signal_quality(trigger.details)
+        _logger.info(
+            f"  Signal quality: {signal_quality['quality_score']:.3f} "
+            f"({signal_quality['quality_level']}) - {', '.join(signal_quality['quality_flags'])}"
+        )
+        
+        # Enrich trigger details with signal quality
+        enriched_trigger_details = {
+            **trigger.details,
+            **signal_quality,
+        }
         
         # Build initial state with trigger context
         initial_state = {
@@ -121,8 +182,11 @@ class LiveTradingPipeline:
             "asof_time": trigger.detected_at,
             "trigger_type": trigger.trigger_type,
             "trigger_priority": trigger.priority,
-            "trigger_detail": trigger.details,
+            "trigger_detail": enriched_trigger_details,  # Now includes signal quality
             "profile": profile_dict,
+            "market_data": market_data,
+            "data_freshness": freshness,
+            "enrichment_errors": enrichment_errors,
         }
         
         # Run 10-agent pipeline
@@ -139,7 +203,7 @@ class LiveTradingPipeline:
             action = "NO_GO"
         
         # Log analysis regardless of outcome (GO or NO_GO)
-        await log_analysis(
+        analysis_id = await log_analysis(
             symbol=trigger.symbol,
             trigger_type=trigger.trigger_type,
             trigger_detail=trigger.details,
@@ -150,6 +214,9 @@ class LiveTradingPipeline:
             technical_score=trigger.details.get("technical_score"),
         )
         
+        # Store analysis_id for backtest cleanup
+        final_state["analysis_id"] = analysis_id
+        
         if action == "GO":
             # Get prices from various sources
             rule = decision.get("rule", {}) or {}
@@ -157,20 +224,45 @@ class LiveTradingPipeline:
             
             # Entry price from rule or context
             entry_price = rule.get("entry_level") or context.get("current_price", 0)
+
+            hourly_data = market_data.get("hourly_indicators") or {}
+            hourly_price = hourly_data.get("current_price")
+            if hourly_price and not hourly_data.get("error"):
+                try:
+                    entry_price = float(hourly_price)
+                except (TypeError, ValueError):
+                    pass
             
-            # Get ATR-based stops from rule (fallbacks)
-            sl_mult = rule.get("sl_mult", 2.0)
-            tp_mult = rule.get("tp_mult", 4.0)
-            time_stop_days = rule.get("time_stop_days", 30)
-            atr = context.get("atr14", entry_price * 0.02)  # Default to 2% if no ATR
+            # Get exit policy from agent (may have explicit levels)
+            exit_policy = final_state.get("exit_policy", {}) or {}
+            bracket = exit_policy.get("bracket", {}) if isinstance(exit_policy, dict) else {}
             
-            direction = rule.get("direction", "LONG")
-            if direction == "SHORT":
-                stop_loss = entry_price + (atr * sl_mult)
-                take_profit = entry_price - (atr * tp_mult)
-            else:
-                stop_loss = entry_price - (atr * sl_mult)
-                take_profit = entry_price + (atr * tp_mult)
+            # ADAPTIVE: Prefer explicit price levels over ATR multiples
+            stop_loss = bracket.get("sl_level")
+            take_profit = bracket.get("tp_level")
+            
+            # Fallback to ATR-based if no explicit levels
+            if stop_loss is None or take_profit is None:
+                # Get multipliers from exit policy or fallback defaults
+                sl_mult = bracket.get("sl_mult") or rule.get("sl_mult", 3.0)  # Wide catastrophic stop
+                tp_mult = bracket.get("tp_mult") or rule.get("tp_mult")  # Often null for decision-based
+                time_stop_days = rule.get("time_stop_days", 30)
+                atr = context.get("atr14", entry_price * 0.02)  # Default to 2% if no ATR
+                
+                direction = rule.get("direction", "LONG")
+                if direction == "SHORT":
+                    stop_loss = stop_loss or (entry_price + (atr * sl_mult))
+                    if tp_mult:
+                        take_profit = take_profit or (entry_price - (atr * tp_mult))
+                else:
+                    stop_loss = stop_loss or (entry_price - (atr * sl_mult))
+                    if tp_mult:
+                        take_profit = take_profit or (entry_price + (atr * tp_mult))
+            
+            # Log the exit policy decision
+            sl_rationale = bracket.get("sl_rationale", "ATR-based")
+            tp_rationale = bracket.get("tp_rationale", "ATR-based")
+            _logger.info(f"Exit policy - SL: ${stop_loss:.2f} ({sl_rationale}), TP: ${take_profit:.2f} ({tp_rationale})")
             
             # Get conviction from idea generator or decision
             ideas = final_state.get("ideas", {})
@@ -232,6 +324,7 @@ class LiveTradingPipeline:
                 "reasoning": decision.get("reason", ""),
                 "agent_outputs": final_state,
                 "trigger_detail": trigger.details,
+                "analysis_id": final_state.get("analysis_id"),  # For backtest cleanup
             }
             
             # Store signal
@@ -277,7 +370,7 @@ class LiveTradingPipeline:
             List of GO signals
         """
         if scan_time is None:
-            scan_time = datetime.now(timezone.utc)
+            scan_time = datetime.now(EASTERN_TZ)
         
         _logger.info(f"\n{'='*60}")
         _logger.info(f"TRIGGER SCAN: {scan_time.strftime('%Y-%m-%d %H:%M %Z')}")
@@ -292,18 +385,65 @@ class LiveTradingPipeline:
         
         _logger.info(f"Found {len(triggers)} triggers")
         
+        # GROUP TRIGGERS BY SYMBOL (consolidation)
+        # This prevents multiple analyses for the same symbol
+        triggers_by_symbol: dict[str, list[Trigger]] = {}
+        for trigger in triggers:
+            if trigger.symbol not in triggers_by_symbol:
+                triggers_by_symbol[trigger.symbol] = []
+            triggers_by_symbol[trigger.symbol].append(trigger)
+        
+        _logger.info(
+            f"Consolidated into {len(triggers_by_symbol)} symbols "
+            f"(avg {len(triggers)/len(triggers_by_symbol):.1f} triggers/symbol)"
+        )
+        
+        # Log consolidation details
+        for symbol, symbol_triggers in triggers_by_symbol.items():
+            if len(symbol_triggers) > 1:
+                trigger_types = [t.trigger_type for t in symbol_triggers]
+                _logger.info(
+                    f"  {symbol}: {len(symbol_triggers)} triggers ({', '.join(trigger_types)})"
+                )
+        
         # Process triggers in parallel with a concurrency cap
         semaphore = asyncio.Semaphore(TRIGGER_CONCURRENCY)
 
-        async def _run_trigger(trigger: Trigger) -> dict[str, Any] | None:
+        async def _run_trigger(symbol: str, symbol_triggers: list[Trigger]) -> dict[str, Any] | None:
             async with semaphore:
                 try:
-                    return await self.process_trigger(trigger)
+                    # Select primary trigger (highest priority)
+                    PRIORITY_ORDER = {"HIGH": 3, "MEDIUM": 2, "LOW": 1}
+                    primary_trigger = max(
+                        symbol_triggers,
+                        key=lambda t: PRIORITY_ORDER.get(t.priority, 0)
+                    )
+                    
+                    # Add consolidation context to primary trigger
+                    if len(symbol_triggers) > 1:
+                        primary_trigger.details["consolidated_triggers"] = [
+                            {
+                                "type": t.trigger_type,
+                                "priority": t.priority,
+                                "details": t.details,
+                            }
+                            for t in symbol_triggers
+                        ]
+                        primary_trigger.details["trigger_count"] = len(symbol_triggers)
+                        _logger.info(
+                            f"  {symbol}: Processing consolidated triggers via {primary_trigger.trigger_type} "
+                            f"({len(symbol_triggers)} total)"
+                        )
+                    
+                    return await self.process_trigger(primary_trigger)
                 except Exception as exc:
-                    _logger.warning("Trigger processing failed for %s: %s", trigger.symbol, exc)
+                    _logger.warning("Trigger processing failed for %s: %s", symbol, exc)
                     return None
 
-        tasks = [asyncio.create_task(_run_trigger(trigger)) for trigger in triggers]
+        tasks = [
+            asyncio.create_task(_run_trigger(symbol, symbol_triggers))
+            for symbol, symbol_triggers in triggers_by_symbol.items()
+        ]
         results = await asyncio.gather(*tasks)
         signals = [signal for signal in results if signal]
         
@@ -325,7 +465,7 @@ class LiveTradingPipeline:
             List of exit decisions
         """
         if check_time is None:
-            check_time = datetime.now(timezone.utc)
+            check_time = datetime.now(EASTERN_TZ)
         
         _logger.info(f"=== POSITION MONITORING: {check_time} ===")
         
@@ -472,48 +612,32 @@ class LiveTradingPipeline:
                     while not queue.empty():
                         payloads.append(queue.get_nowait())
 
-                    sources = set()
-                    latest_at = None
-                    for raw in payloads:
-                        try:
-                            data = json.loads(raw)
-                        except Exception:
-                            data = {}
-                        source = data.get("source")
-                        if source:
-                            sources.add(source)
-                        ts = data.get("latest_at")
-                        if ts:
-                            try:
-                                parsed = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-                                if parsed.tzinfo is None:
-                                    parsed = parsed.replace(tzinfo=timezone.utc)
-                                if latest_at is None or parsed > latest_at:
-                                    latest_at = parsed
-                            except ValueError:
-                                pass
-
-                    now = datetime.now(timezone.utc)
-                    scan_time = min(latest_at, now) if latest_at else now
-
-                    if sources & WATCHLIST_SOURCES:
-                        try:
-                            if await self._watchlist_exists(scan_time.date()):
-                                _logger.info("Watchlist already built for %s; skipping rebuild", scan_time.date())
-                            else:
-                                _logger.info("Daily bars update received; building watchlist for %s", scan_time.date())
-                                await self.build_daily_watchlist(scan_time)
-                        except Exception as exc:
-                            _logger.warning("Failed to build daily watchlist: %s", exc)
-
-                    if sources & TRIGGER_SOURCES:
-                        _logger.info("Ingest update received (%s); running scan", ", ".join(sorted(sources)))
-                        await self.monitor_positions(scan_time)
-                        await self.run_trigger_scan(scan_time)
-                    elif not (sources & WATCHLIST_SOURCES):
-                        _logger.debug("Ignoring ingest notification sources: %s", sorted(sources))
+                    now = datetime.now(EASTERN_TZ)
+                    event = build_event_from_payloads(payloads, now=now, tz=EASTERN_TZ)
+                    try:
+                        await self.trigger_dispatcher.dispatch(event)
+                    except Exception as exc:
+                        _logger.error("Live trigger dispatch failed: %s", exc, exc_info=True)
             finally:
                 await conn.remove_listener(listen_channel, _listener)
+
+    async def run_account_refresh_loop(self, interval_seconds: int | None = None) -> None:
+        """Periodically refresh account_state and account_snapshot."""
+        interval = ACCOUNT_REFRESH_SECONDS if interval_seconds is None else interval_seconds
+        if interval <= 0:
+            _logger.info("Account refresh loop disabled (ACCOUNT_REFRESH_SECONDS=%s)", interval)
+            return
+
+        from eiqora_v2.tools.positions import refresh_account_state
+
+        _logger.info("Account refresh loop every %s seconds", interval)
+        while True:
+            try:
+                now = datetime.now(EASTERN_TZ)
+                await refresh_account_state(asof_time=now, refresh_prices=True)
+            except Exception as exc:
+                _logger.warning("Account refresh failed: %s", exc)
+            await asyncio.sleep(interval)
 
 
 async def main():
@@ -540,19 +664,26 @@ async def main():
 
     mode = os.getenv("LIVE_TRIGGER_MODE", "notify").lower()
     if mode == "notify":
-        await pipeline.run_on_ingest_notifications()
+        refresh_task = asyncio.create_task(pipeline.run_account_refresh_loop())
+        try:
+            await pipeline.run_on_ingest_notifications()
+        finally:
+            refresh_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await refresh_task
         return
 
     # Run continuously (polling mode)
     while True:
         try:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(EASTERN_TZ)
 
-            # 1. Monitor Positions (Thesis Check)
-            await pipeline.monitor_positions(now)
-
-            # 2. Scan for Triggers
-            await pipeline.run_trigger_scan(now)
+            event = TriggerEvent(
+                sources=set(TRIGGER_SOURCES) | set(WATCHLIST_SOURCES),
+                scan_time=now,
+                reason="polling",
+            )
+            await pipeline.trigger_dispatcher.dispatch(event)
 
             _logger.info("Sleeping for 15 minutes...")
             await asyncio.sleep(900)

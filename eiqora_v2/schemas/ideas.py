@@ -46,6 +46,24 @@ class ExitBracket(BaseModel):
     tp_mult: float = Field(ge=1.0, le=10.0, description="Take profit multiplier of vol basis")
     sl_mult: float = Field(ge=0.5, le=5.0, description="Stop loss multiplier of vol basis")
     time_stop_days: int = Field(ge=5, le=60, description="Time stop in trading days")
+    tp_level: float | None = Field(
+        default=None,
+        description="Take profit price level if using explicit structure"
+    )
+    sl_level: float | None = Field(
+        default=None,
+        description="Stop loss price level if using explicit structure"
+    )
+    tp_rationale: str | None = Field(
+        default=None,
+        max_length=120,
+        description="Take profit rationale"
+    )
+    sl_rationale: str | None = Field(
+        default=None,
+        max_length=120,
+        description="Stop loss rationale"
+    )
 
 
 class TrailingStop(BaseModel):

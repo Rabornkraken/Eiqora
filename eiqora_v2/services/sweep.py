@@ -14,6 +14,7 @@ from typing import Any
 
 from eiqora_v2.config.universe import MEGA50_TICKERS, get_ticker_clusters
 from eiqora_v2.graph.swing_trade import run_analysis, create_initial_state
+from eiqora_v2.config.orchestrator import OrchestratorConfig
 from eiqora_v2.agents.topdown import TopDownAgent
 from eiqora_v2.agents.portfolio_coordinator import coordinate_signals
 from eiqora_v2.schemas.portfolio import SignalSummary, PortfolioConstraints
@@ -90,10 +91,14 @@ async def run_sweep(
     async def analyze_with_limit(symbol: str) -> tuple[str, SwingTradeState]:
         async with semaphore:
             try:
+                graph_config = OrchestratorConfig.backtest(include_fundamental=True).override(
+                    include_topdown=False
+                )
                 result = await run_analysis(
                     symbol=symbol,
                     asof_time=asof_time,
                     trigger_type="SWEEP",
+                    config=graph_config,
                 )
                 # Inject topdown into result
                 result["topdown"] = topdown
@@ -122,9 +127,6 @@ async def run_sweep(
             ideas_list = ideas.get("ideas", [])
             primary_idea = ideas_list[0] if ideas_list else {}
             
-            stats = result.get("stats", [])
-            first_stats = stats[0] if stats else {}
-            
             context = result.get("context", {})
             
             signal = SignalSummary(
@@ -135,8 +137,6 @@ async def run_sweep(
                 conviction=primary_idea.get("conviction", "LOW"),
                 setup_type=primary_idea.get("setup_type", "UNKNOWN"),
                 risk_score=decision.get("risk_score", 0.5),
-                win_rate=first_stats.get("win_rate"),
-                expected_return=first_stats.get("expected_return"),
                 entry_level=context.get("current_price"),
                 clusters=get_ticker_clusters(symbol),
             )

@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS analysis_log (
     trigger_type VARCHAR(50) NOT NULL,
     trigger_id VARCHAR(100), -- Reference to the trigger (e.g., news_id)
     trigger_detail JSONB,
+    trigger_hash VARCHAR(64),
 
     -- Final outcome
     final_decision VARCHAR(20) NOT NULL, -- GO, NO_GO, REVIEW
@@ -65,6 +66,7 @@ CREATE TABLE IF NOT EXISTS analysis_log (
 CREATE INDEX IF NOT EXISTS idx_analysis_log_symbol_date ON analysis_log(symbol, analysis_date DESC);
 CREATE INDEX IF NOT EXISTS idx_analysis_log_decision ON analysis_log(final_decision);
 CREATE INDEX IF NOT EXISTS idx_analysis_log_trigger_id ON analysis_log(trigger_id);
+CREATE INDEX IF NOT EXISTS idx_analysis_log_trigger_hash ON analysis_log(trigger_hash, symbol);
 
 ALTER TABLE analysis_log
 ADD COLUMN IF NOT EXISTS red_team_output JSONB;
@@ -72,28 +74,33 @@ ADD COLUMN IF NOT EXISTS red_team_output JSONB;
 ALTER TABLE analysis_log
 ADD COLUMN IF NOT EXISTS risk_model_output JSONB;
 
+ALTER TABLE analysis_log
+ADD COLUMN IF NOT EXISTS trigger_hash VARCHAR(64);
+
 -- =============================================================
--- PROCESSED TRIGGERS (prevents re-analyzing same trigger)
+-- SUPPRESSED TRIGGERS (blocked by analysis gate)
 -- =============================================================
-CREATE TABLE IF NOT EXISTS processed_trigger (
-    trigger_hash VARCHAR(64) PRIMARY KEY, -- SHA256 hash of trigger details
+DROP TABLE IF EXISTS processed_trigger;
+
+CREATE TABLE IF NOT EXISTS suppressed_trigger (
+    trigger_hash VARCHAR(64) NOT NULL,
     symbol VARCHAR(10) NOT NULL,
     trigger_type VARCHAR(50) NOT NULL,
     trigger_source_id VARCHAR(200), -- e.g., news_id, filing accession
-    processed_at TIMESTAMPTZ DEFAULT NOW(),
-    analysis_id UUID REFERENCES analysis_log(analysis_id),
-    result VARCHAR(20), -- GO, NO_GO, ERROR
-    
-    -- For news triggers: track the news item
-    news_id VARCHAR(100),
-    news_title TEXT,
-    
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    trigger_detail JSONB,
+    detected_at TIMESTAMPTZ,
+    suppressed_reason TEXT,
+    technical_score DECIMAL(4,3),
+    profile_score DECIMAL(4,3),
+    suppressed_count INT DEFAULT 1,
+    first_seen_at TIMESTAMPTZ DEFAULT NOW(),
+    last_seen_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (trigger_hash, symbol)
 );
 
-CREATE INDEX IF NOT EXISTS idx_processed_trigger_symbol ON processed_trigger(symbol);
-CREATE INDEX IF NOT EXISTS idx_processed_trigger_type ON processed_trigger(trigger_type);
-CREATE INDEX IF NOT EXISTS idx_processed_trigger_date ON processed_trigger(processed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_suppressed_trigger_symbol ON suppressed_trigger(symbol);
+CREATE INDEX IF NOT EXISTS idx_suppressed_trigger_type ON suppressed_trigger(trigger_type);
+CREATE INDEX IF NOT EXISTS idx_suppressed_trigger_date ON suppressed_trigger(last_seen_at DESC);
 
 -- =============================================================
 -- Update trade_signal to link to analysis_log

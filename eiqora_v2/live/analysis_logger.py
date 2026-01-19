@@ -8,13 +8,17 @@ and tracks processed triggers to avoid duplicates.
 import json
 import hashlib
 import logging
-from datetime import datetime, timezone
+import os
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from typing import Any
 from uuid import uuid4
 
 from eiqora_v2.tools.db import get_connection
 
 _logger = logging.getLogger(__name__)
+EASTERN_TZ = ZoneInfo("America/New_York")
+CACHE_TTL_MINUTES = int(os.getenv("DECISION_CACHE_TTL_MINUTES", "360"))
 
 
 def _compute_trigger_hash(trigger_detail: dict) -> str:
@@ -32,21 +36,104 @@ def _compute_trigger_hash(trigger_detail: dict) -> str:
     return hashlib.sha256(key.encode()).hexdigest()
 
 
-async def is_trigger_processed(trigger_detail: dict, symbol: str) -> bool:
-    """Check if a trigger has already been processed."""
+def _normalize_timestamp(ts: datetime | None) -> datetime | None:
+    if ts is None:
+        return None
+    if ts.tzinfo is None:
+        return ts.replace(tzinfo=EASTERN_TZ)
+    return ts.astimezone(EASTERN_TZ)
+
+
+async def is_trigger_processed(
+    trigger_detail: dict,
+    symbol: str,
+    *,
+    ttl_minutes: int | None = None,
+) -> bool:
+    """Check if a trigger has already been processed within the cache window."""
     trigger_hash = _compute_trigger_hash(trigger_detail)
+    ttl = CACHE_TTL_MINUTES if ttl_minutes is None else ttl_minutes
+    if ttl is not None and ttl <= 0:
+        return False
     
     async with get_connection() as conn:
         row = await conn.fetchrow("""
-            SELECT trigger_hash, result FROM processed_trigger
+            SELECT analysis_id, analysis_time FROM analysis_log
             WHERE trigger_hash = $1 AND symbol = $2
+            ORDER BY analysis_time DESC
+            LIMIT 1
         """, trigger_hash, symbol)
         
         if row:
-            _logger.debug(f"Trigger already processed: {symbol} hash={trigger_hash[:16]}...")
-            return True
+            analysis_time = _normalize_timestamp(row.get("analysis_time"))
+            if analysis_time is None:
+                _logger.debug(f"Trigger already processed: {symbol} hash={trigger_hash[:16]}...")
+                return True
+
+            now_et = datetime.now(EASTERN_TZ)
+            age_minutes = (now_et - analysis_time).total_seconds() / 60.0
+            if age_minutes <= ttl:
+                _logger.debug(
+                    "Trigger already processed: %s hash=%s age=%.1fmin",
+                    symbol,
+                    trigger_hash[:16],
+                    age_minutes,
+                )
+                return True
         
         return False
+
+
+async def log_suppressed_trigger(
+    *,
+    symbol: str,
+    trigger_type: str,
+    trigger_detail: dict,
+    detected_at: datetime,
+    suppressed_reason: str | None = None,
+    technical_score: float | None = None,
+    profile_score: float | None = None,
+) -> None:
+    """Log a trigger suppressed by the analysis gate."""
+    trigger_hash = _compute_trigger_hash(trigger_detail)
+    trigger_source_id = trigger_detail.get("news_id") or trigger_detail.get("id")
+
+    async with get_connection() as conn:
+        await conn.execute(
+            """
+            INSERT INTO suppressed_trigger (
+                trigger_hash,
+                symbol,
+                trigger_type,
+                trigger_source_id,
+                trigger_detail,
+                detected_at,
+                suppressed_reason,
+                technical_score,
+                profile_score,
+                suppressed_count,
+                first_seen_at,
+                last_seen_at
+            ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, 1, NOW(), NOW()
+            )
+            ON CONFLICT (trigger_hash, symbol) DO UPDATE
+            SET suppressed_count = suppressed_trigger.suppressed_count + 1,
+                suppressed_reason = EXCLUDED.suppressed_reason,
+                technical_score = EXCLUDED.technical_score,
+                profile_score = EXCLUDED.profile_score,
+                last_seen_at = NOW()
+            """,
+            trigger_hash,
+            symbol,
+            trigger_type,
+            trigger_source_id,
+            json.dumps(trigger_detail, default=str),
+            detected_at,
+            suppressed_reason,
+            technical_score,
+            profile_score,
+        )
 
 
 async def log_analysis(
@@ -91,25 +178,26 @@ async def log_analysis(
         await conn.execute("""
             INSERT INTO analysis_log (
                 analysis_id, symbol, analysis_date, analysis_time,
-                trigger_type, trigger_id, trigger_detail,
+                trigger_type, trigger_id, trigger_detail, trigger_hash,
                 final_decision, decision_reason,
                 topdown_output, context_output, chart_output,
                 fundamental_output, idea_generator_output, exit_policy_output,
-                red_team_output, decision_output, position_manager_output, sanity_veto_output,
+                red_team_output, short_perspective_output, decision_output, position_manager_output, sanity_veto_output,
                 risk_model_output, profile_score, technical_score, processing_time_ms
             ) VALUES (
                 $1, $2, $3, $4, $5, $6, $7, $8, $9,
-                $10, $11, $12, $13, $14, $15, $16, $17, $18,
-                $19, $20, $21, $22, $23
+                $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
+                $20, $21, $22, $23, $24, $25
             )
         """,
             analysis_id,
             symbol,
-            datetime.now(timezone.utc).date(),
-            datetime.now(timezone.utc),
+            datetime.now(EASTERN_TZ).date(),
+            datetime.now(EASTERN_TZ),
             trigger_type,
             trigger_detail.get("news_id") or trigger_detail.get("id"),
             json.dumps(trigger_detail, default=str),
+            trigger_hash,
             final_decision,
             decision_reason if decision_reason else None,
             json.dumps(final_state.get("topdown", {}), default=str),
@@ -119,6 +207,7 @@ async def log_analysis(
             json.dumps(final_state.get("ideas", {}), default=str),
             json.dumps(final_state.get("exit_policy", {}), default=str),
             json.dumps(final_state.get("red_team", {}), default=str),
+            json.dumps(final_state.get("short_perspective", {}), default=str),
             json.dumps(final_state.get("decision", {}), default=str),
             json.dumps(final_state.get("position_manager", {}), default=str),
             json.dumps(final_state.get("sanity_veto", {}), default=str),
@@ -126,24 +215,6 @@ async def log_analysis(
             profile_score,
             technical_score,
             processing_time_ms,
-        )
-        
-        # 2. Mark trigger as processed
-        await conn.execute("""
-            INSERT INTO processed_trigger (
-                trigger_hash, symbol, trigger_type, trigger_source_id,
-                analysis_id, result, news_id, news_title
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            ON CONFLICT (trigger_hash) DO NOTHING
-        """,
-            trigger_hash,
-            symbol,
-            trigger_type,
-            trigger_detail.get("news_id"),
-            analysis_id,
-            final_decision,
-            trigger_detail.get("news_id"),
-            trigger_detail.get("title", "")[:500] if trigger_detail.get("title") else None,
         )
         
         _logger.info(f"Logged analysis: {symbol} {trigger_type} -> {final_decision} (id={analysis_id[:8]}...)")

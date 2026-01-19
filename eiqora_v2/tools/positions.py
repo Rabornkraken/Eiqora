@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_ACCOUNT_ID = os.getenv("EIQORA_ACCOUNT_ID", "main")
 DEFAULT_BASE_CURRENCY = os.getenv("ACCOUNT_BASE_CURRENCY", "USD")
-DEFAULT_STARTING_EQUITY = float(os.getenv("ACCOUNT_STARTING_EQUITY", "100000"))
+DEFAULT_STARTING_EQUITY = float(os.getenv("ACCOUNT_STARTING_EQUITY", "10000"))
 DEFAULT_CASH_BALANCE = float(os.getenv("ACCOUNT_CASH_BALANCE", str(DEFAULT_STARTING_EQUITY)))
 
 
@@ -136,7 +136,7 @@ async def _refresh_account_state(
     rows = await conn.fetch(
         """
         SELECT position_id, symbol, direction, entry_price, current_price,
-               position_size_pct, shares, notional_value
+               position_size_pct, shares, notional_value, unrealized_pnl
         FROM position
         WHERE status = 'ACTIVE'
         """
@@ -157,21 +157,29 @@ async def _refresh_account_state(
         if notional_value is None or shares is None:
             continue
 
-        current_price = row["current_price"]
-        if current_price is None:
-            current_price = entry_price
-        current_price = float(current_price)
-
-        direction = _normalize_direction(row["direction"])
-        pnl_per_share, _ = _calculate_pnl(entry_price, current_price, direction)
-        position_pnl = pnl_per_share * shares
+        # Use the unrealized_pnl from the position table if available
+        # This is more accurate than recalculating since positions may have been
+        # refreshed with latest prices just before this function is called
+        if row["unrealized_pnl"] is not None:
+            position_pnl = float(row["unrealized_pnl"])
+        else:
+            # Fallback: calculate from current_price
+            current_price = row["current_price"]
+            if current_price is None:
+                current_price = entry_price
+            current_price = float(current_price)
+            
+            direction = _normalize_direction(row["direction"])
+            pnl_per_share, _ = _calculate_pnl(entry_price, current_price, direction)
+            position_pnl = pnl_per_share * shares
+        
         unrealized_pnl += position_pnl
 
         current_value = notional_value + position_pnl
         current_value_total += current_value
 
         gross_exposure += abs(notional_value)
-        net_exposure += notional_value if direction != "SHORT" else -notional_value
+        net_exposure += notional_value if _normalize_direction(row["direction"]) != "SHORT" else -notional_value
 
     equity = float(cash_balance) + current_value_total
     realized_pnl = state.get("realized_pnl") or 0.0
@@ -259,8 +267,39 @@ def _days_held(entry_date: Any, asof_time: datetime) -> int:
     return (asof_day - entry_day).days
 
 
+async def _get_latest_hourly_price(symbol: str, asof_time: datetime | None) -> float | None:
+    asof_time = asof_time or datetime.now(timezone.utc)
+    if asof_time.tzinfo is None:
+        asof_ts = asof_time.replace(tzinfo=timezone.utc)
+    else:
+        asof_ts = asof_time.astimezone(timezone.utc)
+    async with get_connection() as conn:
+        try:
+            row = await conn.fetchrow(
+                """
+                SELECT close
+                FROM market_bar_hourly
+                WHERE symbol = $1
+                  AND datetime <= $2
+                ORDER BY datetime DESC
+                LIMIT 1
+                """,
+                symbol,
+                asof_ts,
+            )
+        except Exception as exc:
+            logger.debug("Failed to fetch hourly price for %s: %s", symbol, exc)
+            return None
+    if row and row["close"] is not None:
+        return float(row["close"])
+    return None
+
+
 async def _get_latest_price(symbol: str, asof_time: datetime | None) -> float | None:
     try:
+        hourly_price = await _get_latest_hourly_price(symbol, asof_time)
+        if hourly_price is not None:
+            return hourly_price
         indicators = await get_indicators(symbol, 30, asof_time)
         if not indicators or indicators.get("error"):
             return None
@@ -646,6 +685,7 @@ async def _refresh_position_row(
         "max_loss_pct": max_loss_pct,
         "max_profit": max_profit,
         "max_drawdown": max_drawdown,
+        "shares": float(shares) if shares is not None else None,
     }
     return position
 
@@ -705,9 +745,103 @@ async def get_open_positions(
                     "max_loss_pct": float(row["max_loss_pct"]) if row["max_loss_pct"] is not None else 0.0,
                     "max_profit": float(row["max_profit"]) if row["max_profit"] is not None else 0.0,
                     "max_drawdown": float(row["max_drawdown"]) if row["max_drawdown"] is not None else 0.0,
+                    "shares": float(row["shares"]) if row["shares"] is not None else None,
                 }
             positions.append(position)
+        
+        # Refresh account state after updating all positions to ensure
+        # account_state table and account_snapshot have current values
+        if refresh_prices and rows:
+            await _refresh_account_state(conn, asof_time=asof_time)
+        
         return positions
+
+
+async def refresh_account_state(
+    asof_time: datetime | None = None,
+    refresh_prices: bool = True,
+    account_id: str = DEFAULT_ACCOUNT_ID,
+) -> None:
+    """Refresh account_state and account_snapshot, optionally updating prices."""
+    if asof_time is None:
+        asof_time = datetime.now(timezone.utc)
+
+    updated_positions: list[dict[str, Any]] = []
+    asof_time_db = _to_naive_utc(asof_time)
+
+    async with get_connection() as conn:
+        account_state = await _ensure_account_state(conn, account_id)
+        rows = await conn.fetch(
+            """
+            SELECT *
+            FROM position
+            WHERE status = 'ACTIVE'
+            ORDER BY entry_date DESC
+            """
+        )
+
+        if refresh_prices and rows:
+            base_equity = (
+                account_state.get("equity")
+                or account_state.get("starting_equity")
+                or DEFAULT_STARTING_EQUITY
+            )
+            for row in rows:
+                position = await _refresh_position_row(conn, row, asof_time, base_equity=base_equity)
+                updated_positions.append(position)
+
+        await _refresh_account_state(conn, account_id=account_id, asof_time=asof_time)
+
+    if not updated_positions:
+        return
+
+    auto_exits = []
+    for position in updated_positions:
+        symbol = position.get("symbol")
+        direction = _normalize_direction(position.get("direction"))
+        current_price = position.get("current_price")
+        stop_loss = position.get("stop_loss")
+        take_profit = position.get("take_profit")
+        time_stop_date = position.get("time_stop_date")
+        time_stop_date = _to_naive_utc(time_stop_date) if isinstance(time_stop_date, datetime) else time_stop_date
+        if not symbol or current_price is None:
+            continue
+
+        if stop_loss is not None:
+            stop_loss = float(stop_loss)
+            if (direction == "LONG" and current_price <= stop_loss) or (
+                direction == "SHORT" and current_price >= stop_loss
+            ):
+                auto_exits.append((symbol, "SL", "stop_loss_hit", current_price))
+                continue
+
+        if take_profit is not None:
+            take_profit = float(take_profit)
+            if (direction == "LONG" and current_price >= take_profit) or (
+                direction == "SHORT" and current_price <= take_profit
+            ):
+                auto_exits.append((symbol, "TP", "take_profit_hit", current_price))
+                continue
+
+        if time_stop_date and asof_time_db and asof_time_db >= time_stop_date:
+            auto_exits.append((symbol, "TIME_STOP", "time_stop_hit", current_price))
+
+    if auto_exits:
+        for symbol, exit_type, reason, exit_price in auto_exits:
+            try:
+                await close_position(
+                    symbol=symbol,
+                    exit_price=exit_price,
+                    exit_reason=reason,
+                    exit_type=exit_type,
+                    exit_time=asof_time,
+                )
+                logger.info("Auto-exit %s for %s at %.4f", exit_type, symbol, exit_price)
+            except Exception as exc:
+                logger.warning("Auto-exit failed for %s: %s", symbol, exc)
+
+        async with get_connection() as conn:
+            await _refresh_account_state(conn, account_id=account_id, asof_time=asof_time)
 
 
 async def get_position_by_symbol(
@@ -763,6 +897,7 @@ async def get_position_by_symbol(
             "max_loss_pct": float(row["max_loss_pct"]) if row["max_loss_pct"] is not None else 0.0,
             "max_profit": float(row["max_profit"]) if row["max_profit"] is not None else 0.0,
             "max_drawdown": float(row["max_drawdown"]) if row["max_drawdown"] is not None else 0.0,
+            "shares": float(row["shares"]) if row["shares"] is not None else None,
         }
 
 

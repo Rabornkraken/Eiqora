@@ -31,7 +31,6 @@ class NarrativeAgent(BaseAgent[NarrativeOutput]):
             "chart": state.get("chart", {}),
             "ideas": state.get("ideas", {}),
             "decision": state.get("decision", {}),
-            "stats": state.get("stats", []),
             "triage": state.get("triage", {}),
             "facts": state.get("facts"),
             "topdown": state.get("topdown"),
@@ -46,12 +45,10 @@ class NarrativeAgent(BaseAgent[NarrativeOutput]):
         chart = data.get("chart", {})
         ideas = data.get("ideas", {})
         decision = data.get("decision", {})
-        stats = data.get("stats", [])
         topdown = data.get("topdown", {})
         
         ideas_list = ideas.get("ideas", [])
         primary_idea = ideas_list[0] if ideas_list else {}
-        first_stats = stats[0] if stats else {}
         
         rule = decision.get("rule", {})
         
@@ -82,12 +79,6 @@ TRADE RULE:
 - Time Stop: {rule.get('time_stop_days', 0)} days
 - Invalidation: ${rule.get('invalidation_level', 0):.2f}
 
-HISTORICAL STATS:
-- Win Rate: {first_stats.get('win_rate', 0):.1%}
-- Expected Return: {first_stats.get('expected_return', 0):.2%}
-- Sample Size: {first_stats.get('sample_size', 0)}
-- Avg Hold Days: {first_stats.get('avg_hold_days', 0):.1f}
-
 Write a compelling but factual narrative covering:
 1. Headline (catchy one-liner)
 2. Thesis (why this trade makes sense)
@@ -114,8 +105,7 @@ OUTPUT SCHEMA:
   "setup_description": "Price pulled back to 50-day MA with declining volume...",
   "risk_factors": ["Semiconductor cycle turning", "Valuation stretched"],
   "entry_plan": "Enter on break above yesterday's high at $145.50",
-  "exit_plan": "Target 4x volatility (~$160), stop at 2x vol ($138)",
-  "stats_summary": "Similar setups won 52% with 3.2% avg return over 8 years"
+  "exit_plan": "Target 4x volatility (~$160), stop at 2x vol ($138)"
 }
 
 Keep each field concise. Maximum sizes enforced by schema.

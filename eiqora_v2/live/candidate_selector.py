@@ -180,6 +180,83 @@ class CandidateSelector:
                 elif ma_dist > 0.08:
                     add_score("extended_from_ma20", -0.03)
 
+            # NEW: Money Flow Indicators (net 0.15)
+            mfi_14 = indicators.get("mfi_14")
+            cmf_20 = indicators.get("cmf_20")
+            obv_trend = indicators.get("obv", {}).get("trend")
+            
+            # MFI scoring (0.05)
+            if mfi_14 is not None:
+                if 40 <= mfi_14 <= 60:
+                    add_score("mfi_neutral_zone", 0.04)  # Ideal entry zone
+                elif mfi_14 < 30:
+                    if "DOWNTREND" in state_tags:
+                        add_score("mfi_oversold_downtrend", -0.02)
+                    else:
+                        add_score("mfi_oversold", 0.02)  # Potential bounce
+                elif mfi_14 < 40:
+                    add_score("mfi_recovery", 0.03)
+                elif 60 < mfi_14 < 75:
+                    add_score("mfi_momentum", 0.02)
+                elif mfi_14 > 80:
+                    add_score("mfi_overbought", -0.04)  # Exhaustion risk
+                elif mfi_14 > 75:
+                    add_score("mfi_elevated", -0.02)
+            
+            # CMF scoring (0.07)
+            if cmf_20 is not None:
+                if cmf_20 > 0.15:
+                    add_score("cmf_strong_accumulation", 0.07)  # Strong buying
+                elif cmf_20 > 0.05:
+                    add_score("cmf_accumulation", 0.04)
+                elif cmf_20 > 0:
+                    add_score("cmf_slight_accumulation", 0.02)
+                elif cmf_20 < -0.15:
+                    add_score("cmf_strong_distribution", -0.07)  # Strong selling
+                elif cmf_20 < -0.05:
+                    add_score("cmf_distribution", -0.04)
+                elif cmf_20 < 0:
+                    add_score("cmf_slight_distribution", -0.02)
+            
+            # OBV trend scoring (0.03)
+            if obv_trend == "RISING":
+                add_score("obv_rising", 0.03)
+            elif obv_trend == "FALLING":
+                add_score("obv_falling", -0.03)
+            
+            # NEW: Options Sentiment (net 0.05)
+            try:
+                async with get_connection() as conn:
+                    options_row = await conn.fetchrow("""
+                        SELECT put_call_ratio, iv_percentile
+                        FROM options_summary
+                        WHERE symbol = $1
+                        ORDER BY snapshot_time DESC
+                        LIMIT 1
+                    """, symbol)
+                    
+                    if options_row:
+                        pcr = options_row['put_call_ratio']
+                        if pcr is not None:
+                            if pcr < 0.7:
+                                # Very bullish options positioning
+                                add_score("options_very_bullish", 0.05)
+                            elif pcr < 0.9:
+                                # Bullish options positioning
+                                add_score("options_bullish", 0.03)
+                            elif pcr > 1.3:
+                                # Bearish options positioning (red flag)
+                                add_score("options_bearish", -0.05)
+                            elif pcr > 1.1:
+                                # Slightly bearish
+                                add_score("options_slightly_bearish", -0.02)
+                            else:
+                                # Neutral (0.9-1.1)
+                                add_score("options_neutral", 0.0)
+            except Exception as e:
+                # Options data not critical, continue without it
+                pass
+
             total = max(min(total, 1.0), 0.0)
             return total, scores
             
@@ -234,7 +311,7 @@ class CandidateSelector:
         scan_time: datetime,
     ) -> list[dict[str, Any]]:
         """
-        Build watchlist from universe using technical + profile scoring.
+        Build watchlist using a single-pass scoring model.
         
         MACRO SAFEGUARD: Adjusts threshold based on VIX regime.
         
@@ -286,42 +363,58 @@ class CandidateSelector:
         # Get universe symbols
         universe = self.load_universe()
         
-        watchlist = []
+        # Import event risk checker
+        from eiqora_v2.tools.event_risk import check_upcoming_events
         
-        _logger.info(f"Building watchlist for {len(universe)} symbols...")
+        _logger.info(f"📊 Screening {len(universe)} symbols")
         
-        # Prepare all logs for database
-        all_logs = []
+        tier1_candidates = []
+        all_logs = []  # Track all for database
         
         for symbol in universe:
+            # EVENT RISK FILTER: Skip symbols with imminent high-risk events
+            try:
+                event_risk = await check_upcoming_events(symbol, scan_time, lookforward_days=2)
+                if event_risk['risk_level'] == 'HIGH':
+                    event_msg = event_risk['events'][0]['message'] if event_risk['events'] else 'High risk event'
+                    _logger.debug(f"⏭️  Skipping {symbol} - {event_msg}")
+                    
+                    all_logs.append({
+                        "symbol": symbol,
+                        "scan_date": scan_time.date(),
+                        "technical_score": 0.0,
+                        "profile_score": 0.0,
+                        "total_score": 0.0,
+                        "is_selected": False,
+                        "details": {"skip_reason": f"event_risk: {event_msg}"},
+                    })
+                    continue
+            except Exception as e:
+                _logger.warning(f"Event risk check failed for {symbol}: {e}")
+            
             # Score technicals
             tech_score, tech_breakdown = await self.score_daily_technicals(symbol, scan_time)
             
-            # Score profile (0-1 from LLM)
+            # Score profile
             profile_score, profile_breakdown = await self.score_profile(symbol)
             
-            # Combined score: 50% technical + 50% profile
-            total_score = (tech_score * 0.5) + (profile_score * 0.5)
-            
-            is_selected = total_score >= adjusted_threshold
-            
-            # Prepare log entry
+            total_score = (tech_score * 0.50) + (profile_score * 0.50)
             log_entry = {
                 "symbol": symbol,
                 "scan_date": scan_time.date(),
                 "total_score": total_score,
                 "technical_score": tech_score,
                 "profile_score": profile_score,
-                "is_selected": is_selected,
+                "is_selected": total_score >= adjusted_threshold,
                 "details": {
                     "technical": tech_breakdown,
                     "profile": profile_breakdown,
-                }
+                },
             }
             all_logs.append(log_entry)
-            
-            if is_selected:
-                candidate = {
+
+            if total_score >= adjusted_threshold:
+                tier1_candidates.append({
                     "symbol": symbol,
                     "total_score": total_score,
                     "technical_score": tech_score,
@@ -329,20 +422,18 @@ class CandidateSelector:
                     "technical_breakdown": tech_breakdown,
                     "profile_breakdown": profile_breakdown,
                     "added_at": scan_time,
-                }
-                watchlist.append(candidate)
-                _logger.info(f"  ✅ {symbol}: {total_score:.2f} (tech={tech_score:.2f}, profile={profile_score:.2f})")
-            else:
-                _logger.debug(f"  ❌ {symbol}: {total_score:.2f}")
-
+                })
+        
         # Bulk save logs
         await self.save_candidate_logs(all_logs)
         
-        # Sort by score descending
-        watchlist.sort(key=lambda x: x["total_score"], reverse=True)
+        # Sort final watchlist by total score
+        tier1_candidates.sort(key=lambda x: x["total_score"], reverse=True)
         
-        _logger.info(f"Watchlist selected: {len(watchlist)} candidates (threshold={adjusted_threshold})")
-        return watchlist
+        _logger.info(f"✅ Screening complete: {len(tier1_candidates)} final candidates (threshold={adjusted_threshold})")
+        
+        return tier1_candidates
+
 
     async def save_candidate_logs(self, logs: list[dict]) -> None:
         """Save full selection logs for all candidates."""
@@ -397,8 +488,8 @@ class CandidateSelector:
                         candidate["technical_score"],
                         candidate["profile_score"],
                         json.dumps({
-                            "technical": candidate["technical_breakdown"],
-                            "profile": candidate["profile_breakdown"],
+                            "technical": candidate.get("technical_breakdown", {}),
+                            "profile": candidate.get("profile_breakdown", {}),
                         }),
                     )
             _logger.info(f"Saved {len(watchlist)} candidates to daily_watchlist table")
@@ -413,7 +504,7 @@ async def main():
         format="%(asctime)s [%(levelname)s] %(message)s",
     )
     
-    selector = CandidateSelector(threshold=0.70)
+    selector = CandidateSelector()  # Uses default threshold (now 0.60)
     from zoneinfo import ZoneInfo
     scan_time = datetime.now(ZoneInfo("America/New_York"))
     watchlist = await selector.build_watchlist(scan_time)

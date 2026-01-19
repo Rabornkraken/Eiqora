@@ -106,7 +106,18 @@ async def size_position(
 
     # Sector cap.
     sector_exposure: dict[str, float] = {}
+    sector_position_count: dict[str, int] = {}
     symbol_sector = None
+    
+    # Get sector for the new symbol
+    async with get_connection() as conn:
+        sector_row = await conn.fetchrow(
+            "SELECT sector FROM ticker_info WHERE symbol = $1",
+            symbol
+        )
+        if sector_row:
+            symbol_sector = sector_row["sector"]
+    
     for p in positions:
         sector = p.get("sector")
         if not sector:
@@ -114,9 +125,9 @@ async def size_position(
         sector_exposure[sector] = sector_exposure.get(sector, 0.0) + _normalize_size(
             p.get("position_size_pct"), cfg.default_position_pct
         )
-        if p.get("symbol") == symbol:
-            symbol_sector = sector
+        sector_position_count[sector] = sector_position_count.get(sector, 0) + 1
 
+    # Check sector exposure cap
     if symbol_sector:
         remaining_sector = cfg.sector_cap - sector_exposure.get(symbol_sector, 0.0)
         if remaining_sector <= 0:
@@ -124,6 +135,14 @@ async def size_position(
             notes.append("sector_cap_reached")
         else:
             size_pct = min(size_pct, remaining_sector)
+        
+        # NEW: Check sector position count (max 2 positions per sector)
+        max_positions_per_sector = 2
+        current_sector_count = sector_position_count.get(symbol_sector, 0)
+        if current_sector_count >= max_positions_per_sector:
+            size_pct = 0.0
+            notes.append(f"sector_position_limit_{current_sector_count}_of_{max_positions_per_sector}")
+            logger.info(f"Rejecting {symbol}: Sector {symbol_sector} already has {current_sector_count} positions (max {max_positions_per_sector})")
 
     if size_pct <= 0:
         notes.append("size_zero_after_caps")

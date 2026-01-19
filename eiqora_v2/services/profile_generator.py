@@ -100,7 +100,7 @@ class ProfileGenerator:
             logger.error(f"Error saving profile for {profile.symbol}: {e}")
         
     async def _gather_layered_data(self, symbol: str) -> dict[str, Any]:
-        """Gather data across different time horizons."""
+        """Gather data across different time horizons + new data sources."""
         async with get_connection() as conn:
             # A. Fundamentals (Last 3 Years / 12 Quarters)
             earnings_rows = await conn.fetch("""
@@ -157,17 +157,82 @@ class ProfileGenerator:
                 LIMIT 20
             """, symbol)
             
+            # E. NEW: Options Data (Last 30 Days)
+            options_rows = await conn.fetch("""
+                SELECT date, put_call_ratio_volume, put_call_ratio_oi, atm_iv
+                FROM options_daily_summary
+                WHERE symbol = $1
+                  AND date >= CURRENT_DATE - 30
+                ORDER BY date DESC
+            """, symbol)
+            
+            # F. NEW: Stock Relationships (Supply Chain Context)
+            relationships_rows = await conn.fetch("""
+                SELECT symbol_to, relationship_type, description, strength
+                FROM stock_relationships
+                WHERE symbol_from = $1
+                ORDER BY strength DESC
+                LIMIT 10
+            """, symbol)
+            
+            # G. NEW: Influential Statements (Last 30 Days)
+            statements_rows = await conn.fetch("""
+                SELECT 
+                    f.name as figure_name,
+                    f.category,
+                    f.influence_score,
+                    s.statement_text,
+                    s.sentiment,
+                    s.statement_date
+                FROM influential_statements s
+                JOIN influential_figures f ON s.figure_id = f.figure_id
+                WHERE $1 = ANY(s.mentioned_symbols)
+                  AND s.statement_date >= CURRENT_DATE - 30
+                ORDER BY f.influence_score DESC, s.statement_date DESC
+                LIMIT 5
+            """, symbol)
+            
+            # H. NEW: Money Flow Trend (Last 30 Days)
+            money_flow_rows = await conn.fetch("""
+                SELECT date, cmf_20, mfi_14, obv
+                FROM market_bar_daily
+                WHERE symbol = $1
+                  AND date >= CURRENT_DATE - 30
+                  AND cmf_20 IS NOT NULL
+                ORDER BY date DESC
+            """, symbol)
+            
             return {
                 "earnings": [dict(r) for r in earnings_rows],
                 "event_news": [dict(r) for r in event_news_rows],
                 "recent_news": [dict(r) for r in recent_news_rows],
                 "sec_filings": [dict(r) for r in sec_rows],
+                "options_data": [dict(r) for r in options_rows],
+                "relationships": [dict(r) for r in relationships_rows],
+                "influential_statements": [dict(r) for r in statements_rows],
+                "money_flow_data": [dict(r) for r in money_flow_rows],
             }
 
     async def _synthesize_profile(self, symbol: str, data: dict[str, Any], signals: dict[str, Any] | None = None) -> TickerProfile:
-        """Call LLM to synthesize data into a profile with contextual scoring."""
+        """Call LLM to synthesize data into a profile with HYBRID scoring."""
+        from eiqora_v2.services.quantitative_scoring import calculate_quantitative_base_score
         
-        prompt = self._build_synthesis_prompt(symbol, data, signals)
+        # STEP 1: Calculate quantitative base score
+        base_score = 0.5
+        quant_breakdown = {}
+        
+        if signals:
+            options_data = data.get('options_data', [])
+            money_flow_data = data.get('money_flow_data', [])
+            base_score, quant_breakdown = calculate_quantitative_base_score(
+                signals, 
+                options_data, 
+                money_flow_data
+            )
+            logger.info(f"{symbol}: Quantitative base score = {base_score:.3f} (incl. money flow)")
+        
+        # STEP 2: Build enhanced prompt with new data sources
+        prompt = self._build_synthesis_prompt(symbol, data, signals, base_score, quant_breakdown)
         
         import json
         schema_json = json.dumps(TickerProfile.model_json_schema(), indent=2)
@@ -175,12 +240,23 @@ class ProfileGenerator:
         system_prompt = f"""You are an Expert Equity Analyst. 
         Your goal is to build a "Deep Context Profile" for a stock.
         
+        HYBRID SCORING APPROACH:
+        - A quantitative base score has been calculated from earnings, insider, sentiment, and options data
+        - Your job is to ADJUST this score +/- 0.20 based on qualitative factors
+        - Adjustment factors: material events, competitive threats, regulatory risks, management changes
+        
         Focus on:
         1. **The Structural Story:** What drives this business over 3-5 years?
-        2. **Consistency:** Review the 3-year earnings history. Are they growing? Margins expanding?
-        3. **Ongoing Sagas:** Identify "Material Events" that span months/years (lawsuits, turnarounds).
+        2. **Material Events:** Ongoing sagas (lawsuits, turnarounds, supply chain issues)
+        3. **Market Context:** Options flow, influential statements, supply chain signals
         4. **Current Narrative:** What is the market focused on RIGHT NOW (last 90 days)?
-        5. **Contextual Scoring:** Interpret ALL quantitative signals together to produce profile_score.
+        5. **Qualitative Adjustment:** How should material events modify the quantitative score?
+        
+        IMPORTANT SCORING RULES:
+        - Base quantitative_score is provided
+        - Your llm_adjustment should be between -0.20 and +0.20
+        - Final profile_score = quantitative_score + llm_adjustment (clamped to 0.0-1.0)
+        - Explain adjustment in score_breakdown
         
         Be concise, objective, and professional.
         
@@ -188,13 +264,49 @@ class ProfileGenerator:
         {schema_json}
         """
         
-        return await call_llm(
+        profile = await call_llm(
             prompt=prompt,
             schema=TickerProfile,
             system_prompt=system_prompt
         )
+        
+        # STEP 3: Apply hybrid scoring (override LLM's score if it's way off)
+        # Get LLM's suggested score
+        llm_score = profile.profile_score
+        
+        # Calculate adjustment from base
+        llm_adjustment = llm_score - base_score
+        
+        # Clamp adjustment to reasonable range
+        llm_adjustment_clamped = max(-0.20, min(0.20, llm_adjustment))
+        
+        # Final hybrid score
+        hybrid_score = base_score + llm_adjustment_clamped
+        hybrid_score = max(0.0, min(1.0, hybrid_score))
+        
+        # Log for debugging
+        if abs(llm_adjustment) > 0.20:
+            logger.warning(
+                f"{symbol}: LLM adjustment {llm_adjustment:+.3f} clamped to {llm_adjustment_clamped:+.3f}"
+            )
+        
+        # Update profile with hybrid score
+        profile.profile_score = hybrid_score
+        
+        # Enhance score_breakdown with hybrid details
+        if not profile.score_breakdown:
+            profile.score_breakdown = {}
+        
+        profile.score_breakdown.update({
+            'quantitative_base': round(base_score, 3),
+            'llm_adjustment': round(llm_adjustment_clamped, 3),
+            'final_hybrid_score': round(hybrid_score, 3),
+            **quant_breakdown,  # Include detailed quantitative breakdown
+        })
+        
+        return profile
 
-    def _build_synthesis_prompt(self, symbol: str, data: dict[str, Any], signals: dict[str, Any] | None = None) -> str:
+    def _build_synthesis_prompt(self, symbol: str, data: dict[str, Any], signals: dict[str, Any] | None = None, base_score: float = 0.5, quant_breakdown: dict[str, Any] | None = None) -> str:
         import json
         
         earnings = data.get("earnings", [])
@@ -256,8 +368,54 @@ class ProfileGenerator:
         - Neutral articles: {sentiment_signals.get('neutral_count', 0)}
         """
         
+        # NEW: Format Options Data
+        options_txt = ""
+        options_data = data.get('options_data', [])
+        if options_data:
+            avg_pcr = sum(o.get('put_call_ratio_volume', 0) for o in options_data if o.get('put_call_ratio_volume')) / len(options_data)
+            options_txt = f"""
+        
+        **Options Flow (30 days):**
+        - Average Put/Call Ratio: {avg_pcr:.2f} {"(Bullish - more calls)" if avg_pcr < 0.8 else "(Bearish - more puts)" if avg_pcr > 1.2 else "(Neutral)"}
+        - Recent data points: {len(options_data)}
+        """
+            
+        # NEW: Format Relationships
+        relationships_txt = ""
+        relationships = data.get('relationships', [])
+        if relationships:
+            relationships_txt = "\n\n**Supply Chain Relationships:**\n"
+            for rel in relationships[:5]:
+                relationships_txt += f"- {rel['relationship_type']}: {rel['symbol_to']} - {rel['description']}\n"
+        
+        # NEW: Format Influential Statements
+        statements_txt = ""
+        statements = data.get('influential_statements', [])
+        if statements:
+            statements_txt = "\n\n**Influential Statements (30 days):**\n"
+            for stmt in statements:
+                statements_txt += f"- {stmt['figure_name']} ({stmt['category']}, influence {stmt['influence_score']:.2f}): {stmt['sentiment']} - \"{stmt['statement_text'][:100]}...\"\n"
+        
+        # Format Quantitative Breakdown
+        quant_txt = ""
+        if quant_breakdown:
+            quant_txt = f"""
+        
+        ### QUANTITATIVE BASE SCORE = {base_score:.3f}
+        
+        **Component Scores:**
+        - Earnings Quality: {quant_breakdown.get('earnings_score', 0):.2f} - {quant_breakdown.get('earnings_explain', 'N/A')}
+        - Insider Sentiment: {quant_breakdown.get('insider_score', 0):.2f} - {quant_breakdown.get('insider_explain', 'N/A')}
+        - News Sentiment: {quant_breakdown.get('sentiment_score', 0):.2f} - {quant_breakdown.get('sentiment_explain', 'N/A')}
+        - Options Flow: {quant_breakdown.get('options_score', 0):.2f} - {quant_breakdown.get('options_explain', 'N/A')}
+        - Money Flow Trend: {quant_breakdown.get('money_flow_score', 0):.2f} - {quant_breakdown.get('money_flow_explain', 'N/A')}
+        
+        **Your Task**: Adjust this base score by -0.20 to +0.20 based on qualitative factors below.
+        """
+        
         return f"""
         Generate a Ticker Profile for {symbol}.
+        {quant_txt}
         
         ### 1. Fundamentals (Last 3 Years)
         {earnings_txt}
@@ -268,17 +426,19 @@ class ProfileGenerator:
         
         ### 3. Recent News / Narrative (Last 90 Days)
         {recent_txt}
-        {signals_txt}
+        {signals_txt}{options_txt}{relationships_txt}{statements_txt}
         
         Task:
         - Summarize the multi-year business and profitability trend.
         - Identify persistent "Material Events".
         - Describe the current 90-day narrative.
+        - Consider supply chain context and influential opinions.
         - Define the Bull/Bear thesis.
-        - **IMPORTANT**: Set profile_score (0.0-1.0) based on ALL signals above:
-          - 0.8-1.0: Strong fundamentals, positive insider activity, clear catalysts
-          - 0.5-0.7: Mixed signals, some concerns but overall neutral/positive
-          - 0.2-0.4: Significant headwinds, heavy insider selling, poor earnings
-          - 0.0-0.1: Major red flags
-        - Provide score_breakdown dict explaining each factor's contribution.
+        - **ADJUSTMENT**: Based on material events and qualitative factors, how much should we adjust the quantitative base score ({base_score:.3f})?
+          - Lawsuits/regulatory issues: -0.10 to -0.20
+          - Strong management/strategic moves: +0.05 to +0.15
+          - Supply chain threats: -0.05 to -0.10
+          - Influential bearish statements: -0.05
+        - Set profile_score = base_score + your_adjustment (must be 0.0-1.0)
+        - Provide score_breakdown dict explaining the adjustment.
         """

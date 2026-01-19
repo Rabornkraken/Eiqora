@@ -84,7 +84,7 @@ class PositionManagerAgent(BaseAgent[PositionManagerOutput]):
         )
 
         entry_price = rule.get("entry_level") or context.get("current_price") or 0
-        sl_mult = rule.get("sl_mult", 2.0)
+        sl_mult = rule.get("sl_mult", 1.75)  # Swing trading default (was 3.0)
         atr = context.get("atr14")
         if not atr and entry_price:
             atr = entry_price * 0.02

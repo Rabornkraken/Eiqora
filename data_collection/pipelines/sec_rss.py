@@ -77,7 +77,6 @@ def _insert_sec_filing(
     form_type: str,
     filed_at: str | None,
     primary_doc_url: str | None,
-    raw_id: int | None,
     description: str | None,
 ) -> bool:
     filed_date = datetime.strptime(filed_at, "%Y-%m-%d").date() if filed_at else None
@@ -86,8 +85,8 @@ def _insert_sec_filing(
         cursor.execute(
             """
             INSERT INTO sec_filing
-                (accession, cik, form_type, filed_at, report_period, is_amendment, amends_accession, primary_doc_url, raw_id, description)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                (accession, cik, form_type, filed_at, report_period, is_amendment, amends_accession, primary_doc_url, description)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (accession)
             DO UPDATE SET
                 cik = EXCLUDED.cik,
@@ -95,7 +94,6 @@ def _insert_sec_filing(
                 filed_at = EXCLUDED.filed_at,
                 is_amendment = EXCLUDED.is_amendment,
                 primary_doc_url = EXCLUDED.primary_doc_url,
-                raw_id = EXCLUDED.raw_id,
                 description = EXCLUDED.description
             RETURNING (xmax = 0) AS inserted
             """,
@@ -108,7 +106,6 @@ def _insert_sec_filing(
                 is_amendment,
                 None,
                 primary_doc_url,
-                raw_id,
                 description,
             ),
         )
@@ -244,7 +241,7 @@ def run(forms: list[str] | None) -> None:
             sha = sha256_bytes(content)
             object_key = f"sec/rss/{form}/{utc_date_str()}/{sha}.xml"
             stored = storage.write_bytes(object_key, content, content_type="application/atom+xml")
-            raw_id = insert_raw_object(
+            insert_raw_object(
                 source="sec_rss",
                 object_key=stored.object_key,
                 content_type="application/atom+xml",
@@ -284,7 +281,6 @@ def run(forms: list[str] | None) -> None:
                     form_type=form_type,
                     filed_at=filed_at,
                     primary_doc_url=link,
-                    raw_id=raw_id,
                     description=item.get("title"),  # Use title as description
                 ):
                     inserted += 1
@@ -322,7 +318,7 @@ def run(forms: list[str] | None) -> None:
                 sha = sha256_bytes(content)
                 object_key = f"sec/daily_index/{target_date.isoformat()}/{sha}.idx"
                 stored = storage.write_bytes(object_key, content, content_type="text/plain")
-                raw_id = insert_raw_object(
+                insert_raw_object(
                     source="sec_daily_index",
                     object_key=stored.object_key,
                     content_type="text/plain",
@@ -363,7 +359,6 @@ def run(forms: list[str] | None) -> None:
                         form_type=form_type,
                         filed_at=filed_at,
                         primary_doc_url=primary_doc_url,
-                        raw_id=raw_id,
                         description=None,  # No description in daily index
                     ):
                         inserted += 1

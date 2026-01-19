@@ -1,87 +1,132 @@
-# Eiqora Improvements Plan (Actionable Roadmap)
+# Backend Improvement Plan
 
-This plan targets the critiques that still apply and lays out concrete work items,
-dependencies, and acceptance criteria.
+## Executive Summary
+The backend is a four-layer system (agents, orchestrators, services, live pipeline). The current design works but has duplicated orchestration paths, uneven service integration, and limited reuse of agent outputs across triggers. This plan focuses on unifying execution, improving observability and consistency, and reducing redundant work.
 
-## Scope Summary
-- Deterministic risk/position sizing (replace LLM sizing).
-- Red-team/anti-thesis agent before final decision.
-- Relative strength (ticker vs sector ETF vs SPY) in context/decisioning.
-- Second-order triggers using existing data (bad-news-no-drop, sector-laggard, compression).
-- ETL for ghost data (sec_ftd) into structured tables.
-- Backfills, monitoring queries, and doc updates.
+## Current Architecture
+### Layer 1: Agents (LLM + deterministic)
+Located in `eiqora_v2/agents/`
 
-## Phase 1: Scope Confirmation (Required)
-**Goal:** Lock scope, metrics, and rollout order before coding.
+- TopDownAgent: market regime
+- ContextAgent: multi-timeframe context
+- ChartAgent: setup classification
+- FundamentalAgent: news/SEC/earnings context
+- IdeaGeneratorAgent: trade ideas
+- ExitPolicyAgent: TP/SL definition
+- RedTeamAgent: stress testing
+- DecisionAgent: GO/NO_GO
+- VetoAgent: sanity checks
+- NarrativeAgent: trade narrative (conditional)
+- PositionReassessmentAgent: post-entry reassessment
+- PositionManagerAgent: sizing override (live)
 
-Questions to confirm:
-1. Risk model: Volatility-targeted position sizing only, or include max risk per trade,
-   portfolio heat, and cluster caps?
-2. Red-team agent: Should its output be *mandatory* for every trigger,
-   or only for GO-leaning setups?
-3. Relative strength: Which benchmarks are required (SPY + sector ETF only, or also QQQ)?
-4. Trigger upgrades: Enable all three second-order triggers immediately, or phase in?
-5. ETL: Which "ghost data" sources are priority (sec_ftd)?
-6. Backfill windows: How far back for new tables (e.g., 2 years, 5 years)?
+### Layer 2: Orchestrators
+- `Orchestrator`: base sequential chain
+- `BacktestOrchestrator`: point-in-time + caching
+- `LiveTradingOrchestrator`: adds position manager + veto
 
-## Phase 2: Deterministic Risk & Sizing (Core)
-**Work items**
-- Add `risk_model.py` for deterministic sizing and portfolio caps.
-- Wire into live pipeline to compute position_size_pct for GO decisions.
-- Remove/ignore LLM sizing outputs in PositionManager/Decision.
+### Layer 3: Services (utilities)
+- `profile_generator.py`: profile build
+- `risk_model.py`: deterministic sizing
+- `metrics.py`: system metrics
+- `signal_aggregator.py`: signal consolidation (unused)
+- `sweep.py`: batch runner
 
-**Acceptance**
-- Position size is deterministic per input (repeatable).
-- Sizing uses volatility (ATR/RV20) + max risk per trade.
-- Portfolio caps enforced (max positions and cluster caps).
+### Layer 4: Live Pipeline
+- `CandidateSelector`: daily watchlist
+- `TriggerMonitor`: entry triggers
+- `PositionMonitor`: exit triggers
+- `SignalManager`: signal storage
+- `LiveTradingOrchestrator`: per-trigger analysis
+- `ProfileGenerator`: pre-loads profile
 
-## Phase 3: Red-Team Reasoning
-**Work items**
-- Add RedTeamAgent to argue against the thesis (bear case + negative news + macro).
-- Add synthesizer step or integrate RedTeam output into Decision prompt.
-- Ensure Decision gates explicitly reference red-team objections.
+## Key Issues
+- **Duplicated orchestration**: multiple orchestrator variants with overlapping logic.
+- **Service integration gaps**: some services run outside the agent chain or are unused.
+- **Limited reuse**: repeated analyses for the same symbol without a decision cache.
+- **Inconsistent data freshness**: trigger logic and pricing updates can diverge without explicit freshness checks.
+- **Observability gaps**: no unified audit trail for suppressed triggers and per-stage latency.
 
-**Acceptance**
-- Every GO decision includes a “red-team response” summary.
-- GO is blocked if red-team flags critical thesis break.
+## Proposed Improvements
+### 1) Unified Agent Registry
+Create a central registry that resolves dependencies and allows selective or parallel execution.
 
-## Phase 4: Relative Strength Context
-**Work items**
-- Compute ticker vs sector ETF and ticker vs SPY relative strength.
-- Add to Context/Chart outputs and Decision prompts.
-- Store relative-strength metrics in analysis_log.
+```python
+class AgentRegistry:
+    def __init__(self):
+        self.agents = {}
+        self.dependencies = {}
 
-**Acceptance**
-- Relative strength appears in agent outputs.
-- Decision references relative strength in rationale for GO/NO_GO.
+    def register(self, name, agent, depends_on=None):
+        self.agents[name] = agent
+        self.dependencies[name] = depends_on or []
 
-## Phase 5: Trigger Upgrades (Second-Order)
-**Work items**
-- “Bad news, no drop” (negative sentiment + flat/green price).
-- Sector laggard trigger (sector breakout, ticker lags).
-- Volatility compression trigger (NR7 / low 5d volatility).
-- Guardrails: minimum volume, price validity, recency.
+    async def run(self, name, state):
+        for dep in self.dependencies[name]:
+            if dep not in state:
+                state.update(await self.run(dep, state))
+        return await self.agents[name].run(state)
+```
 
-**Acceptance**
-- New triggers appear in trigger_monitor with documented rules.
-- False positives reduced with guards.
+Benefits:
+- Selective execution (skip non-essential agents)
+- Clear dependency ordering
+- Easier reuse across live/backtest/sweep
 
-## Phase 6: ETL for Ghost Data
-**Work items**
-- Parse SEC FTD ZIP → `ftd_daily`.
-- Parse SEC FTD ZIP → `sec_ftd`.
-- Add lightweight aggregations into `signal_aggregator` / `fundamental`.
+### 2) Context Enrichment Bridge
+Centralize deterministic service calls (profile, risk model, market data) and attach results before LLMs run.
 
-**Acceptance**
-- New tables populated + queryable.
-- Fundamental agent includes new signals.
+Benefits:
+- Fewer redundant calls
+- Cleaner agent prompts
+- Easier caching
 
-## Phase 7: Backfills, Monitoring, Docs
-**Work items**
-- Backfill new tables to agreed horizon.
-- Add monitoring queries for data freshness.
-- Update `docs/system_architecture.md` and `docs/DATABASE_UPDATES.md`.
+### 3) Unified Trigger Handling
+Standardize trigger ingestion with a single dispatcher that handles:
+- entry trigger scans
+- exit condition checks
+- account refresh updates
 
-**Acceptance**
-- Backfills complete with expected row counts.
-- Docs reflect new architecture and data sources.
+Benefits:
+- Fewer race conditions between entry/exit logic
+- Consistent time handling
+- Simplified scheduling
+
+### 4) Decision Cache
+Use `analysis_log` + `trigger_hash` as a decision cache to prevent re-analysis on unchanged triggers.
+
+Benefits:
+- Lower LLM usage
+- Consistent decisions within a window
+- Faster responses
+
+### 5) Configuration Unification
+Move live/backtest orchestrator options into a single config object with mode presets.
+
+Benefits:
+- Fewer code paths
+- Easier testing
+- Reduced drift between modes
+
+## Implementation Roadmap
+### Phase 1: Context + Cache (1–2 days)
+- Add a unified context enrichment step
+- Implement decision cache lookups
+- Add basic freshness checks
+
+### Phase 2: Agent Registry (2–3 days)
+- Introduce `AgentRegistry`
+- Migrate orchestrators to registry
+- Enable selective execution
+
+### Phase 3: Trigger Unification (3–4 days)
+- Consolidate entry/exit trigger handling
+- Add observability for trigger sources and suppression
+
+### Phase 4: Config Unification (1 day)
+- Replace orchestrator variants with config presets
+
+## Open Decisions
+- Cache TTL window for decision reuse
+- Minimum freshness requirements for hourly indicators
+- Trigger priority rules when multiple signals arrive together

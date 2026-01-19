@@ -39,13 +39,6 @@ DROP TABLE IF EXISTS douyin_comment CASCADE;
 -- DROP TABLE signal CASCADE;
 
 -- ============================================================================
--- UNUSED INFRASTRUCTURE
--- ============================================================================
-
--- Old analog event system (if not using stats service)
--- DROP TABLE IF EXISTS analog_event CASCADE;
-
--- ============================================================================
 -- DATA CLEANUP (Optional - Removes old data)
 -- ============================================================================
 

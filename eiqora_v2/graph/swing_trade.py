@@ -1,10 +1,9 @@
 """
-LangGraph StateGraph definition for swing trade analysis.
-Orchestrates the agent workflow with parallel execution and conditional routing.
-
-Week 2: Full pipeline including Idea Generator, Exit Policy, Decision, and Veto.
-Stats Service integrated for historical backtesting.
+LangGraph DAG definition for swing trade analysis.
+Supports optional agents and live/backtest config presets.
 """
+
+from __future__ import annotations
 
 import logging
 from datetime import datetime
@@ -12,167 +11,135 @@ from typing import Any, Literal
 
 from langgraph.graph import StateGraph, END
 
+from eiqora_v2.config.orchestrator import OrchestratorConfig
+from eiqora_v2.config.universe import get_sector, get_sector_etf
 from eiqora_v2.schemas.state import SwingTradeState
-from eiqora_v2.agents.event_triage import EventTriageAgent
-from eiqora_v2.agents.event_extractor import EventExtractorAgent
+
 from eiqora_v2.agents.context import ContextAgent
 from eiqora_v2.agents.chart import ChartAgent
 from eiqora_v2.agents.idea_generator import IdeaGeneratorAgent
 from eiqora_v2.agents.exit_policy import ExitPolicyAgent
-from eiqora_v2.agents.analog_planner import AnalogPlannerAgent
+from eiqora_v2.agents.red_team import RedTeamAgent
+from eiqora_v2.agents.short_perspective import ShortPerspectiveAgent
 from eiqora_v2.agents.decision import DecisionAgent
 from eiqora_v2.agents.veto import VetoAgent
-from eiqora_v2.config.universe import get_sector, get_sector_etf
-from eiqora_v2.services.stats import run_analog_stats
+from eiqora_v2.agents.narrative import NarrativeAgent
+from eiqora_v2.agents.topdown import TopDownAgent
+from eiqora_v2.agents.fundamental import FundamentalAgent
+from eiqora_v2.agents.supply_chain import SupplyChainAgent
+from eiqora_v2.agents.position_manager import PositionManagerAgent
 
 logger = logging.getLogger(__name__)
 
 # Initialize agents
-event_triage_agent = EventTriageAgent()
-event_extractor_agent = EventExtractorAgent()
 context_agent = ContextAgent()
 chart_agent = ChartAgent()
 idea_generator_agent = IdeaGeneratorAgent()
 exit_policy_agent = ExitPolicyAgent()
-analog_planner_agent = AnalogPlannerAgent()
+red_team_agent = RedTeamAgent()
+short_perspective_agent = ShortPerspectiveAgent()
 decision_agent = DecisionAgent()
 veto_agent = VetoAgent()
+narrative_agent = NarrativeAgent()
+topdown_agent = TopDownAgent()
+fundamental_agent = FundamentalAgent()
+supply_chain_agent = SupplyChainAgent()
+position_manager_agent = PositionManagerAgent()
 
 
 # ============================================================================
 # Node functions
 # ============================================================================
 
-async def event_triage_node(state: SwingTradeState) -> dict[str, Any]:
-    """Run Event Triage Agent."""
-    return await event_triage_agent.run(state)
-
-
-async def event_extractor_node(state: SwingTradeState) -> dict[str, Any]:
-    """Run Event Extractor Agent."""
-    return await event_extractor_agent.run(state)
-
-
 async def context_node(state: SwingTradeState) -> dict[str, Any]:
-    """Run Context Agent."""
     return await context_agent.run(state)
 
 
 async def chart_node(state: SwingTradeState) -> dict[str, Any]:
-    """Run Chart Agent."""
     return await chart_agent.run(state)
 
 
+async def topdown_node(state: SwingTradeState) -> dict[str, Any]:
+    return await topdown_agent.run(state)
+
+
+async def fundamental_node(state: SwingTradeState) -> dict[str, Any]:
+    return await fundamental_agent.run(state)
+
+
+async def supply_chain_node(state: SwingTradeState) -> dict[str, Any]:
+    return await supply_chain_agent.run(state)
+
+
 async def idea_generator_node(state: SwingTradeState) -> dict[str, Any]:
-    """Run Idea Generator Agent."""
     return await idea_generator_agent.run(state)
 
 
 async def exit_policy_node(state: SwingTradeState) -> dict[str, Any]:
-    """Run Exit Policy Agent."""
     return await exit_policy_agent.run(state)
 
 
-async def analog_planner_node(state: SwingTradeState) -> dict[str, Any]:
-    """Run Analog Planner Agent."""
-    return await analog_planner_agent.run(state)
+async def red_team_node(state: SwingTradeState) -> dict[str, Any]:
+    return await red_team_agent.run(state)
 
 
-async def stats_node(state: SwingTradeState) -> dict[str, Any]:
-    """
-    Run Stats Service on analog plans.
-    
-    This is a deterministic node (NO LLM) that backtests
-    trade rules against historical analogs.
-    """
-    rules = state.get("rules", [])
-    asof_time = state["asof_time"]
-    
-    stats_results = []
-    
-    for rule in rules:
-        if "analog_plan" in rule:
-            analog_plan = rule["analog_plan"]
-            
-            # Find the corresponding exit policy
-            exit_policy = None
-            for r in rules:
-                if "exit_policy" in r:
-                    exit_policy = r["exit_policy"]
-                    break
-            
-            if exit_policy:
-                try:
-                    result = await run_analog_stats(
-                        analog_plan=analog_plan,
-                        trade_rule=exit_policy,
-                        asof_time=asof_time,
-                    )
-                    stats_results.append(result.model_dump())
-                except Exception as e:
-                    logger.error(f"Stats Service error: {e}")
-                    stats_results.append({
-                        "plan_id": analog_plan.get("plan_id", "unknown"),
-                        "status": "ERROR",
-                        "sample_size": 0,
-                        "error": str(e),
-                    })
-    
-    logger.info(f"Stats Service: {len(stats_results)} plans evaluated")
-    return {"stats": stats_results}
+async def short_perspective_node(state: SwingTradeState) -> dict[str, Any]:
+    return await short_perspective_agent.run(state)
 
 
 async def decision_node(state: SwingTradeState) -> dict[str, Any]:
-    """Run Decision Agent."""
     return await decision_agent.run(state)
 
 
+async def position_manager_node(state: SwingTradeState) -> dict[str, Any]:
+    return await position_manager_agent.run(state)
+
+
 async def veto_node(state: SwingTradeState) -> dict[str, Any]:
-    """Run Veto Agent."""
     return await veto_agent.run(state)
 
 
-# ============================================================================
-# Filter/routing nodes
-# ============================================================================
+async def narrative_node(state: SwingTradeState) -> dict[str, Any]:
+    return await narrative_agent.run(state)
+
 
 async def early_filter_node(state: SwingTradeState) -> dict[str, Any]:
     """
     Early filter gate to skip tickers that don't meet criteria.
-    
-    Filters:
-    - No chart setup found
-    - Extreme adverse conditions (downtrend + high vol)
     """
-    chart = state.get("chart", {})
-    context = state.get("context", {})
-    
-    # Check for chart setup
+    chart = state.get("chart", {}) or {}
+    context = state.get("context", {}) or {}
+
+    if context.get("error"):
+        reason = "CONTEXT_ERROR"
+        logger.info("Filtered %s: %s", state.get("symbol"), reason)
+        return {"should_continue": False, "filter_reason": reason}
+
+    if chart.get("error"):
+        reason = "CHART_ERROR"
+        logger.info("Filtered %s: %s", state.get("symbol"), reason)
+        return {"should_continue": False, "filter_reason": reason}
+
     setup_type = chart.get("setup_type", "NO_SETUP")
     if setup_type == "NO_SETUP":
-        logger.info(f"Filtered {state.get('symbol')}: NO_SETUP")
-        return {
-            "should_continue": False,
-            "filter_reason": "NO_SETUP",
-        }
-    
-    # Check for adverse conditions
+        logger.info("Filtered %s: NO_SETUP", state.get("symbol"))
+        return {"should_continue": False, "filter_reason": "NO_SETUP"}
+
     state_tags = context.get("state_tags", [])
     vol_basis = context.get("vol_basis", {})
     rv20 = vol_basis.get("value", 0) if isinstance(vol_basis, dict) else 0
-    
+
     if "DOWNTREND" in state_tags and rv20 > 0.04:
-        logger.info(f"Filtered {state.get('symbol')}: DOWNTREND + HIGH_VOL")
-        return {
-            "should_continue": False,
-            "filter_reason": "DOWNTREND_HIGH_VOL",
-        }
-    
-    logger.info(f"Passed filter {state.get('symbol')}: {setup_type}")
-    return {
-        "should_continue": True,
-        "filter_reason": None,
-    }
+        logger.info("Filtered %s: DOWNTREND + HIGH_VOL", state.get("symbol"))
+        return {"should_continue": False, "filter_reason": "DOWNTREND_HIGH_VOL"}
+
+    logger.info("Passed filter %s: %s", state.get("symbol"), setup_type)
+    return {"should_continue": True, "filter_reason": None}
+
+
+async def idea_gate_node(state: SwingTradeState) -> dict[str, Any]:
+    """Join node for idea generation gating."""
+    return {}
 
 
 # ============================================================================
@@ -180,127 +147,162 @@ async def early_filter_node(state: SwingTradeState) -> dict[str, Any]:
 # ============================================================================
 
 def should_continue_after_filter(state: SwingTradeState) -> Literal["continue", "end"]:
-    """Continue or end based on filter result."""
     if state.get("should_continue", True):
         return "continue"
     return "end"
 
 
-def needs_extraction(state: SwingTradeState) -> Literal["extract", "skip"]:
-    """Check if Event Extractor should run."""
-    if state.get("needs_extraction", False):
-        return "extract"
-    return "skip"
-
-
 def has_ideas(state: SwingTradeState) -> Literal["has_ideas", "no_ideas"]:
-    """Check if ideas were generated."""
     ideas = state.get("ideas", {})
     ideas_list = ideas.get("ideas", [])
-    if ideas_list:
-        return "has_ideas"
-    return "no_ideas"
+    return "has_ideas" if ideas_list else "no_ideas"
 
 
-def check_decision(state: SwingTradeState) -> Literal["go", "no_go"]:
-    """Check if decision is GO."""
-    decision = state.get("decision", {})
-    if decision.get("decision") == "GO":
+def decision_outcome(state: SwingTradeState) -> Literal["go", "no_go"]:
+    decision = state.get("decision", {}) or {}
+    final_call = decision.get("final_call") or decision.get("decision")
+    if isinstance(final_call, str) and final_call.upper() == "GO":
         return "go"
     return "no_go"
+
+
+def position_manager_outcome(state: SwingTradeState) -> Literal["reject", "continue"]:
+    pm = state.get("position_manager", {}) or {}
+    if pm.get("decision") == "REJECT":
+        return "reject"
+    decision = state.get("decision", {}) or {}
+    final_call = decision.get("final_call") or decision.get("decision")
+    if isinstance(final_call, str) and final_call.upper() != "GO":
+        return "reject"
+    return "continue"
+
+
+def veto_outcome(state: SwingTradeState) -> Literal["veto", "ok"]:
+    veto = state.get("veto", {}) or {}
+    if veto.get("veto"):
+        return "veto"
+    return "ok"
 
 
 # ============================================================================
 # Graph construction
 # ============================================================================
 
-def create_swing_trade_graph() -> StateGraph:
+def create_swing_trade_graph(config: OrchestratorConfig | None = None):
     """
-    Create the LangGraph StateGraph for swing trade analysis.
-    
-    PHASE 1: Parallel start (Event Triage + Context + Chart)
-    PHASE 2: Early Filter
-    PHASE 3: Idea Generation → Exit Policy → Analog Planner
-    PHASE 4: Stats Service (deterministic backtesting)
-    PHASE 5: Decision → Veto
-    
-    Returns:
-        Compiled StateGraph
+    Create a LangGraph DAG for swing trade analysis.
     """
+    cfg = config or OrchestratorConfig()
     graph = StateGraph(SwingTradeState)
-    
-    # Add nodes
-    graph.add_node("event_triage", event_triage_node)
-    graph.add_node("event_extractor", event_extractor_node)
+
     graph.add_node("context", context_node)
     graph.add_node("chart", chart_node)
     graph.add_node("early_filter", early_filter_node)
+    graph.add_node("idea_gate", idea_gate_node)
     graph.add_node("idea_generator", idea_generator_node)
     graph.add_node("exit_policy", exit_policy_node)
-    graph.add_node("analog_planner", analog_planner_node)
-    graph.add_node("stats", stats_node)  # Stats Service node
+    graph.add_node("red_team", red_team_node)
+    graph.add_node("short_perspective", short_perspective_node)
     graph.add_node("decision", decision_node)
     graph.add_node("veto", veto_node)
-    
-    # ========================================
-    # PHASE 1: Parallel start
-    # ========================================
-    graph.add_edge("__start__", "event_triage")
+    graph.add_node("narrative", narrative_node)
+
+    if cfg.include_topdown:
+        graph.add_node("topdown", topdown_node)
+    if cfg.include_fundamental:
+        graph.add_node("fundamental", fundamental_node)
+    if cfg.include_supply_chain:
+        graph.add_node("supply_chain", supply_chain_node)
+    if cfg.enable_position_manager:
+        graph.add_node("position_manager", position_manager_node)
+
+    # Phase 1: Parallel start
     graph.add_edge("__start__", "context")
-    graph.add_edge("__start__", "chart")
-    
-    # All feed into early filter
-    graph.add_edge("event_triage", "early_filter")
+    if cfg.include_topdown:
+        graph.add_edge("__start__", "topdown")
+    if cfg.include_fundamental:
+        graph.add_edge("__start__", "fundamental")
+    if cfg.include_supply_chain:
+        graph.add_edge("__start__", "supply_chain")
+
+    # Context -> Chart
+    graph.add_edge("context", "chart")
+
+    # Early filter depends on context + chart
     graph.add_edge("context", "early_filter")
     graph.add_edge("chart", "early_filter")
-    
-    # ========================================
-    # PHASE 2: Early filter
-    # ========================================
+
+    # Join gate waits for early filter + optional nodes
+    graph.add_edge("early_filter", "idea_gate")
+    if cfg.include_topdown:
+        graph.add_edge("topdown", "idea_gate")
+    if cfg.include_fundamental:
+        graph.add_edge("fundamental", "idea_gate")
+    if cfg.include_supply_chain:
+        graph.add_edge("supply_chain", "idea_gate")
+
     graph.add_conditional_edges(
-        "early_filter",
+        "idea_gate",
         should_continue_after_filter,
-        {
-            "continue": "idea_generator",
-            "end": END,
-        },
+        {"continue": "idea_generator", "end": END},
     )
-    
-    # ========================================
-    # PHASE 3: Idea generation pipeline
-    # ========================================
+
+    # Idea -> Exit Policy -> Red Team -> Short Perspective -> Decision
     graph.add_conditional_edges(
         "idea_generator",
         has_ideas,
-        {
-            "has_ideas": "exit_policy",
-            "no_ideas": END,
-        },
+        {"has_ideas": "exit_policy", "no_ideas": END},
     )
-    
-    graph.add_edge("exit_policy", "analog_planner")
-    
-    # ========================================
-    # PHASE 4: Stats Service (deterministic)
-    # ========================================
-    graph.add_edge("analog_planner", "stats")
-    graph.add_edge("stats", "decision")
-    
-    # ========================================
-    # PHASE 5: Decision → Veto
-    # ========================================
+    graph.add_edge("exit_policy", "red_team")
+    graph.add_edge("red_team", "short_perspective")
+    graph.add_edge("short_perspective", "decision")
+
+    if cfg.enable_position_manager:
+        graph.add_conditional_edges(
+            "decision",
+            decision_outcome,
+            {"go": "position_manager", "no_go": END},
+        )
+        graph.add_conditional_edges(
+            "position_manager",
+            position_manager_outcome,
+            {"reject": END, "continue": "veto"},
+        )
+    else:
+        graph.add_conditional_edges(
+            "decision",
+            decision_outcome,
+            {"go": "veto", "no_go": END},
+        )
+
     graph.add_conditional_edges(
-        "decision",
-        check_decision,
-        {
-            "go": "veto",
-            "no_go": END,
-        },
+        "veto",
+        veto_outcome,
+        {"veto": END, "ok": "narrative"},
     )
-    
-    graph.add_edge("veto", END)
-    
+
+    graph.add_edge("narrative", END)
+
     return graph.compile()
+
+
+_GRAPH_CACHE: dict[tuple[bool, bool, bool, bool], Any] = {}
+
+
+def get_compiled_graph(config: OrchestratorConfig | None = None):
+    cfg = config or OrchestratorConfig()
+    key = (
+        cfg.include_topdown,
+        cfg.include_fundamental,
+        cfg.include_supply_chain,
+        cfg.enable_position_manager,
+    )
+    cached = _GRAPH_CACHE.get(key)
+    if cached is not None:
+        return cached
+    compiled = create_swing_trade_graph(cfg)
+    _GRAPH_CACHE[key] = compiled
+    return compiled
 
 
 def create_initial_state(
@@ -308,23 +310,14 @@ def create_initial_state(
     asof_time: datetime | None = None,
     trigger_type: str = "CHART_SETUP",
     trigger_refs: list[str] | None = None,
+    trigger_detail: dict[str, Any] | None = None,
+    trigger_priority: str | None = None,
+    state_overrides: dict[str, Any] | None = None,
 ) -> SwingTradeState:
-    """
-    Create initial state for a swing trade analysis run.
-    
-    Args:
-        symbol: Stock ticker symbol
-        asof_time: Point-in-time (defaults to now)
-        trigger_type: Type of trigger that initiated analysis
-        trigger_refs: References to trigger sources
-    
-    Returns:
-        Initial SwingTradeState
-    """
     if asof_time is None:
         asof_time = datetime.utcnow()
-    
-    return SwingTradeState(
+
+    state = SwingTradeState(
         request_id=f"{symbol}_{asof_time.strftime('%Y%m%d_%H%M%S')}",
         symbol=symbol,
         sector=get_sector(symbol),
@@ -332,6 +325,8 @@ def create_initial_state(
         asof_time=asof_time,
         trigger_type=trigger_type,
         trigger_refs=trigger_refs or [],
+        trigger_detail=trigger_detail,
+        trigger_priority=trigger_priority,
         triage=None,
         facts=None,
         context=None,
@@ -339,47 +334,45 @@ def create_initial_state(
         chart=None,
         ideas=None,
         rules=None,
-        stats=None,
+        exit_policy=None,
+        red_team=None,
+        short_perspective=None,
         decision=None,
+        position_manager=None,
         veto=None,
         narrative=None,
         needs_extraction=False,
         should_continue=True,
         filter_reason=None,
+        profile=None,
+        market_data=None,
+        data_freshness=None,
+        enrichment_errors=None,
         errors=[],
     )
 
+    if state_overrides:
+        state.update(state_overrides)
 
-# Create compiled graph
-graph = create_swing_trade_graph()
+    return state
 
 
 async def run_analysis(
     symbol: str,
     asof_time: datetime | None = None,
     trigger_type: str = "CHART_SETUP",
+    config: OrchestratorConfig | None = None,
+    state_overrides: dict[str, Any] | None = None,
 ) -> SwingTradeState:
-    """
-    Run swing trade analysis for a single symbol.
-    
-    Args:
-        symbol: Stock ticker symbol
-        asof_time: Point-in-time (defaults to now)
-        trigger_type: Type of trigger
-    
-    Returns:
-        Final SwingTradeState with all agent outputs
-    """
     initial_state = create_initial_state(
         symbol=symbol,
         asof_time=asof_time,
         trigger_type=trigger_type,
+        state_overrides=state_overrides,
     )
-    
-    logger.info(f"Starting analysis for {symbol}")
-    
-    # Run the graph
+
+    logger.info("Starting analysis for %s", symbol)
+    graph = get_compiled_graph(config)
     final_state = await graph.ainvoke(initial_state)
-    
-    logger.info(f"Analysis complete for {symbol}")
+    logger.info("Analysis complete for %s", symbol)
     return final_state

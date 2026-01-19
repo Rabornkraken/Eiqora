@@ -1,55 +1,96 @@
 import React, { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
-import { getPositions } from '../services/api';
+import { getPositions, getAccount } from '../services/api';
 
 function Portfolio() {
     const [positions, setPositions] = useState([]);
+    const [account, setAccount] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        const fetchPositions = async () => {
+        const fetchData = async () => {
             try {
-                const data = await getPositions();
-                setPositions(data);
+                const [positionsData, accountData] = await Promise.all([
+                    getPositions(),
+                    getAccount()
+                ]);
+                setPositions(positionsData);
+                setAccount(accountData);
                 setError(null);
             } catch (err) {
-                console.error('Failed to fetch positions:', err);
-                setError('Failed to load portfolio positions');
+                console.error('Failed to fetch portfolio data:', err);
+                setError('Failed to load portfolio data');
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchPositions();
+        fetchData();
+
+        const intervalId = setInterval(fetchData, 30000);
+        return () => clearInterval(intervalId);
     }, []);
 
     if (loading) {
-        return <div className="loading">Loading positions...</div>;
+        return <div className="loading">Loading portfolio...</div>;
     }
 
     if (error) {
         return <div className="error">{error}</div>;
     }
 
-    if (positions.length === 0) {
-        return <div className="loading">No positions currently held</div>;
-    }
+    const totalPositionsValue = positions.reduce((sum, pos) => sum + pos.market_value, 0);
+    const cashBalance = account?.cash_balance || 0;
+    const totalValue = totalPositionsValue + cashBalance;
 
-    const totalValue = positions.reduce((sum, pos) => sum + pos.market_value, 0);
+    // Prepare data for pie chart (positions + cash)
+    const chartData = [
+        ...positions.map(pos => ({
+            name: pos.symbol,
+            value: pos.market_value,
+            percentage: ((pos.market_value / totalValue) * 100).toFixed(1)
+        })),
+        ...(cashBalance > 0 ? [{
+            name: 'Cash',
+            value: cashBalance,
+            percentage: ((cashBalance / totalValue) * 100).toFixed(1)
+        }] : [])
+    ];
 
-    // Prepare data for pie chart
-    const chartData = positions.map(pos => ({
-        name: pos.symbol,
-        value: pos.market_value,
-        percentage: ((pos.market_value / totalValue) * 100).toFixed(1)
-    }));
-
-    // Colors for pie chart
+    // Colors for pie chart (cash is gray)
     const COLORS = ['#64B5F6', '#81C784', '#FFB74D', '#E57373', '#9575CD', '#4DB6AC'];
+    const CASH_COLOR = '#9E9E9E';
 
     return (
         <div style={{ marginTop: '24px' }}>
+            {/* Portfolio Summary */}
+            <div className="border-box" style={{ marginBottom: '24px', padding: '24px' }}>
+                <div className="chart-title" style={{ marginBottom: '16px' }}>
+                    Portfolio Summary
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
+                    <div>
+                        <div className="text-muted text-sm">Total Value</div>
+                        <div style={{ fontSize: '1.5rem', fontWeight: 600 }}>${totalValue.toFixed(2)}</div>
+                    </div>
+                    <div>
+                        <div className="text-muted text-sm">Positions Value</div>
+                        <div style={{ fontSize: '1.5rem', fontWeight: 600 }}>${totalPositionsValue.toFixed(2)}</div>
+                    </div>
+                    <div>
+                        <div className="text-muted text-sm">Cash Balance</div>
+                        <div style={{ fontSize: '1.5rem', fontWeight: 600 }}>${cashBalance.toFixed(2)}</div>
+                    </div>
+                    <div>
+                        <div className="text-muted text-sm">Unrealized P&L</div>
+                        <div style={{ fontSize: '1.5rem', fontWeight: 600, color: account?.unrealized_pnl >= 0 ? 'var(--color-go)' : 'var(--color-no-go)' }}>
+                            ${(account?.unrealized_pnl || 0).toFixed(2)}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {/* Portfolio Allocation Chart */}
             <div className="border-box" style={{ marginBottom: '24px' }}>
                 <div className="chart-title" style={{ padding: '24px', borderBottom: '1px solid var(--border-light)' }}>
@@ -69,7 +110,10 @@ function Portfolio() {
                                 dataKey="value"
                             >
                                 {chartData.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                    <Cell
+                                        key={`cell-${index}`}
+                                        fill={entry.name === 'Cash' ? CASH_COLOR : COLORS[index % COLORS.length]}
+                                    />
                                 ))}
                             </Pie>
                             <Tooltip
@@ -140,10 +184,10 @@ function Portfolio() {
                                                 <span className="font-bold">{position.symbol}</span>
                                             </div>
                                         </td>
-                                        <td>{position.shares}</td>
+                                        <td>{position.shares.toFixed(2)}</td>
                                         <td>${position.entry_price.toFixed(2)}</td>
                                         <td>${position.current_price.toFixed(2)}</td>
-                                        <td>${position.market_value.toLocaleString()}</td>
+                                        <td>${position.market_value.toFixed(2)}</td>
                                         <td className={isProfitable ? 'status-go' : 'status-no-go'}>
                                             ${Math.abs(pnl).toLocaleString()} {isProfitable ? '▲' : '▼'}
                                         </td>
