@@ -2,7 +2,14 @@ from datetime import datetime, timezone
 
 import pytest
 
-from eiqora_v2.live.trigger_backtest import compute_atr_brackets, resolve_outcome, build_result_row
+from psycopg.types.json import Json
+
+from eiqora_v2.live.trigger_backtest import (
+    compute_atr_brackets,
+    resolve_outcome,
+    build_result_row,
+    prepare_trigger_detail,
+)
 
 
 def test_compute_atr_brackets():
@@ -74,3 +81,8 @@ def test_build_result_row_defaults():
     assert row[5] == trigger_time
     assert row[9] == 1.5
     assert row[10] == 3.0
+
+
+def test_prepare_trigger_detail_wraps_dict():
+    value = prepare_trigger_detail({"a": 1})
+    assert isinstance(value, Json)

@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Iterable
+from typing import Iterable, Any
+
+from psycopg.types.json import Json
 
 
 @dataclass(frozen=True)
@@ -135,7 +137,7 @@ def build_result_row(
         trigger_type,
         trigger_priority,
         trigger_time,
-        trigger_detail,
+        prepare_trigger_detail(trigger_detail),
         entry_price,
         atr14,
         sl_mult,
@@ -150,3 +152,7 @@ def build_result_row(
         realized_pnl_pct,
         started_at,
     )
+
+
+def prepare_trigger_detail(value: Any) -> Json:
+    return Json(value)
