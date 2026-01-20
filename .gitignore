@@ -8,3 +8,4 @@ config/secrets.py
 chroma_db/
 api.log
 data_collection/Social_media_crawler/
+.worktrees/
