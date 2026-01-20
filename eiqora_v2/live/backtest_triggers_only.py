@@ -55,7 +55,7 @@ def fetch_future_bars(conn, symbol: str, after_time: datetime) -> list[tuple]:
             """,
             (symbol, after_time),
         )
-        return cur.fetchall()
+    return cur.fetchall()
 
 
 def insert_result(conn, row: tuple) -> None:
@@ -84,12 +84,69 @@ def _build_no_data_detail(trigger, reason: str) -> dict:
     return details
 
 
-async def run_trigger_only_backtest(days: int, limit: int | None, run_name: str) -> uuid.UUID:
+def build_hourly_bars_query(
+    start_date: str | None,
+    end_date: str | None,
+    limit: int | None,
+) -> tuple[str, tuple]:
+    query = """
+        SELECT symbol, datetime
+        FROM market_bar_hourly
+        WHERE rsi_14 IS NOT NULL
+          AND EXTRACT(HOUR FROM datetime AT TIME ZONE 'America/New_York') BETWEEN 10 AND 15
+    """
+    params: list = []
+
+    if start_date:
+        query += " AND datetime::date >= %s"
+        params.append(start_date)
+    if end_date:
+        query += " AND datetime::date <= %s"
+        params.append(end_date)
+
+    query += " ORDER BY datetime DESC, symbol"
+
+    if limit:
+        query += " LIMIT %s"
+        params.append(limit)
+
+    return query, tuple(params)
+
+
+async def get_hourly_bars_to_test_range(
+    start_date: str | None,
+    end_date: str | None,
+    limit: int | None,
+) -> list[tuple[str, datetime]]:
+    query, params = build_hourly_bars_query(start_date, end_date, limit)
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(query, params)
+            return cur.fetchall()
+
+
+def parse_date_arg(value: str | None) -> str | None:
+    if value is None:
+        return None
+    return datetime.fromisoformat(value).date().isoformat()
+
+
+async def run_trigger_only_backtest(
+    days: int,
+    limit: int | None,
+    run_name: str,
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> uuid.UUID:
     run_id = uuid.uuid4()
     started_at = datetime.now(timezone.utc)
 
     monitor = TriggerMonitor()
-    test_bars = await get_hourly_bars_to_test(days, limit)
+    if start_date or end_date:
+        test_bars = await get_hourly_bars_to_test_range(start_date, end_date, limit)
+    else:
+        test_bars = await get_hourly_bars_to_test(days, limit)
 
     with get_connection() as conn:
         for symbol, check_time in test_bars:
@@ -223,9 +280,15 @@ def main() -> None:
     parser.add_argument("--days", type=int, default=30)
     parser.add_argument("--limit", type=int)
     parser.add_argument("--run-name", type=str, default="trigger-only")
+    parser.add_argument("--start-date", type=str)
+    parser.add_argument("--end-date", type=str)
     args = parser.parse_args()
 
-    run_id = asyncio.run(run_trigger_only_backtest(args.days, args.limit, args.run_name))
+    start_date = parse_date_arg(args.start_date)
+    end_date = parse_date_arg(args.end_date)
+    run_id = asyncio.run(
+        run_trigger_only_backtest(args.days, args.limit, args.run_name, start_date, end_date)
+    )
     print(f"Run complete: {run_id}")
 
 

@@ -10,6 +10,7 @@ from eiqora_v2.live.trigger_backtest import (
     build_result_row,
     prepare_trigger_detail,
 )
+from eiqora_v2.live.backtest_triggers_only import build_hourly_bars_query
 
 
 def test_compute_atr_brackets():
@@ -86,3 +87,11 @@ def test_build_result_row_defaults():
 def test_prepare_trigger_detail_wraps_dict():
     value = prepare_trigger_detail({"a": 1})
     assert isinstance(value, Json)
+
+
+def test_build_hourly_bars_query_with_dates():
+    query, params = build_hourly_bars_query("2025-05-01", "2025-06-01", None)
+    assert "datetime::date >= %s" in query
+    assert "datetime::date <= %s" in query
+    assert params[0] == "2025-05-01"
+    assert params[1] == "2025-06-01"
