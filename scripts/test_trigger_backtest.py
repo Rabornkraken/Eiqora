@@ -15,6 +15,7 @@ from eiqora_v2.live.trigger_backtest import (
     resolve_outcome,
     prepare_trigger_detail,
 )
+from eiqora_v2.live.backtest_triggers_only import build_hourly_bars_query
 
 
 def main() -> None:
@@ -30,6 +31,12 @@ def main() -> None:
     assert outcome["outcome"] == "TP_HIT"
 
     assert prepare_trigger_detail({"a": 1}) is not None
+
+    query, params = build_hourly_bars_query("2025-05-01", "2025-06-01", None)
+    assert "datetime::date >= %s" in query
+    assert "datetime::date <= %s" in query
+    assert params[0] == "2025-05-01"
+    assert params[1] == "2025-06-01"
 
 
 if __name__ == "__main__":
