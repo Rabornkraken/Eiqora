@@ -221,6 +221,8 @@ class LiveTradingPipeline:
             # Get prices from various sources
             rule = decision.get("rule", {}) or {}
             context = final_state.get("context", {})
+            direction = rule.get("direction", "LONG")
+            time_stop_days = rule.get("time_stop_days", 30)
             
             # Entry price from rule or context
             entry_price = rule.get("entry_level") or context.get("current_price", 0)
@@ -246,10 +248,8 @@ class LiveTradingPipeline:
                 # Get multipliers from exit policy or fallback defaults
                 sl_mult = bracket.get("sl_mult") or rule.get("sl_mult", 3.0)  # Wide catastrophic stop
                 tp_mult = bracket.get("tp_mult") or rule.get("tp_mult")  # Often null for decision-based
-                time_stop_days = rule.get("time_stop_days", 30)
                 atr = context.get("atr14", entry_price * 0.02)  # Default to 2% if no ATR
-                
-                direction = rule.get("direction", "LONG")
+
                 if direction == "SHORT":
                     stop_loss = stop_loss or (entry_price + (atr * sl_mult))
                     if tp_mult:

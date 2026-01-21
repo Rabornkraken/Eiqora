@@ -24,13 +24,14 @@ def _parse_database_url() -> dict:
     
     parsed = urlparse(url)
     
-    return {
+    config = {
         "host": parsed.hostname or "localhost",
         "port": parsed.port or 5432,
         "user": parsed.username or "postgres",
         "password": parsed.password or "postgres",
         "database": parsed.path.lstrip("/") or "finance",
     }
+    return config
 
 
 async def get_pool() -> asyncpg.Pool:

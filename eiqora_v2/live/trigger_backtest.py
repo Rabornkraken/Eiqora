@@ -53,39 +53,39 @@ def resolve_outcome(
         sl_hit = bar_low is not None and float(bar_low) <= stop_loss
 
         if tp_hit and sl_hit:
-            max_fav = (max_high - entry_price) / entry_price
-            max_adv = (min_low - entry_price) / entry_price
+            max_fav = (max_high - entry_price) / entry_price * 100
+            max_adv = (min_low - entry_price) / entry_price * 100
             return {
                 "outcome": "SL_HIT",
                 "outcome_time": bar_time,
                 "bars_to_outcome": bars_seen,
                 "max_favorable_pct": max_fav,
                 "max_adverse_pct": max_adv,
-                "realized_pnl_pct": (stop_loss - entry_price) / entry_price,
+                "realized_pnl_pct": (stop_loss - entry_price) / entry_price * 100,
                 "same_bar_tie": True,
             }
         if tp_hit:
-            max_fav = (max_high - entry_price) / entry_price
-            max_adv = (min_low - entry_price) / entry_price
+            max_fav = (max_high - entry_price) / entry_price * 100
+            max_adv = (min_low - entry_price) / entry_price * 100
             return {
                 "outcome": "TP_HIT",
                 "outcome_time": bar_time,
                 "bars_to_outcome": bars_seen,
                 "max_favorable_pct": max_fav,
                 "max_adverse_pct": max_adv,
-                "realized_pnl_pct": (take_profit - entry_price) / entry_price,
+                "realized_pnl_pct": (take_profit - entry_price) / entry_price * 100,
                 "same_bar_tie": False,
             }
         if sl_hit:
-            max_fav = (max_high - entry_price) / entry_price
-            max_adv = (min_low - entry_price) / entry_price
+            max_fav = (max_high - entry_price) / entry_price * 100
+            max_adv = (min_low - entry_price) / entry_price * 100
             return {
                 "outcome": "SL_HIT",
                 "outcome_time": bar_time,
                 "bars_to_outcome": bars_seen,
                 "max_favorable_pct": max_fav,
                 "max_adverse_pct": max_adv,
-                "realized_pnl_pct": (stop_loss - entry_price) / entry_price,
+                "realized_pnl_pct": (stop_loss - entry_price) / entry_price * 100,
                 "same_bar_tie": False,
             }
 
@@ -93,9 +93,9 @@ def resolve_outcome(
     for _, _, _, bar_close in bars_list:
         if bar_close is not None:
             last_close = float(bar_close)
-    realized = (last_close - entry_price) / entry_price if last_close is not None else None
-    max_fav = (max_high - entry_price) / entry_price
-    max_adv = (min_low - entry_price) / entry_price
+    realized = (last_close - entry_price) / entry_price * 100 if last_close is not None else None
+    max_fav = (max_high - entry_price) / entry_price * 100
+    max_adv = (min_low - entry_price) / entry_price * 100
     return {
         "outcome": "NO_HIT",
         "outcome_time": None,
@@ -108,7 +108,18 @@ def resolve_outcome(
 
 
 def prepare_trigger_detail(value: Any) -> Json:
-    return Json(value)
+    from decimal import Decimal
+
+    def _convert(item):
+        if isinstance(item, dict):
+            return {k: _convert(v) for k, v in item.items()}
+        elif isinstance(item, list):
+            return [_convert(v) for v in item]
+        elif isinstance(item, Decimal):
+            return float(item)
+        return item
+
+    return Json(_convert(value))
 
 
 def build_result_row(

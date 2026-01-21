@@ -146,7 +146,7 @@ def calculate_ad_line(df: pd.DataFrame) -> pd.Series:
     return ad_line
 
 
-def calculate_all_indicators_for_symbol(conn, symbol: str, lookback_days: int = 365) -> int:
+def calculate_all_indicators_for_symbol(conn, symbol: str, lookback_days: int | None = 365) -> int:
     """Calculate ALL technical indicators for a single symbol."""
     
     # Fetch historical data
@@ -154,14 +154,18 @@ def calculate_all_indicators_for_symbol(conn, symbol: str, lookback_days: int = 
         SELECT date, open, high, low, close, volume
         FROM market_bar_daily
         WHERE symbol = %s
-          AND date >= %s
-        ORDER BY date ASC
     """
+    params = [symbol]
     
-    cutoff_date = datetime.now() - timedelta(days=lookback_days)
+    if lookback_days:
+        query += " AND date >= %s"
+        cutoff_date = datetime.now() - timedelta(days=lookback_days)
+        params.append(cutoff_date)
+        
+    query += " ORDER BY date ASC"
     
     with conn.cursor() as cur:
-        cur.execute(query, (symbol, cutoff_date))
+        cur.execute(query, tuple(params))
         rows = cur.fetchall()
         
         if len(rows) < 50:  # Need minimum data

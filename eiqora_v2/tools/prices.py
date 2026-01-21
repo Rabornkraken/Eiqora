@@ -524,6 +524,10 @@ async def get_hourly_indicators(
             else:
                 position_in_range = 0.5
             
+            # === Price Change Pct (vs previous bar) ===
+            prev_close = float(close.iloc[-2]) if len(close) > 1 else float(today_bars["open"].iloc[0])
+            price_change_pct = ((current_price - prev_close) / prev_close * 100) if prev_close > 0 else 0.0
+
             # === State Tags ===
             state_tags = []
             
@@ -555,6 +559,7 @@ async def get_hourly_indicators(
                 "intraday_trend": intraday_trend,
                 "today_high": today_high,
                 "today_low": today_low,
+                "price_change_pct": price_change_pct,
                 "price_range_pct": price_range_pct * 100,
                 "position_in_range": position_in_range,  # 0-1, where 1 is at high
                 "state_tags": state_tags,

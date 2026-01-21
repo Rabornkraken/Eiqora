@@ -2681,3 +2681,1991 @@ NameError: name 'OVERRIDE_TECH_TRIGGERS' is not defined. Did you mean: 'OVERRIDE
 2026-01-19 22:30:04,738 [INFO] Scanning 5 watchlist symbols for triggers...
 2026-01-19 22:30:04,916 [INFO] Found 0 new triggers (filtered from 0, suppressed=3)
 2026-01-19 22:30:04,916 [INFO] No triggers found
+2026-01-19 22:45:06,354 [INFO] Trigger event received (sec_filing); running scans
+2026-01-19 22:45:06,355 [INFO] === POSITION MONITORING: 2026-01-19 09:45:06.353743-05:00 ===
+2026-01-19 22:45:06,467 [INFO] No open positions to monitor
+2026-01-19 22:45:06,467 [INFO] No thesis-breaking triggers detected
+2026-01-19 22:45:06,467 [INFO] 
+============================================================
+2026-01-19 22:45:06,467 [INFO] TRIGGER SCAN: 2026-01-19 09:45 EST
+2026-01-19 22:45:06,467 [INFO] ============================================================
+2026-01-19 22:45:06,483 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-19 22:45:06,703 [INFO] Found 0 new triggers (filtered from 0, suppressed=2)
+2026-01-19 22:45:06,703 [INFO] No triggers found
+2026-01-19 23:00:04,700 [INFO] Trigger event received (sec_filing); running scans
+2026-01-19 23:00:04,702 [INFO] === POSITION MONITORING: 2026-01-19 10:00:04.698694-05:00 ===
+2026-01-19 23:00:04,747 [INFO] No open positions to monitor
+2026-01-19 23:00:04,747 [INFO] No thesis-breaking triggers detected
+2026-01-19 23:00:04,747 [INFO] 
+============================================================
+2026-01-19 23:00:04,747 [INFO] TRIGGER SCAN: 2026-01-19 10:00 EST
+2026-01-19 23:00:04,747 [INFO] ============================================================
+2026-01-19 23:00:04,754 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-19 23:00:04,885 [INFO] Found 0 new triggers (filtered from 0, suppressed=2)
+2026-01-19 23:00:04,885 [INFO] No triggers found
+2026-01-19 23:05:08,260 [INFO] Hourly bars update received; refreshing account state
+2026-01-19 23:05:08,290 [INFO] Trigger event received (market_bar_hourly); running scans
+2026-01-19 23:05:08,290 [INFO] === POSITION MONITORING: 2026-01-16 15:30:00-05:00 ===
+2026-01-19 23:05:08,292 [INFO] No open positions to monitor
+2026-01-19 23:05:08,292 [INFO] No thesis-breaking triggers detected
+2026-01-19 23:05:08,292 [INFO] 
+============================================================
+2026-01-19 23:05:08,292 [INFO] TRIGGER SCAN: 2026-01-16 15:30 EST
+2026-01-19 23:05:08,292 [INFO] ============================================================
+2026-01-19 23:05:08,297 [INFO] No watchlist found for 2026-01-16
+2026-01-19 23:05:08,297 [INFO] No triggers found
+2026-01-19 23:15:04,501 [INFO] Trigger event received (sec_filing); running scans
+2026-01-19 23:15:04,504 [INFO] === POSITION MONITORING: 2026-01-19 10:15:04.500406-05:00 ===
+2026-01-19 23:15:04,555 [INFO] No open positions to monitor
+2026-01-19 23:15:04,555 [INFO] No thesis-breaking triggers detected
+2026-01-19 23:15:04,555 [INFO] 
+============================================================
+2026-01-19 23:15:04,555 [INFO] TRIGGER SCAN: 2026-01-19 10:15 EST
+2026-01-19 23:15:04,555 [INFO] ============================================================
+2026-01-19 23:15:04,566 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-19 23:15:04,728 [INFO] Found 0 new triggers (filtered from 0, suppressed=2)
+2026-01-19 23:15:04,728 [INFO] No triggers found
+2026-01-19 23:22:33,435 [INFO] Trigger event received (yfinance_news); running scans
+2026-01-19 23:22:33,437 [INFO] === POSITION MONITORING: 2026-01-19 10:22:33.431365-05:00 ===
+2026-01-19 23:22:33,493 [INFO] No open positions to monitor
+2026-01-19 23:22:33,493 [INFO] No thesis-breaking triggers detected
+2026-01-19 23:22:33,494 [INFO] 
+============================================================
+2026-01-19 23:22:33,494 [INFO] TRIGGER SCAN: 2026-01-19 10:22 EST
+2026-01-19 23:22:33,494 [INFO] ============================================================
+2026-01-19 23:22:33,504 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-19 23:22:33,685 [INFO] Found 0 new triggers (filtered from 0, suppressed=2)
+2026-01-19 23:22:33,685 [INFO] No triggers found
+2026-01-19 23:30:04,752 [INFO] Trigger event received (sec_filing); running scans
+2026-01-19 23:30:04,755 [INFO] === POSITION MONITORING: 2026-01-19 10:30:04.751777-05:00 ===
+2026-01-19 23:30:04,800 [INFO] No open positions to monitor
+2026-01-19 23:30:04,800 [INFO] No thesis-breaking triggers detected
+2026-01-19 23:30:04,800 [INFO] 
+============================================================
+2026-01-19 23:30:04,800 [INFO] TRIGGER SCAN: 2026-01-19 10:30 EST
+2026-01-19 23:30:04,800 [INFO] ============================================================
+2026-01-19 23:30:04,808 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-19 23:30:04,959 [INFO] Found 0 new triggers (filtered from 0, suppressed=2)
+2026-01-19 23:30:04,959 [INFO] No triggers found
+2026-01-19 23:45:04,865 [INFO] Trigger event received (sec_filing); running scans
+2026-01-19 23:45:04,867 [INFO] === POSITION MONITORING: 2026-01-19 10:45:04.859484-05:00 ===
+2026-01-19 23:45:04,935 [INFO] No open positions to monitor
+2026-01-19 23:45:04,935 [INFO] No thesis-breaking triggers detected
+2026-01-19 23:45:04,935 [INFO] 
+============================================================
+2026-01-19 23:45:04,935 [INFO] TRIGGER SCAN: 2026-01-19 10:45 EST
+2026-01-19 23:45:04,935 [INFO] ============================================================
+2026-01-19 23:45:04,943 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-19 23:45:05,122 [INFO] Found 0 new triggers (filtered from 0, suppressed=2)
+2026-01-19 23:45:05,122 [INFO] No triggers found
+2026-01-20 00:00:04,859 [INFO] Trigger event received (sec_filing); running scans
+2026-01-20 00:00:04,861 [INFO] === POSITION MONITORING: 2026-01-19 11:00:04.859420-05:00 ===
+2026-01-20 00:00:04,917 [INFO] No open positions to monitor
+2026-01-20 00:00:04,918 [INFO] No thesis-breaking triggers detected
+2026-01-20 00:00:04,918 [INFO] 
+============================================================
+2026-01-20 00:00:04,918 [INFO] TRIGGER SCAN: 2026-01-19 11:00 EST
+2026-01-20 00:00:04,918 [INFO] ============================================================
+2026-01-20 00:00:04,925 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-20 00:00:05,116 [INFO] Found 0 new triggers (filtered from 0, suppressed=2)
+2026-01-20 00:00:05,116 [INFO] No triggers found
+2026-01-20 00:15:05,004 [INFO] Trigger event received (sec_filing); running scans
+2026-01-20 00:15:05,012 [INFO] === POSITION MONITORING: 2026-01-19 11:15:05.002943-05:00 ===
+2026-01-20 00:15:05,071 [INFO] No open positions to monitor
+2026-01-20 00:15:05,071 [INFO] No thesis-breaking triggers detected
+2026-01-20 00:15:05,071 [INFO] 
+============================================================
+2026-01-20 00:15:05,071 [INFO] TRIGGER SCAN: 2026-01-19 11:15 EST
+2026-01-20 00:15:05,071 [INFO] ============================================================
+2026-01-20 00:15:05,079 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-20 00:15:05,250 [INFO] Found 0 new triggers (filtered from 0, suppressed=2)
+2026-01-20 00:15:05,250 [INFO] No triggers found
+2026-01-20 00:21:09,437 [INFO] Trigger event received (yfinance_news); running scans
+2026-01-20 00:21:09,438 [INFO] === POSITION MONITORING: 2026-01-19 11:21:09.436263-05:00 ===
+2026-01-20 00:21:09,490 [INFO] No open positions to monitor
+2026-01-20 00:21:09,490 [INFO] No thesis-breaking triggers detected
+2026-01-20 00:21:09,490 [INFO] 
+============================================================
+2026-01-20 00:21:09,490 [INFO] TRIGGER SCAN: 2026-01-19 11:21 EST
+2026-01-20 00:21:09,490 [INFO] ============================================================
+2026-01-20 00:21:09,501 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-20 00:21:09,683 [INFO] Found 0 new triggers (filtered from 0, suppressed=2)
+2026-01-20 00:21:09,684 [INFO] No triggers found
+2026-01-20 00:30:04,347 [INFO] Trigger event received (sec_filing); running scans
+2026-01-20 00:30:04,349 [INFO] === POSITION MONITORING: 2026-01-19 11:30:04.347334-05:00 ===
+2026-01-20 00:30:04,390 [INFO] No open positions to monitor
+2026-01-20 00:30:04,390 [INFO] No thesis-breaking triggers detected
+2026-01-20 00:30:04,390 [INFO] 
+============================================================
+2026-01-20 00:30:04,390 [INFO] TRIGGER SCAN: 2026-01-19 11:30 EST
+2026-01-20 00:30:04,390 [INFO] ============================================================
+2026-01-20 00:30:04,403 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-20 00:30:04,599 [INFO] Found 0 new triggers (filtered from 0, suppressed=2)
+2026-01-20 00:30:04,599 [INFO] No triggers found
+2026-01-20 00:45:04,627 [INFO] Trigger event received (sec_filing); running scans
+2026-01-20 00:45:04,630 [INFO] === POSITION MONITORING: 2026-01-19 11:45:04.626639-05:00 ===
+2026-01-20 00:45:04,685 [INFO] No open positions to monitor
+2026-01-20 00:45:04,685 [INFO] No thesis-breaking triggers detected
+2026-01-20 00:45:04,685 [INFO] 
+============================================================
+2026-01-20 00:45:04,685 [INFO] TRIGGER SCAN: 2026-01-19 11:45 EST
+2026-01-20 00:45:04,685 [INFO] ============================================================
+2026-01-20 00:45:04,695 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-20 00:45:04,890 [INFO] Found 0 new triggers (filtered from 0, suppressed=2)
+2026-01-20 00:45:04,890 [INFO] No triggers found
+2026-01-20 01:00:04,727 [INFO] Trigger event received (sec_filing); running scans
+2026-01-20 01:00:04,728 [INFO] === POSITION MONITORING: 2026-01-19 12:00:04.726954-05:00 ===
+2026-01-20 01:00:04,778 [INFO] No open positions to monitor
+2026-01-20 01:00:04,778 [INFO] No thesis-breaking triggers detected
+2026-01-20 01:00:04,778 [INFO] 
+============================================================
+2026-01-20 01:00:04,778 [INFO] TRIGGER SCAN: 2026-01-19 12:00 EST
+2026-01-20 01:00:04,778 [INFO] ============================================================
+2026-01-20 01:00:04,787 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-20 01:00:04,939 [INFO] Found 0 new triggers (filtered from 0, suppressed=2)
+2026-01-20 01:00:04,939 [INFO] No triggers found
+2026-01-20 01:15:04,637 [INFO] Trigger event received (sec_filing); running scans
+2026-01-20 01:15:04,639 [INFO] === POSITION MONITORING: 2026-01-19 12:15:04.635880-05:00 ===
+2026-01-20 01:15:04,689 [INFO] No open positions to monitor
+2026-01-20 01:15:04,690 [INFO] No thesis-breaking triggers detected
+2026-01-20 01:15:04,690 [INFO] 
+============================================================
+2026-01-20 01:15:04,690 [INFO] TRIGGER SCAN: 2026-01-19 12:15 EST
+2026-01-20 01:15:04,690 [INFO] ============================================================
+2026-01-20 01:15:04,701 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-20 01:15:04,874 [INFO] Found 0 new triggers (filtered from 0, suppressed=1)
+2026-01-20 01:15:04,874 [INFO] No triggers found
+2026-01-20 01:16:03,348 [INFO] Trigger event received (yfinance_news); running scans
+2026-01-20 01:16:03,351 [INFO] === POSITION MONITORING: 2026-01-19 12:16:03.347842-05:00 ===
+2026-01-20 01:16:03,387 [INFO] No open positions to monitor
+2026-01-20 01:16:03,387 [INFO] No thesis-breaking triggers detected
+2026-01-20 01:16:03,387 [INFO] 
+============================================================
+2026-01-20 01:16:03,387 [INFO] TRIGGER SCAN: 2026-01-19 12:16 EST
+2026-01-20 01:16:03,387 [INFO] ============================================================
+2026-01-20 01:16:03,390 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-20 01:16:03,744 [INFO] Found 0 new triggers (filtered from 0, suppressed=1)
+2026-01-20 01:16:03,744 [INFO] No triggers found
+2026-01-20 01:20:19,764 [INFO] Trigger event received (yfinance_news); running scans
+2026-01-20 01:20:19,766 [INFO] === POSITION MONITORING: 2026-01-19 12:20:19.763628-05:00 ===
+2026-01-20 01:20:19,806 [INFO] No open positions to monitor
+2026-01-20 01:20:19,806 [INFO] No thesis-breaking triggers detected
+2026-01-20 01:20:19,807 [INFO] 
+============================================================
+2026-01-20 01:20:19,807 [INFO] TRIGGER SCAN: 2026-01-19 12:20 EST
+2026-01-20 01:20:19,807 [INFO] ============================================================
+2026-01-20 01:20:19,820 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-20 01:20:20,005 [INFO] Found 0 new triggers (filtered from 0, suppressed=1)
+2026-01-20 01:20:20,006 [INFO] No triggers found
+2026-01-20 01:30:04,631 [INFO] Trigger event received (sec_filing); running scans
+2026-01-20 01:30:04,634 [INFO] === POSITION MONITORING: 2026-01-19 12:30:04.628392-05:00 ===
+2026-01-20 01:30:04,685 [INFO] No open positions to monitor
+2026-01-20 01:30:04,686 [INFO] No thesis-breaking triggers detected
+2026-01-20 01:30:04,686 [INFO] 
+============================================================
+2026-01-20 01:30:04,686 [INFO] TRIGGER SCAN: 2026-01-19 12:30 EST
+2026-01-20 01:30:04,686 [INFO] ============================================================
+2026-01-20 01:30:04,691 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-20 01:30:04,872 [INFO] Found 0 new triggers (filtered from 0, suppressed=1)
+2026-01-20 01:30:04,872 [INFO] No triggers found
+2026-01-20 01:45:04,741 [INFO] Trigger event received (sec_filing); running scans
+2026-01-20 01:45:04,742 [INFO] === POSITION MONITORING: 2026-01-19 12:45:04.741118-05:00 ===
+2026-01-20 01:45:04,794 [INFO] No open positions to monitor
+2026-01-20 01:45:04,794 [INFO] No thesis-breaking triggers detected
+2026-01-20 01:45:04,794 [INFO] 
+============================================================
+2026-01-20 01:45:04,794 [INFO] TRIGGER SCAN: 2026-01-19 12:45 EST
+2026-01-20 01:45:04,794 [INFO] ============================================================
+2026-01-20 01:45:04,807 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-20 01:45:04,978 [INFO] Found 0 new triggers (filtered from 0, suppressed=1)
+2026-01-20 01:45:04,978 [INFO] No triggers found
+2026-01-20 02:17:43,242 [INFO] No ingest notifications in the last 900 seconds
+2026-01-20 02:19:08,712 [WARNING] Account refresh failed: 
+2026-01-20 04:00:22,879 [INFO] No ingest notifications in the last 900 seconds
+2026-01-20 04:18:57,277 [WARNING] Account refresh failed: 
+2026-01-20 08:15:07,433 [INFO] No ingest notifications in the last 900 seconds
+2026-01-20 09:29:03,469 [INFO] Watchlist already built for 2026-01-19; skipping rebuild
+2026-01-20 09:29:40,189 [INFO] Trigger event received (earnings_event); running scans
+2026-01-20 09:29:40,190 [INFO] === POSITION MONITORING: 2026-01-19 20:29:40.189267-05:00 ===
+2026-01-20 09:29:40,220 [INFO] No open positions to monitor
+2026-01-20 09:29:40,220 [INFO] No thesis-breaking triggers detected
+2026-01-20 09:29:40,220 [INFO] 
+============================================================
+2026-01-20 09:29:40,220 [INFO] TRIGGER SCAN: 2026-01-19 20:29 EST
+2026-01-20 09:29:40,221 [INFO] ============================================================
+2026-01-20 09:29:40,232 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-20 09:29:40,394 [INFO] Found 0 new triggers (filtered from 0, suppressed=0)
+2026-01-20 09:29:40,394 [INFO] No triggers found
+2026-01-20 09:31:50,330 [INFO] Trigger event received (options_daily_summary, sec_filing); running scans
+2026-01-20 09:31:50,333 [INFO] === POSITION MONITORING: 2026-01-19 20:31:50.330051-05:00 ===
+2026-01-20 09:31:50,352 [INFO] No open positions to monitor
+2026-01-20 09:31:50,352 [INFO] No thesis-breaking triggers detected
+2026-01-20 09:31:50,352 [INFO] 
+============================================================
+2026-01-20 09:31:50,353 [INFO] TRIGGER SCAN: 2026-01-19 20:31 EST
+2026-01-20 09:31:50,353 [INFO] ============================================================
+2026-01-20 09:31:50,361 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-20 09:31:50,532 [INFO] Found 0 new triggers (filtered from 0, suppressed=0)
+2026-01-20 09:31:50,532 [INFO] No triggers found
+2026-01-20 09:35:22,937 [INFO] Trigger event received (yfinance_news); running scans
+2026-01-20 09:35:22,939 [INFO] === POSITION MONITORING: 2026-01-19 20:35:22.933438-05:00 ===
+2026-01-20 09:35:22,968 [INFO] No open positions to monitor
+2026-01-20 09:35:22,968 [INFO] No thesis-breaking triggers detected
+2026-01-20 09:35:22,968 [INFO] 
+============================================================
+2026-01-20 09:35:22,969 [INFO] TRIGGER SCAN: 2026-01-19 20:35 EST
+2026-01-20 09:35:22,969 [INFO] ============================================================
+2026-01-20 09:35:22,973 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-20 09:35:23,131 [INFO] Found 0 new triggers (filtered from 0, suppressed=1)
+2026-01-20 09:35:23,131 [INFO] No triggers found
+2026-01-20 09:45:04,668 [INFO] Trigger event received (sec_filing); running scans
+2026-01-20 09:45:04,671 [INFO] === POSITION MONITORING: 2026-01-19 20:45:04.668155-05:00 ===
+2026-01-20 09:45:04,687 [INFO] No open positions to monitor
+2026-01-20 09:45:04,687 [INFO] No thesis-breaking triggers detected
+2026-01-20 09:45:04,687 [INFO] 
+============================================================
+2026-01-20 09:45:04,687 [INFO] TRIGGER SCAN: 2026-01-19 20:45 EST
+2026-01-20 09:45:04,687 [INFO] ============================================================
+2026-01-20 09:45:04,712 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-20 09:45:04,906 [INFO] Found 0 new triggers (filtered from 0, suppressed=1)
+2026-01-20 09:45:04,906 [INFO] No triggers found
+2026-01-20 10:00:04,910 [INFO] No ingest notifications in the last 900 seconds
+2026-01-20 10:15:04,916 [INFO] No ingest notifications in the last 900 seconds
+2026-01-20 10:20:37,482 [INFO] Trigger event received (yfinance_news); running scans
+2026-01-20 10:20:37,484 [INFO] === POSITION MONITORING: 2026-01-19 21:20:37.481352-05:00 ===
+2026-01-20 10:20:37,548 [INFO] No open positions to monitor
+2026-01-20 10:20:37,549 [INFO] No thesis-breaking triggers detected
+2026-01-20 10:20:37,549 [INFO] 
+============================================================
+2026-01-20 10:20:37,549 [INFO] TRIGGER SCAN: 2026-01-19 21:20 EST
+2026-01-20 10:20:37,549 [INFO] ============================================================
+2026-01-20 10:20:37,560 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-20 10:20:37,782 [INFO] Found 0 new triggers (filtered from 0, suppressed=1)
+2026-01-20 10:20:37,782 [INFO] No triggers found
+2026-01-20 10:35:37,791 [INFO] No ingest notifications in the last 900 seconds
+2026-01-20 10:50:37,802 [INFO] No ingest notifications in the last 900 seconds
+2026-01-20 11:05:37,810 [INFO] No ingest notifications in the last 900 seconds
+2026-01-20 11:20:37,830 [INFO] No ingest notifications in the last 900 seconds
+2026-01-20 11:21:10,165 [INFO] Trigger event received (yfinance_news); running scans
+2026-01-20 11:21:10,165 [INFO] === POSITION MONITORING: 2026-01-19 22:21:10.159967-05:00 ===
+2026-01-20 11:21:10,233 [INFO] No open positions to monitor
+2026-01-20 11:21:10,233 [INFO] No thesis-breaking triggers detected
+2026-01-20 11:21:10,233 [INFO] 
+============================================================
+2026-01-20 11:21:10,233 [INFO] TRIGGER SCAN: 2026-01-19 22:21 EST
+2026-01-20 11:21:10,234 [INFO] ============================================================
+2026-01-20 11:21:10,241 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-20 11:21:10,422 [INFO] Found 0 new triggers (filtered from 0, suppressed=1)
+2026-01-20 11:21:10,422 [INFO] No triggers found
+2026-01-20 11:58:45,277 [INFO] No ingest notifications in the last 900 seconds
+2026-01-20 12:13:45,307 [INFO] No ingest notifications in the last 900 seconds
+2026-01-20 12:28:45,318 [INFO] No ingest notifications in the last 900 seconds
+2026-01-20 12:43:45,334 [INFO] No ingest notifications in the last 900 seconds
+2026-01-20 12:58:45,344 [INFO] No ingest notifications in the last 900 seconds
+2026-01-20 13:13:45,353 [INFO] No ingest notifications in the last 900 seconds
+2026-01-20 13:28:45,361 [INFO] No ingest notifications in the last 900 seconds
+2026-01-20 13:43:45,367 [INFO] No ingest notifications in the last 900 seconds
+2026-01-20 13:58:45,376 [INFO] No ingest notifications in the last 900 seconds
+2026-01-20 14:13:45,388 [INFO] No ingest notifications in the last 900 seconds
+2026-01-20 14:20:54,671 [INFO] Trigger event received (yfinance_news); running scans
+2026-01-20 14:20:54,675 [INFO] === POSITION MONITORING: 2026-01-20 01:20:54.666941-05:00 ===
+2026-01-20 14:20:54,682 [INFO] No open positions to monitor
+2026-01-20 14:20:54,682 [INFO] No thesis-breaking triggers detected
+2026-01-20 14:20:54,682 [INFO] 
+============================================================
+2026-01-20 14:20:54,683 [INFO] TRIGGER SCAN: 2026-01-20 01:20 EST
+2026-01-20 14:20:54,683 [INFO] ============================================================
+2026-01-20 14:20:54,693 [INFO] No watchlist found for 2026-01-20
+2026-01-20 14:20:54,694 [INFO] No triggers found
+2026-01-20 14:35:54,704 [INFO] No ingest notifications in the last 900 seconds
+2026-01-20 14:50:54,713 [INFO] No ingest notifications in the last 900 seconds
+2026-01-20 15:05:54,722 [INFO] No ingest notifications in the last 900 seconds
+2026-01-20 15:20:42,010 [INFO] Trigger event received (yfinance_news); running scans
+2026-01-20 15:20:42,011 [INFO] === POSITION MONITORING: 2026-01-20 02:20:42.006112-05:00 ===
+2026-01-20 15:20:42,016 [INFO] No open positions to monitor
+2026-01-20 15:20:42,017 [INFO] No thesis-breaking triggers detected
+2026-01-20 15:20:42,017 [INFO] 
+============================================================
+2026-01-20 15:20:42,017 [INFO] TRIGGER SCAN: 2026-01-20 02:20 EST
+2026-01-20 15:20:42,017 [INFO] ============================================================
+2026-01-20 15:20:42,023 [INFO] No watchlist found for 2026-01-20
+2026-01-20 15:20:42,023 [INFO] No triggers found
+2026-01-20 15:35:42,027 [INFO] No ingest notifications in the last 900 seconds
+2026-01-20 15:50:42,034 [INFO] No ingest notifications in the last 900 seconds
+2026-01-20 16:05:42,039 [INFO] No ingest notifications in the last 900 seconds
+2026-01-20 16:20:42,044 [INFO] No ingest notifications in the last 900 seconds
+2026-01-20 16:21:24,863 [INFO] Trigger event received (yfinance_news); running scans
+2026-01-20 16:21:24,864 [INFO] === POSITION MONITORING: 2026-01-20 03:21:24.863058-05:00 ===
+2026-01-20 16:21:24,867 [INFO] No open positions to monitor
+2026-01-20 16:21:24,867 [INFO] No thesis-breaking triggers detected
+2026-01-20 16:21:24,867 [INFO] 
+============================================================
+2026-01-20 16:21:24,867 [INFO] TRIGGER SCAN: 2026-01-20 03:21 EST
+2026-01-20 16:21:24,867 [INFO] ============================================================
+2026-01-20 16:21:24,873 [INFO] No watchlist found for 2026-01-20
+2026-01-20 16:21:24,873 [INFO] No triggers found
+2026-01-20 16:36:24,878 [INFO] No ingest notifications in the last 900 seconds
+2026-01-20 16:51:24,884 [INFO] No ingest notifications in the last 900 seconds
+2026-01-20 17:06:24,890 [INFO] No ingest notifications in the last 900 seconds
+2026-01-20 17:15:42,252 [INFO] Trigger event received (yfinance_news); running scans
+2026-01-20 17:15:42,254 [INFO] === POSITION MONITORING: 2026-01-20 04:15:42.252454-05:00 ===
+2026-01-20 17:15:42,284 [INFO] No open positions to monitor
+2026-01-20 17:15:42,284 [INFO] No thesis-breaking triggers detected
+2026-01-20 17:15:42,285 [INFO] 
+============================================================
+2026-01-20 17:15:42,285 [INFO] TRIGGER SCAN: 2026-01-20 04:15 EST
+2026-01-20 17:15:42,285 [INFO] ============================================================
+2026-01-20 17:15:42,293 [INFO] No watchlist found for 2026-01-20
+2026-01-20 17:15:42,293 [INFO] No triggers found
+2026-01-20 17:30:42,302 [INFO] No ingest notifications in the last 900 seconds
+2026-01-20 22:09:03,734 [INFO] No ingest notifications in the last 900 seconds
+2026-01-20 22:24:03,738 [INFO] No ingest notifications in the last 900 seconds
+2026-01-20 22:39:03,742 [INFO] No ingest notifications in the last 900 seconds
+2026-01-20 22:54:03,749 [INFO] No ingest notifications in the last 900 seconds
+2026-01-20 23:01:41,709 [INFO] Position Manager enabled for live trading
+2026-01-20 23:01:41,709 [INFO] Starting Live Pipeline Service
+2026-01-20 23:01:41,712 [INFO] Account refresh loop every 900 seconds
+2026-01-20 23:01:41,819 [INFO] Listening for ingest notifications on 'eiqora_ingest'
+2026-01-20 23:02:00,966 [INFO] Watchlist already built for 2026-01-20; skipping rebuild
+2026-01-20 23:02:38,191 [INFO] Trigger event received (earnings_event); running scans
+2026-01-20 23:02:38,195 [INFO] === POSITION MONITORING: 2026-01-20 10:02:38.190789-05:00 ===
+2026-01-20 23:02:38,212 [INFO] No open positions to monitor
+2026-01-20 23:02:38,212 [INFO] No thesis-breaking triggers detected
+2026-01-20 23:02:38,212 [INFO] 
+============================================================
+2026-01-20 23:02:38,212 [INFO] TRIGGER SCAN: 2026-01-20 10:02 EST
+2026-01-20 23:02:38,212 [INFO] ============================================================
+2026-01-20 23:02:38,227 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-20 23:02:38,410 [INFO] Found 2 new triggers (filtered from 2, suppressed=0)
+2026-01-20 23:02:38,410 [INFO] Found 2 triggers
+2026-01-20 23:02:38,410 [INFO] Consolidated into 2 symbols (avg 1.0 triggers/symbol)
+2026-01-20 23:02:38,418 [INFO] Processing trigger: Trigger(GOOG, volatility_compression, MEDIUM)
+2026-01-20 23:02:38,424 [INFO] Using cached profile for GOOG (age: 6d)
+2026-01-20 23:02:38,453 [INFO] Processing trigger: Trigger(CAT, volatility_compression, MEDIUM)
+2026-01-20 23:02:38,453 [INFO] ⏭️  Skipping GOOG due to stale_hourly_data gap_hours=90.54394188583333
+2026-01-20 23:02:38,454 [INFO] Using cached profile for CAT (age: 6d)
+2026-01-20 23:02:38,468 [INFO] ⏭️  Skipping CAT due to stale_hourly_data gap_hours=90.54394188583333
+2026-01-20 23:02:38,472 [INFO] 
+============================================================
+2026-01-20 23:02:38,473 [INFO] SCAN COMPLETE: 0 GO signal(s)
+2026-01-20 23:02:38,473 [INFO] ============================================================
+
+2026-01-20 23:04:52,666 [INFO] Hourly bars update received; refreshing account state
+2026-01-20 23:04:52,696 [INFO] Trigger event received (market_bar_hourly); running scans
+2026-01-20 23:04:52,696 [INFO] === POSITION MONITORING: 2026-01-20 09:30:00-05:00 ===
+2026-01-20 23:04:52,698 [INFO] No open positions to monitor
+2026-01-20 23:04:52,698 [INFO] No thesis-breaking triggers detected
+2026-01-20 23:04:52,698 [INFO] 
+============================================================
+2026-01-20 23:04:52,698 [INFO] TRIGGER SCAN: 2026-01-20 09:30 EST
+2026-01-20 23:04:52,698 [INFO] ============================================================
+2026-01-20 23:04:52,708 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-20 23:04:53,232 [INFO] Found 2 new triggers (filtered from 2, suppressed=0)
+2026-01-20 23:04:53,232 [INFO] Found 2 triggers
+2026-01-20 23:04:53,232 [INFO] Consolidated into 2 symbols (avg 1.0 triggers/symbol)
+2026-01-20 23:04:53,240 [INFO] Processing trigger: Trigger(GOOG, volatility_compression, MEDIUM)
+2026-01-20 23:04:53,242 [INFO] Processing trigger: Trigger(CAT, volatility_compression, MEDIUM)
+2026-01-20 23:04:53,243 [INFO] Using cached profile for GOOG (age: 6d)
+2026-01-20 23:04:53,244 [INFO] Using cached profile for CAT (age: 6d)
+2026-01-20 23:04:53,275 [INFO]   Signal quality: 0.500 (neutral) - 
+2026-01-20 23:04:53,275 [INFO] Running LLM pipeline for GOOG (volatility_compression)
+2026-01-20 23:04:53,276 [INFO] Starting LIVE orchestrator for GOOG
+2026-01-20 23:04:53,700 [INFO] Starting orchestrator for GOOG
+2026-01-20 23:04:53,712 [INFO] Running fundamental for GOOG
+2026-01-20 23:04:53,712 [INFO]   Using profile baseline: 4 known risks, 4 catalysts
+2026-01-20 23:04:53,713 [INFO] Running supply_chain for GOOG
+2026-01-20 23:04:53,714 [INFO] Running topdown for GOOG
+2026-01-20 23:04:53,716 [INFO]   Signal quality: 0.500 (neutral) - 
+2026-01-20 23:04:53,716 [INFO] Running LLM pipeline for CAT (volatility_compression)
+2026-01-20 23:04:53,716 [INFO] Starting LIVE orchestrator for CAT
+2026-01-20 23:04:53,716 [INFO] Starting orchestrator for CAT
+2026-01-20 23:04:53,717 [INFO] Running fundamental for CAT
+2026-01-20 23:04:53,717 [INFO]   Using profile baseline: 4 known risks, 4 catalysts
+2026-01-20 23:04:53,717 [INFO] Running supply_chain for CAT
+2026-01-20 23:04:53,718 [INFO] Running topdown for CAT
+2026-01-20 23:04:54,261 [WARNING] CAT: Influential statements fetch failed - invalid input for query argument $2: datetime.datetime(2026, 1, 20, 9, 30, tz... (can't subtract offset-naive and offset-aware datetimes)
+2026-01-20 23:04:54,262 [INFO] fundamental completed successfully (news=11, sec=3, statements=0)
+2026-01-20 23:04:54,262 [WARNING] GOOG: Influential statements fetch failed - invalid input for query argument $2: datetime.datetime(2026, 1, 20, 9, 30, tz... (can't subtract offset-naive and offset-aware datetimes)
+2026-01-20 23:04:54,262 [INFO] fundamental completed successfully (news=115, sec=13, statements=0)
+2026-01-20 23:04:54,988 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:04:55,695 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:04:57,403 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:04:58,536 [INFO] topdown completed successfully
+2026-01-20 23:04:59,110 [INFO] supply_chain completed successfully
+2026-01-20 23:04:59,194 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:05:00,327 [INFO] supply_chain completed successfully
+2026-01-20 23:05:00,328 [INFO] Running chart for CAT
+2026-01-20 23:05:00,330 [INFO] Filtered CAT: NO_SETUP
+2026-01-20 23:05:01,302 [INFO] topdown completed successfully
+2026-01-20 23:05:01,302 [INFO] Running chart for GOOG
+2026-01-20 23:05:01,304 [INFO] Filtered GOOG: NO_SETUP
+2026-01-20 23:05:01,409 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:05:11,352 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:05:17,342 [INFO] chart completed successfully
+2026-01-20 23:05:17,346 [INFO] Passed filter CAT: PULLBACK_MA20
+2026-01-20 23:05:17,347 [INFO] Running idea_generator for CAT
+2026-01-20 23:05:18,303 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:05:27,061 [INFO] chart completed successfully
+2026-01-20 23:05:27,062 [INFO] Passed filter GOOG: PULLBACK_MA20
+2026-01-20 23:05:27,063 [INFO] Running idea_generator for GOOG
+2026-01-20 23:05:28,900 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:05:30,984 [INFO] idea_generator completed successfully
+2026-01-20 23:05:30,987 [INFO] Running exit_policy for CAT
+2026-01-20 23:05:33,017 [INFO] idea_generator completed successfully
+2026-01-20 23:05:33,020 [INFO] Running exit_policy for GOOG
+2026-01-20 23:05:35,970 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:05:39,262 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:05:42,475 [INFO] exit_policy completed successfully
+2026-01-20 23:05:42,479 [INFO] Running idea_generator for GOOG
+2026-01-20 23:05:42,481 [INFO] Running red_team for GOOG
+2026-01-20 23:05:42,837 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:05:46,003 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:05:47,792 [INFO] exit_policy completed successfully
+2026-01-20 23:05:47,794 [INFO] Running idea_generator for CAT
+2026-01-20 23:05:47,794 [INFO] Running red_team for CAT
+2026-01-20 23:05:49,442 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:05:50,348 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:05:52,382 [INFO] red_team completed successfully
+2026-01-20 23:05:53,241 [INFO] red_team completed successfully
+2026-01-20 23:05:54,071 [INFO] idea_generator completed successfully
+2026-01-20 23:05:54,072 [INFO] Running exit_policy for CAT
+2026-01-20 23:05:54,074 [INFO] Running short_perspective for CAT
+2026-01-20 23:05:54,913 [INFO] idea_generator completed successfully
+2026-01-20 23:05:54,914 [INFO] Running exit_policy for GOOG
+2026-01-20 23:05:54,917 [INFO] Running short_perspective for GOOG
+2026-01-20 23:05:55,211 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:05:55,571 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:05:56,309 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:05:58,092 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:06:01,884 [INFO] short_perspective completed successfully
+2026-01-20 23:06:01,885 [INFO]   🔻 Short Perspective: NONE (score: 0.5/10)
+2026-01-20 23:06:01,885 [INFO]      Red flags: options_bearish
+2026-01-20 23:06:03,584 [INFO] exit_policy completed successfully
+2026-01-20 23:06:03,585 [INFO] Running decision for GOOG
+2026-01-20 23:06:03,587 [INFO] Running red_team for GOOG
+2026-01-20 23:06:03,640 [INFO] short_perspective completed successfully
+2026-01-20 23:06:03,640 [INFO]   🔻 Short Perspective: NONE (score: 2.5/10)
+2026-01-20 23:06:03,640 [INFO]      Red flags: overbought, options_bearish
+2026-01-20 23:06:06,666 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:06:07,208 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:06:10,117 [INFO] decision completed successfully
+2026-01-20 23:06:13,977 [INFO] red_team completed successfully
+2026-01-20 23:06:13,978 [INFO] Running short_perspective for GOOG
+2026-01-20 23:06:19,926 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:06:29,765 [INFO] short_perspective completed successfully
+2026-01-20 23:06:29,765 [INFO]   🔻 Short Perspective: NONE (score: 0.5/10)
+2026-01-20 23:06:29,765 [INFO]      Red flags: options_bearish
+2026-01-20 23:06:29,766 [INFO] Running decision for GOOG
+2026-01-20 23:06:30,087 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:06:33,205 [INFO] exit_policy completed successfully
+2026-01-20 23:06:33,207 [INFO] Running decision for CAT
+2026-01-20 23:06:33,208 [INFO] Running red_team for CAT
+2026-01-20 23:06:35,699 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:06:36,983 [INFO] decision completed successfully
+2026-01-20 23:06:36,984 [INFO] Orchestrator complete for GOOG
+2026-01-20 23:06:36,984 [INFO] Live orchestrator complete for GOOG
+2026-01-20 23:06:37,007 [INFO] Logged analysis: GOOG volatility_compression -> REVIEW (id=665ba5a2...)
+2026-01-20 23:06:37,007 [INFO] ❌ NO_GO: GOOG (volatility_compression) - Conviction is MEDIUM (gate passed), but setup_quality score is 0.6 (< 0.65 threshold for GO). This f
+2026-01-20 23:06:40,646 [INFO] decision completed successfully
+2026-01-20 23:06:43,633 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:07:02,799 [INFO] red_team completed successfully
+2026-01-20 23:07:02,804 [INFO] Running position_manager for CAT
+2026-01-20 23:07:02,809 [INFO] Running short_perspective for CAT
+2026-01-20 23:07:03,162 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:07:03,522 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:07:07,840 [INFO] position_manager completed successfully
+2026-01-20 23:07:11,303 [INFO] short_perspective completed successfully
+2026-01-20 23:07:11,303 [INFO]   🔻 Short Perspective: NONE (score: 2.5/10)
+2026-01-20 23:07:11,304 [INFO]      Red flags: overbought, options_bearish
+2026-01-20 23:07:11,305 [INFO] Running decision for CAT
+2026-01-20 23:07:11,308 [INFO] Running sanity_veto for CAT
+2026-01-20 23:07:11,308 [ERROR] sanity_veto failed: unsupported format string passed to NoneType.__format__
+2026-01-20 23:07:11,756 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:07:29,660 [INFO] decision completed successfully
+2026-01-20 23:07:29,663 [INFO] Running narrative for CAT
+2026-01-20 23:07:29,663 [ERROR] narrative failed: unsupported format string passed to NoneType.__format__
+2026-01-20 23:07:29,663 [INFO] Running position_manager for CAT
+2026-01-20 23:07:29,992 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:07:41,878 [INFO] position_manager completed successfully
+2026-01-20 23:07:41,881 [INFO] Running sanity_veto for CAT
+2026-01-20 23:07:41,881 [ERROR] sanity_veto failed: unsupported format string passed to NoneType.__format__
+2026-01-20 23:07:41,881 [INFO] Running narrative for CAT
+2026-01-20 23:07:41,881 [ERROR] narrative failed: unsupported format string passed to NoneType.__format__
+2026-01-20 23:07:41,882 [INFO] Orchestrator complete for CAT
+2026-01-20 23:07:41,882 [INFO] Live orchestrator complete for CAT
+2026-01-20 23:07:41,895 [INFO] Logged analysis: CAT volatility_compression -> GO (id=e0337a41...)
+2026-01-20 23:07:41,897 [INFO] Exit policy - SL: $570.33 (Below $570.33 20d swing low), TP: $655.68 (ATR target for 1.5:1 R:R)
+2026-01-20 23:07:41,900 [WARNING] Risk model sizing failed for CAT: relation "ticker_info" does not exist
+2026-01-20 23:07:41,918 [INFO] Stored signal: CAT volatility_compression @ $637.16
+2026-01-20 23:07:41,919 [WARNING] Failed to open position for CAT: local variable 'direction' referenced before assignment
+2026-01-20 23:07:41,919 [INFO] ✅ GO: CAT @ $637.16 (SL: $570.33, TP: $655.68)
+2026-01-20 23:07:41,919 [INFO] 
+============================================================
+2026-01-20 23:07:41,919 [INFO] SCAN COMPLETE: 1 GO signal(s)
+2026-01-20 23:07:41,919 [INFO] ============================================================
+
+2026-01-20 23:09:31,503 [INFO] Trigger event received (yfinance_news); running scans
+2026-01-20 23:09:31,506 [INFO] === POSITION MONITORING: 2026-01-20 10:09:31.502408-05:00 ===
+2026-01-20 23:09:31,517 [INFO] No open positions to monitor
+2026-01-20 23:09:31,518 [INFO] No thesis-breaking triggers detected
+2026-01-20 23:09:31,518 [INFO] 
+============================================================
+2026-01-20 23:09:31,518 [INFO] TRIGGER SCAN: 2026-01-20 10:09 EST
+2026-01-20 23:09:31,518 [INFO] ============================================================
+2026-01-20 23:09:31,531 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-20 23:09:31,911 [INFO] Found 0 new triggers (filtered from 2, suppressed=2)
+2026-01-20 23:09:31,911 [INFO] No triggers found
+2026-01-20 23:17:14,565 [INFO] Watchlist already built for 2026-01-20; skipping rebuild
+2026-01-20 23:17:49,484 [INFO] Trigger event received (earnings_event); running scans
+2026-01-20 23:17:49,485 [INFO] === POSITION MONITORING: 2026-01-20 10:17:49.484085-05:00 ===
+2026-01-20 23:17:49,497 [INFO] No open positions to monitor
+2026-01-20 23:17:49,497 [INFO] No thesis-breaking triggers detected
+2026-01-20 23:17:49,497 [INFO] 
+============================================================
+2026-01-20 23:17:49,497 [INFO] TRIGGER SCAN: 2026-01-20 10:17 EST
+2026-01-20 23:17:49,497 [INFO] ============================================================
+2026-01-20 23:17:49,507 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-20 23:17:49,863 [INFO] Found 2 new triggers (filtered from 2, suppressed=2)
+2026-01-20 23:17:49,863 [INFO] Found 2 triggers
+2026-01-20 23:17:49,863 [INFO] Consolidated into 2 symbols (avg 1.0 triggers/symbol)
+2026-01-20 23:17:49,868 [INFO] Processing trigger: Trigger(GOOG, volatility_compression, MEDIUM)
+2026-01-20 23:17:49,888 [INFO] Using cached profile for GOOG (age: 6d)
+2026-01-20 23:17:49,906 [INFO] Processing trigger: Trigger(CAT, volatility_compression, MEDIUM)
+2026-01-20 23:17:49,910 [INFO]   Signal quality: 0.500 (neutral) - 
+2026-01-20 23:17:49,911 [INFO] Running LLM pipeline for GOOG (volatility_compression)
+2026-01-20 23:17:49,911 [INFO] Starting LIVE orchestrator for GOOG
+2026-01-20 23:17:49,911 [INFO] Starting orchestrator for GOOG
+2026-01-20 23:17:49,913 [INFO] Running fundamental for GOOG
+2026-01-20 23:17:49,913 [INFO]   Using profile baseline: 4 known risks, 4 catalysts
+2026-01-20 23:17:49,914 [INFO] Running supply_chain for GOOG
+2026-01-20 23:17:49,914 [INFO] Running topdown for GOOG
+2026-01-20 23:17:49,921 [INFO] Using cached profile for CAT (age: 6d)
+2026-01-20 23:17:50,020 [INFO]   Signal quality: 0.500 (neutral) - 
+2026-01-20 23:17:50,020 [INFO] Running LLM pipeline for CAT (volatility_compression)
+2026-01-20 23:17:50,020 [INFO] Starting LIVE orchestrator for CAT
+2026-01-20 23:17:50,020 [INFO] Starting orchestrator for CAT
+2026-01-20 23:17:50,026 [INFO] Running fundamental for CAT
+2026-01-20 23:17:50,026 [INFO]   Using profile baseline: 4 known risks, 4 catalysts
+2026-01-20 23:17:50,026 [INFO] Running supply_chain for CAT
+2026-01-20 23:17:50,026 [INFO] Running topdown for CAT
+2026-01-20 23:17:50,143 [WARNING] GOOG: Influential statements fetch failed - invalid input for query argument $2: datetime.datetime(2026, 1, 20, 10, 17, 4... (can't subtract offset-naive and offset-aware datetimes)
+2026-01-20 23:17:50,143 [INFO] fundamental completed successfully (news=114, sec=13, statements=0)
+2026-01-20 23:17:50,169 [WARNING] CAT: Influential statements fetch failed - invalid input for query argument $2: datetime.datetime(2026, 1, 20, 10, 17, 4... (can't subtract offset-naive and offset-aware datetimes)
+2026-01-20 23:17:50,169 [INFO] fundamental completed successfully (news=11, sec=3, statements=0)
+2026-01-20 23:17:50,882 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:17:50,899 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:17:51,368 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:17:53,012 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:17:53,753 [INFO] topdown completed successfully
+2026-01-20 23:17:54,193 [INFO] supply_chain completed successfully
+2026-01-20 23:17:56,024 [INFO] supply_chain completed successfully
+2026-01-20 23:17:56,025 [INFO] Running chart for CAT
+2026-01-20 23:17:56,027 [INFO] Filtered CAT: NO_SETUP
+2026-01-20 23:18:02,673 [INFO] topdown completed successfully
+2026-01-20 23:18:02,675 [INFO] Running chart for GOOG
+2026-01-20 23:18:02,676 [INFO] Filtered GOOG: NO_SETUP
+2026-01-20 23:18:04,842 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:18:06,106 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:18:08,602 [INFO] chart completed successfully
+2026-01-20 23:18:08,603 [INFO] Passed filter GOOG: PULLBACK_MA20
+2026-01-20 23:18:08,604 [INFO] Running idea_generator for GOOG
+2026-01-20 23:18:10,418 [INFO] chart completed successfully
+2026-01-20 23:18:10,419 [INFO] Passed filter CAT: PULLBACK_MA20
+2026-01-20 23:18:10,419 [INFO] Running idea_generator for CAT
+2026-01-20 23:18:11,071 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:18:17,680 [INFO] idea_generator completed successfully
+2026-01-20 23:18:17,684 [INFO] Running exit_policy for CAT
+2026-01-20 23:18:18,661 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:18:25,552 [INFO] idea_generator completed successfully
+2026-01-20 23:18:25,556 [INFO] Running exit_policy for GOOG
+2026-01-20 23:18:26,232 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:18:27,762 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:18:31,998 [INFO] exit_policy completed successfully
+2026-01-20 23:18:31,999 [INFO] Running idea_generator for CAT
+2026-01-20 23:18:31,999 [INFO] Running red_team for CAT
+2026-01-20 23:18:34,060 [INFO] exit_policy completed successfully
+2026-01-20 23:18:34,062 [INFO] Running idea_generator for GOOG
+2026-01-20 23:18:34,062 [INFO] Running red_team for GOOG
+2026-01-20 23:18:34,523 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:18:37,386 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:18:39,472 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:18:42,340 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:18:46,498 [INFO] idea_generator completed successfully
+2026-01-20 23:18:58,443 [INFO] idea_generator completed successfully
+2026-01-20 23:19:04,258 [INFO] red_team completed successfully
+2026-01-20 23:19:04,261 [INFO] Running exit_policy for GOOG
+2026-01-20 23:19:04,262 [INFO] Running short_perspective for GOOG
+2026-01-20 23:19:04,392 [INFO] red_team completed successfully
+2026-01-20 23:19:04,393 [INFO] Running exit_policy for CAT
+2026-01-20 23:19:04,394 [INFO] Running short_perspective for CAT
+2026-01-20 23:19:05,215 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:19:05,264 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:19:05,530 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:19:06,990 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:19:07,803 [INFO] short_perspective completed successfully
+2026-01-20 23:19:07,803 [INFO]   🔻 Short Perspective: NONE (score: 2.5/10)
+2026-01-20 23:19:07,803 [INFO]      Red flags: overbought, options_bearish
+2026-01-20 23:19:14,049 [INFO] short_perspective completed successfully
+2026-01-20 23:19:14,050 [INFO]   🔻 Short Perspective: NONE (score: 0.5/10)
+2026-01-20 23:19:14,050 [INFO]      Red flags: options_bearish
+2026-01-20 23:19:17,632 [INFO] exit_policy completed successfully
+2026-01-20 23:19:17,632 [INFO] Running decision for GOOG
+2026-01-20 23:19:17,633 [INFO] Running red_team for GOOG
+2026-01-20 23:19:18,268 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:19:22,957 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:19:24,527 [INFO] red_team completed successfully
+2026-01-20 23:19:25,901 [INFO] exit_policy completed successfully
+2026-01-20 23:19:25,901 [INFO] Running decision for CAT
+2026-01-20 23:19:25,902 [INFO] Running red_team for CAT
+2026-01-20 23:19:26,640 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:19:27,932 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:19:34,045 [INFO] red_team completed successfully
+2026-01-20 23:19:34,776 [INFO] decision completed successfully
+2026-01-20 23:19:34,785 [INFO] Running position_manager for CAT
+2026-01-20 23:19:34,789 [INFO] Running short_perspective for CAT
+2026-01-20 23:19:35,163 [INFO] decision completed successfully
+2026-01-20 23:19:35,164 [INFO] Running position_manager for GOOG
+2026-01-20 23:19:35,164 [INFO] Running short_perspective for GOOG
+2026-01-20 23:19:35,412 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:19:35,605 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:19:38,501 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:19:38,634 [INFO] position_manager completed successfully
+2026-01-20 23:19:39,889 [INFO] short_perspective completed successfully
+2026-01-20 23:19:39,891 [INFO]   🔻 Short Perspective: NONE (score: 2.5/10)
+2026-01-20 23:19:39,892 [INFO]      Red flags: overbought, options_bearish
+2026-01-20 23:19:39,892 [INFO] Running decision for CAT
+2026-01-20 23:19:39,894 [INFO] Running sanity_veto for CAT
+2026-01-20 23:19:40,261 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:19:41,593 [INFO] sanity_veto completed successfully
+2026-01-20 23:19:42,209 [INFO] short_perspective completed successfully
+2026-01-20 23:19:42,209 [INFO]   🔻 Short Perspective: NONE (score: 0.5/10)
+2026-01-20 23:19:42,209 [INFO]      Red flags: options_bearish
+2026-01-20 23:19:44,665 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:19:45,548 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:19:54,629 [INFO] position_manager completed successfully
+2026-01-20 23:19:54,630 [INFO] Running decision for GOOG
+2026-01-20 23:19:54,631 [INFO] Running sanity_veto for GOOG
+2026-01-20 23:19:55,446 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:19:55,736 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:19:56,390 [INFO] sanity_veto completed successfully
+2026-01-20 23:19:57,031 [INFO] decision completed successfully
+2026-01-20 23:19:57,033 [INFO] Running narrative for CAT
+2026-01-20 23:19:57,034 [INFO] Running position_manager for CAT
+2026-01-20 23:19:59,212 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:20:03,484 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:20:10,887 [INFO] position_manager completed successfully
+2026-01-20 23:20:13,233 [INFO] narrative completed successfully
+2026-01-20 23:20:13,234 [INFO] Running sanity_veto for CAT
+2026-01-20 23:20:16,835 [INFO] decision completed successfully
+2026-01-20 23:20:16,839 [INFO] Running narrative for GOOG
+2026-01-20 23:20:16,841 [INFO] Running position_manager for GOOG
+2026-01-20 23:20:17,974 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:20:19,188 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:20:23,166 [INFO] position_manager completed successfully
+2026-01-20 23:20:23,293 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:20:30,051 [INFO] sanity_veto completed successfully
+2026-01-20 23:20:30,052 [INFO] Running narrative for CAT
+2026-01-20 23:20:31,081 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:20:34,327 [INFO] narrative completed successfully
+2026-01-20 23:20:34,331 [INFO] Running sanity_veto for GOOG
+2026-01-20 23:20:35,083 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:20:36,156 [INFO] sanity_veto completed successfully
+2026-01-20 23:20:36,158 [INFO] Running narrative for GOOG
+2026-01-20 23:20:38,107 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:20:42,529 [INFO] narrative completed successfully
+2026-01-20 23:20:42,530 [INFO] Orchestrator complete for GOOG
+2026-01-20 23:20:42,531 [INFO] Live orchestrator complete for GOOG
+2026-01-20 23:20:42,560 [INFO] Logged analysis: GOOG volatility_compression -> GO (id=2eefa130...)
+2026-01-20 23:20:42,562 [INFO] Exit policy - SL: $302.34 (Below $302.34 20d swing low), TP: $341.20 (ATR target for 1:1.5+ R:R)
+2026-01-20 23:20:42,567 [WARNING] Risk model sizing failed for GOOG: relation "ticker_info" does not exist
+2026-01-20 23:20:42,575 [INFO] Stored signal: GOOG volatility_compression @ $323.63
+2026-01-20 23:20:42,576 [WARNING] Failed to open position for GOOG: local variable 'direction' referenced before assignment
+2026-01-20 23:20:42,576 [INFO] ✅ GO: GOOG @ $323.63 (SL: $302.34, TP: $341.20)
+2026-01-20 23:20:44,980 [INFO] narrative completed successfully
+2026-01-20 23:20:44,981 [INFO] Orchestrator complete for CAT
+2026-01-20 23:20:44,981 [INFO] Live orchestrator complete for CAT
+2026-01-20 23:20:44,991 [INFO] Logged analysis: CAT volatility_compression -> GO (id=8804dfd0...)
+2026-01-20 23:20:44,993 [INFO] Exit policy - SL: $570.33 (Below $570.33 20d swing low), TP: $655.68 (At $655.68 20d swing high resistance)
+2026-01-20 23:20:44,996 [WARNING] Risk model sizing failed for CAT: relation "ticker_info" does not exist
+2026-01-20 23:20:45,003 [INFO] Stored signal: CAT volatility_compression @ $637.16
+2026-01-20 23:20:45,005 [WARNING] Failed to open position for CAT: local variable 'direction' referenced before assignment
+2026-01-20 23:20:45,005 [INFO] ✅ GO: CAT @ $637.16 (SL: $570.33, TP: $655.68)
+2026-01-20 23:20:45,005 [INFO] 
+============================================================
+2026-01-20 23:20:45,005 [INFO] SCAN COMPLETE: 2 GO signal(s)
+2026-01-20 23:20:45,005 [INFO] ============================================================
+
+2026-01-20 23:20:48,008 [INFO] Hourly bars update received; refreshing account state
+2026-01-20 23:20:48,032 [INFO] Trigger event received (market_bar_hourly, options_daily_summary, yfinance_news); running scans
+2026-01-20 23:20:48,032 [INFO] === POSITION MONITORING: 2026-01-20 09:30:00-05:00 ===
+2026-01-20 23:20:48,036 [INFO] No open positions to monitor
+2026-01-20 23:20:48,036 [INFO] No thesis-breaking triggers detected
+2026-01-20 23:20:48,036 [INFO] 
+============================================================
+2026-01-20 23:20:48,036 [INFO] TRIGGER SCAN: 2026-01-20 09:30 EST
+2026-01-20 23:20:48,036 [INFO] ============================================================
+2026-01-20 23:20:48,047 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-20 23:20:48,438 [INFO] Found 0 new triggers (filtered from 2, suppressed=3)
+2026-01-20 23:20:48,438 [INFO] No triggers found
+2026-01-20 23:21:19,625 [INFO] Position Manager enabled for live trading
+2026-01-20 23:21:19,626 [INFO] Starting Live Pipeline Service
+2026-01-20 23:21:19,627 [INFO] Account refresh loop every 900 seconds
+2026-01-20 23:21:19,730 [INFO] Listening for ingest notifications on 'eiqora_ingest'
+2026-01-20 23:21:35,780 [INFO] Watchlist already built for 2026-01-20; skipping rebuild
+2026-01-20 23:22:08,637 [INFO] Trigger event received (earnings_event); running scans
+2026-01-20 23:22:08,639 [INFO] === POSITION MONITORING: 2026-01-20 10:22:08.637207-05:00 ===
+2026-01-20 23:22:08,652 [INFO] No open positions to monitor
+2026-01-20 23:22:08,653 [INFO] No thesis-breaking triggers detected
+2026-01-20 23:22:08,653 [INFO] 
+============================================================
+2026-01-20 23:22:08,653 [INFO] TRIGGER SCAN: 2026-01-20 10:22 EST
+2026-01-20 23:22:08,653 [INFO] ============================================================
+2026-01-20 23:22:08,668 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-20 23:22:09,009 [INFO] Found 2 new triggers (filtered from 2, suppressed=2)
+2026-01-20 23:22:09,009 [INFO] Found 2 triggers
+2026-01-20 23:22:09,009 [INFO] Consolidated into 2 symbols (avg 1.0 triggers/symbol)
+2026-01-20 23:22:09,014 [INFO] Processing trigger: Trigger(GOOG, volatility_compression, MEDIUM)
+2026-01-20 23:22:09,033 [INFO] Using cached profile for GOOG (age: 6d)
+2026-01-20 23:22:09,044 [INFO] Processing trigger: Trigger(CAT, volatility_compression, MEDIUM)
+2026-01-20 23:22:09,051 [INFO]   Signal quality: 0.500 (neutral) - 
+2026-01-20 23:22:09,051 [INFO] Running LLM pipeline for GOOG (volatility_compression)
+2026-01-20 23:22:09,051 [INFO] Starting LIVE orchestrator for GOOG
+2026-01-20 23:22:09,382 [INFO] Starting orchestrator for GOOG
+2026-01-20 23:22:09,392 [INFO] Running fundamental for GOOG
+2026-01-20 23:22:09,392 [INFO]   Using profile baseline: 4 known risks, 4 catalysts
+2026-01-20 23:22:09,393 [INFO] Running supply_chain for GOOG
+2026-01-20 23:22:09,393 [INFO] Running topdown for GOOG
+2026-01-20 23:22:09,394 [INFO] Using cached profile for CAT (age: 6d)
+2026-01-20 23:22:09,739 [INFO]   Signal quality: 0.500 (neutral) - 
+2026-01-20 23:22:09,743 [INFO] Running LLM pipeline for CAT (volatility_compression)
+2026-01-20 23:22:09,743 [INFO] Starting LIVE orchestrator for CAT
+2026-01-20 23:22:09,743 [INFO] Starting orchestrator for CAT
+2026-01-20 23:22:09,758 [INFO] Running fundamental for CAT
+2026-01-20 23:22:09,758 [INFO]   Using profile baseline: 4 known risks, 4 catalysts
+2026-01-20 23:22:09,758 [INFO] Running supply_chain for CAT
+2026-01-20 23:22:09,758 [INFO] Running topdown for CAT
+2026-01-20 23:22:09,851 [WARNING] GOOG: Influential statements fetch failed - invalid input for query argument $2: datetime.datetime(2026, 1, 20, 10, 22, 8... (can't subtract offset-naive and offset-aware datetimes)
+2026-01-20 23:22:09,851 [INFO] fundamental completed successfully (news=116, sec=13, statements=0)
+2026-01-20 23:22:09,859 [WARNING] CAT: Influential statements fetch failed - invalid input for query argument $2: datetime.datetime(2026, 1, 20, 10, 22, 8... (can't subtract offset-naive and offset-aware datetimes)
+2026-01-20 23:22:09,859 [INFO] fundamental completed successfully (news=11, sec=3, statements=0)
+2026-01-20 23:22:10,450 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:22:11,556 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:22:12,559 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:22:15,296 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:22:16,126 [INFO] supply_chain completed successfully
+2026-01-20 23:22:16,127 [INFO] topdown completed successfully
+2026-01-20 23:22:16,129 [INFO] Running chart for GOOG
+2026-01-20 23:22:16,130 [INFO] Filtered GOOG: NO_SETUP
+2026-01-20 23:22:16,465 [INFO] supply_chain completed successfully
+2026-01-20 23:22:20,338 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:22:23,675 [INFO] topdown completed successfully
+2026-01-20 23:22:23,676 [INFO] Running chart for CAT
+2026-01-20 23:22:23,677 [INFO] Filtered CAT: NO_SETUP
+2026-01-20 23:22:26,000 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:22:27,747 [INFO] chart completed successfully
+2026-01-20 23:22:27,748 [INFO] Passed filter GOOG: PULLBACK_MA20
+2026-01-20 23:22:27,749 [INFO] Running idea_generator for GOOG
+2026-01-20 23:22:29,752 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:22:33,388 [INFO] idea_generator completed successfully
+2026-01-20 23:22:33,389 [INFO] Running exit_policy for GOOG
+2026-01-20 23:22:33,716 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:22:35,623 [INFO] chart completed successfully
+2026-01-20 23:22:35,624 [INFO] Passed filter CAT: PULLBACK_MA20
+2026-01-20 23:22:35,624 [INFO] Running idea_generator for CAT
+2026-01-20 23:22:35,983 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:22:39,500 [INFO] exit_policy completed successfully
+2026-01-20 23:22:39,502 [INFO] Running idea_generator for GOOG
+2026-01-20 23:22:39,502 [INFO] Running red_team for GOOG
+2026-01-20 23:22:40,059 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:22:40,247 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:22:50,986 [INFO] idea_generator completed successfully
+2026-01-20 23:23:04,582 [INFO] red_team completed successfully
+2026-01-20 23:23:04,584 [INFO] Running exit_policy for GOOG
+2026-01-20 23:23:04,585 [INFO] Running short_perspective for GOOG
+2026-01-20 23:23:05,718 [INFO] idea_generator completed successfully
+2026-01-20 23:23:05,719 [INFO] Running exit_policy for CAT
+2026-01-20 23:23:06,668 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:23:07,933 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:23:08,459 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:23:10,797 [INFO] exit_policy completed successfully
+2026-01-20 23:23:10,798 [INFO] Running idea_generator for CAT
+2026-01-20 23:23:10,799 [INFO] Running red_team for CAT
+2026-01-20 23:23:11,517 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:23:11,877 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:23:14,769 [INFO] red_team completed successfully
+2026-01-20 23:23:15,070 [INFO] short_perspective completed successfully
+2026-01-20 23:23:15,070 [INFO]   🔻 Short Perspective: NONE (score: 0.0/10)
+2026-01-20 23:23:19,838 [INFO] exit_policy completed successfully
+2026-01-20 23:23:19,841 [INFO] Running decision for GOOG
+2026-01-20 23:23:19,844 [INFO] Running red_team for GOOG
+2026-01-20 23:23:20,929 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:23:21,431 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:23:22,166 [INFO] idea_generator completed successfully
+2026-01-20 23:23:22,168 [INFO] Running exit_policy for CAT
+2026-01-20 23:23:22,170 [INFO] Running short_perspective for CAT
+2026-01-20 23:23:22,606 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:23:24,581 [INFO] short_perspective completed successfully
+2026-01-20 23:23:24,582 [INFO]   🔻 Short Perspective: NONE (score: 2.5/10)
+2026-01-20 23:23:24,582 [INFO]      Red flags: overbought, options_bearish
+2026-01-20 23:23:25,646 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:23:39,835 [INFO] decision completed successfully
+2026-01-20 23:23:47,337 [INFO] red_team completed successfully
+2026-01-20 23:23:47,338 [INFO] Running position_manager for GOOG
+2026-01-20 23:23:47,342 [INFO] Running short_perspective for GOOG
+2026-01-20 23:23:48,394 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:23:48,473 [INFO] exit_policy completed successfully
+2026-01-20 23:23:48,474 [INFO] Running decision for CAT
+2026-01-20 23:23:48,475 [INFO] Running red_team for CAT
+2026-01-20 23:23:51,789 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:23:53,460 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:23:57,729 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:24:00,860 [INFO] red_team completed successfully
+2026-01-20 23:24:02,389 [INFO] short_perspective completed successfully
+2026-01-20 23:24:02,390 [INFO]   🔻 Short Perspective: NONE (score: 0.0/10)
+2026-01-20 23:24:03,634 [INFO] position_manager completed successfully
+2026-01-20 23:24:03,636 [INFO] Running decision for GOOG
+2026-01-20 23:24:03,638 [INFO] Running sanity_veto for GOOG
+2026-01-20 23:24:04,043 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:24:04,044 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:24:05,070 [INFO] sanity_veto completed successfully
+2026-01-20 23:24:12,851 [INFO] decision completed successfully
+2026-01-20 23:24:12,853 [INFO] Running position_manager for CAT
+2026-01-20 23:24:12,854 [INFO] Running short_perspective for CAT
+2026-01-20 23:24:13,985 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:24:15,122 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:24:21,715 [INFO] short_perspective completed successfully
+2026-01-20 23:24:21,716 [INFO]   🔻 Short Perspective: NONE (score: 2.5/10)
+2026-01-20 23:24:21,716 [INFO]      Red flags: overbought, options_bearish
+2026-01-20 23:24:23,780 [INFO] position_manager completed successfully
+2026-01-20 23:24:23,781 [INFO] Running decision for CAT
+2026-01-20 23:24:23,782 [INFO] Running sanity_veto for CAT
+2026-01-20 23:24:24,872 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:24:30,099 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:24:30,474 [INFO] decision completed successfully
+2026-01-20 23:24:30,475 [INFO] Running narrative for GOOG
+2026-01-20 23:24:30,476 [INFO] Running position_manager for GOOG
+2026-01-20 23:24:30,878 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:24:31,798 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:24:32,431 [INFO] sanity_veto completed successfully
+2026-01-20 23:24:49,819 [INFO] position_manager completed successfully
+2026-01-20 23:24:50,517 [INFO] decision completed successfully
+2026-01-20 23:24:50,518 [INFO] Running narrative for CAT
+2026-01-20 23:24:50,520 [INFO] Running position_manager for CAT
+2026-01-20 23:24:50,809 [INFO] narrative completed successfully
+2026-01-20 23:24:50,810 [INFO] Running sanity_veto for GOOG
+2026-01-20 23:24:50,923 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:24:52,376 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:25:00,881 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:25:01,063 [INFO] position_manager completed successfully
+2026-01-20 23:25:04,411 [INFO] sanity_veto completed successfully
+2026-01-20 23:25:04,412 [INFO] Running narrative for GOOG
+2026-01-20 23:25:05,753 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:25:10,303 [INFO] narrative completed successfully
+2026-01-20 23:25:10,304 [INFO] Running sanity_veto for CAT
+2026-01-20 23:25:18,804 [INFO] narrative completed successfully
+2026-01-20 23:25:18,806 [INFO] Orchestrator complete for GOOG
+2026-01-20 23:25:18,806 [INFO] Live orchestrator complete for GOOG
+2026-01-20 23:25:18,824 [INFO] Logged analysis: GOOG volatility_compression -> GO (id=b7cf760d...)
+2026-01-20 23:25:18,826 [INFO] Exit policy - SL: $302.34 (Below $302.34 20d swing low, widened to meet min distance.), TP: $341.20 (20d swing high at $341.20 provides 1.6:1 R:R.)
+2026-01-20 23:25:18,828 [WARNING] Risk model sizing failed for GOOG: relation "ticker_info" does not exist
+2026-01-20 23:25:18,844 [INFO] Stored signal: GOOG volatility_compression @ $324.84
+2026-01-20 23:25:18,868 [INFO] Opened position ac21f640-e24f-4638-97a2-71504e603df2 for GOOG
+2026-01-20 23:25:18,869 [INFO] ✅ GO: GOOG @ $324.84 (SL: $302.34, TP: $341.20)
+2026-01-20 23:25:20,745 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:25:22,540 [INFO] sanity_veto completed successfully
+2026-01-20 23:25:22,542 [INFO] Running narrative for CAT
+2026-01-20 23:25:23,300 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-20 23:25:32,459 [INFO] narrative completed successfully
+2026-01-20 23:25:32,461 [INFO] Orchestrator complete for CAT
+2026-01-20 23:25:32,461 [INFO] Live orchestrator complete for CAT
+2026-01-20 23:25:32,475 [INFO] Logged analysis: CAT volatility_compression -> GO (id=e0e473de...)
+2026-01-20 23:25:32,476 [INFO] Exit policy - SL: $570.33 (Below $570.33 20d swing low, widened to min distance), TP: $655.68 (ATR target for 1:1.5+ reward:risk)
+2026-01-20 23:25:32,481 [WARNING] Risk model sizing failed for CAT: relation "ticker_info" does not exist
+2026-01-20 23:25:32,489 [INFO] Stored signal: CAT volatility_compression @ $638.47
+2026-01-20 23:25:32,508 [INFO] Opened position 2d740c28-ebec-4f19-9405-4a3316ec610b for CAT
+2026-01-20 23:25:32,509 [INFO] ✅ GO: CAT @ $638.47 (SL: $570.33, TP: $655.68)
+2026-01-20 23:25:32,509 [INFO] 
+============================================================
+2026-01-20 23:25:32,509 [INFO] SCAN COMPLETE: 2 GO signal(s)
+2026-01-20 23:25:32,509 [INFO] ============================================================
+
+2026-01-20 23:25:35,510 [INFO] Hourly bars update received; refreshing account state
+2026-01-20 23:25:35,556 [INFO] Trigger event received (market_bar_hourly, options_daily_summary, yfinance_news); running scans
+2026-01-20 23:25:35,556 [INFO] === POSITION MONITORING: 2026-01-20 09:30:00-05:00 ===
+2026-01-20 23:25:35,573 [INFO] Monitoring 2 positions: GOOG, CAT
+2026-01-20 23:25:35,598 [INFO] No thesis-breaking triggers detected
+2026-01-20 23:25:35,598 [INFO] 
+============================================================
+2026-01-20 23:25:35,598 [INFO] TRIGGER SCAN: 2026-01-20 09:30 EST
+2026-01-20 23:25:35,598 [INFO] ============================================================
+2026-01-20 23:25:35,603 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-20 23:25:35,923 [INFO] Found 0 new triggers (filtered from 2, suppressed=3)
+2026-01-20 23:25:35,923 [INFO] No triggers found
+2026-01-20 23:40:35,930 [INFO] No ingest notifications in the last 900 seconds
+2026-01-20 23:55:35,936 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 00:05:07,715 [INFO] Hourly bars update received; refreshing account state
+2026-01-21 00:05:07,852 [INFO] Trigger event received (market_bar_hourly); running scans
+2026-01-21 00:05:07,852 [INFO] === POSITION MONITORING: 2026-01-20 10:30:00-05:00 ===
+2026-01-21 00:05:07,873 [INFO] Monitoring 2 positions: GOOG, CAT
+2026-01-21 00:05:07,895 [WARNING] ⚠️  Found 1 thesis-breaking triggers for positions
+2026-01-21 00:05:07,895 [INFO] 
+⚠️  Reassessing position: PositionTrigger(GOOG, major_negative_news, MEDIUM)
+2026-01-21 00:05:07,902 [INFO] Using cached profile for GOOG (age: 6d)
+2026-01-21 00:05:07,902 [INFO] Running position_reassessment for GOOG
+2026-01-21 00:05:08,940 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 00:05:17,690 [INFO] position_reassessment completed successfully
+2026-01-21 00:05:17,691 [INFO] Decision: HOLD (confidence: 0.95)
+2026-01-21 00:05:17,691 [INFO] Reasoning: The new event, a political news article about 'Trump's battle for Greenland' with negative sentiment, is unrelated to the core thesis for GOOG. The original thesis is based on Google's dominant AI position with Gemini, major partnerships, and a strong advertising business. This geopolitical news does not threaten Google's business model, core operations, or growth drivers. It does not address antitrust risks (a known, accepted risk) nor execution risks in AI monetization. The event is external market noise, not a fundamental change to Google's business. The market's reaction is likely to be temporary and not thesis-altering.
+2026-01-21 00:05:17,691 [INFO] 
+=== Position Monitoring: 0 exit decision(s) ===
+
+2026-01-21 00:05:17,691 [INFO] 
+============================================================
+2026-01-21 00:05:17,691 [INFO] TRIGGER SCAN: 2026-01-20 10:30 EST
+2026-01-21 00:05:17,692 [INFO] ============================================================
+2026-01-21 00:05:17,722 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-21 00:05:18,064 [INFO] Found 0 new triggers (filtered from 2, suppressed=2)
+2026-01-21 00:05:18,064 [INFO] No triggers found
+2026-01-21 00:20:18,072 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 00:21:50,649 [INFO] Trigger event received (yfinance_news); running scans
+2026-01-21 00:21:50,652 [INFO] === POSITION MONITORING: 2026-01-20 11:21:50.648553-05:00 ===
+2026-01-21 00:21:50,684 [INFO] Monitoring 2 positions: CAT, GOOG
+2026-01-21 00:21:50,708 [WARNING] ⚠️  Found 1 thesis-breaking triggers for positions
+2026-01-21 00:21:50,708 [INFO] 
+⚠️  Reassessing position: PositionTrigger(GOOG, major_negative_news, MEDIUM)
+2026-01-21 00:21:50,720 [INFO] Using cached profile for GOOG (age: 6d)
+2026-01-21 00:21:50,721 [INFO] Running position_reassessment for GOOG
+2026-01-21 00:21:53,256 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 00:21:55,325 [INFO] position_reassessment completed successfully
+2026-01-21 00:21:55,325 [INFO] Decision: HOLD (confidence: 0.98)
+2026-01-21 00:21:55,325 [INFO] Reasoning: The event is a bear case article about Dropbox (DBX), not Google (GOOG). This is unrelated to the original thesis for GOOG, which focuses on AI leadership (Gemini), partnerships (Apple, Walmart), and advertising strength. The news does not address GOOG's business model, financials, regulatory risks, or AI execution. It is irrelevant noise with no impact on GOOG's core thesis.
+2026-01-21 00:21:55,325 [INFO] 
+=== Position Monitoring: 0 exit decision(s) ===
+
+2026-01-21 00:21:55,325 [INFO] 
+============================================================
+2026-01-21 00:21:55,325 [INFO] TRIGGER SCAN: 2026-01-20 11:21 EST
+2026-01-21 00:21:55,325 [INFO] ============================================================
+2026-01-21 00:21:55,336 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-21 00:21:55,732 [INFO] Found 0 new triggers (filtered from 2, suppressed=2)
+2026-01-21 00:21:55,733 [INFO] No triggers found
+2026-01-21 00:36:55,736 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 00:51:55,747 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 01:05:07,425 [INFO] Hourly bars update received; refreshing account state
+2026-01-21 01:05:07,533 [INFO] Trigger event received (market_bar_hourly); running scans
+2026-01-21 01:05:07,534 [INFO] === POSITION MONITORING: 2026-01-20 11:30:00-05:00 ===
+2026-01-21 01:05:07,548 [INFO] Monitoring 2 positions: GOOG, CAT
+2026-01-21 01:05:07,568 [WARNING] ⚠️  Found 1 thesis-breaking triggers for positions
+2026-01-21 01:05:07,568 [INFO] 
+⚠️  Reassessing position: PositionTrigger(GOOG, major_negative_news, MEDIUM)
+2026-01-21 01:05:07,576 [INFO] Using cached profile for GOOG (age: 6d)
+2026-01-21 01:05:07,576 [INFO] Running position_reassessment for GOOG
+2026-01-21 01:05:13,520 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 01:05:15,571 [INFO] position_reassessment completed successfully
+2026-01-21 01:05:15,572 [INFO] Decision: HOLD (confidence: 0.95)
+2026-01-21 01:05:15,572 [INFO] Reasoning: The new event details a bear case for Dropbox (DBX), not Google (GOOG). The original thesis for GOOG centers on its dominant AI position with Gemini and strong advertising cash flow. This event is unrelated and does not impact the core business model, earnings structure, key management, or regulatory landscape for Google. It confirms neither a known risk nor contradicts the bull case assumptions for GOOG.
+2026-01-21 01:05:15,572 [INFO] 
+=== Position Monitoring: 0 exit decision(s) ===
+
+2026-01-21 01:05:15,572 [INFO] 
+============================================================
+2026-01-21 01:05:15,573 [INFO] TRIGGER SCAN: 2026-01-20 11:30 EST
+2026-01-21 01:05:15,573 [INFO] ============================================================
+2026-01-21 01:05:15,587 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-21 01:05:15,959 [INFO] Found 1 new triggers (filtered from 3, suppressed=2)
+2026-01-21 01:05:15,959 [INFO] Found 1 triggers
+2026-01-21 01:05:15,959 [INFO] Consolidated into 1 symbols (avg 1.0 triggers/symbol)
+2026-01-21 01:05:15,962 [INFO] Processing trigger: Trigger(MS, hourly_money_flow_surge, MEDIUM)
+2026-01-21 01:05:15,963 [INFO] Using cached profile for MS (age: 6d)
+2026-01-21 01:05:15,988 [INFO]   Signal quality: 0.550 (decent) - accumulation, bearish_options
+2026-01-21 01:05:15,988 [INFO] Running LLM pipeline for MS (hourly_money_flow_surge)
+2026-01-21 01:05:15,988 [INFO] Starting LIVE orchestrator for MS
+2026-01-21 01:05:15,989 [INFO] Starting orchestrator for MS
+2026-01-21 01:05:15,994 [INFO] Running fundamental for MS
+2026-01-21 01:05:15,994 [INFO]   Using profile baseline: 4 known risks, 4 catalysts
+2026-01-21 01:05:15,995 [INFO] Running supply_chain for MS
+2026-01-21 01:05:15,997 [INFO] Running topdown for MS
+2026-01-21 01:05:16,132 [WARNING] MS: Influential statements fetch failed - invalid input for query argument $2: datetime.datetime(2026, 1, 20, 11, 30, t... (can't subtract offset-naive and offset-aware datetimes)
+2026-01-21 01:05:16,132 [INFO] fundamental completed successfully (news=33, sec=1, statements=0)
+2026-01-21 01:05:17,518 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 01:05:19,426 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 01:05:21,327 [INFO] supply_chain completed successfully
+2026-01-21 01:05:33,089 [WARNING] Auto-truncated string fields to satisfy schema max_length.
+2026-01-21 01:05:33,090 [INFO] topdown completed successfully
+2026-01-21 01:05:33,090 [INFO] Running chart for MS
+2026-01-21 01:05:33,091 [INFO] Filtered MS: NO_SETUP
+2026-01-21 01:05:33,491 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 01:05:44,349 [INFO] chart completed successfully
+2026-01-21 01:05:44,353 [INFO] Passed filter MS: PULLBACK_MA20
+2026-01-21 01:05:44,353 [INFO] Running idea_generator for MS
+2026-01-21 01:05:44,754 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 01:06:24,875 [INFO] idea_generator completed successfully
+2026-01-21 01:06:24,881 [INFO] Running exit_policy for MS
+2026-01-21 01:06:26,329 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 01:06:40,673 [INFO] exit_policy completed successfully
+2026-01-21 01:06:40,676 [INFO] Running idea_generator for MS
+2026-01-21 01:06:40,676 [INFO] Running red_team for MS
+2026-01-21 01:06:41,052 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 01:06:43,406 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 01:06:48,755 [INFO] red_team completed successfully
+2026-01-21 01:07:13,117 [INFO] idea_generator completed successfully
+2026-01-21 01:07:13,119 [INFO] Running exit_policy for MS
+2026-01-21 01:07:13,121 [INFO] Running short_perspective for MS
+2026-01-21 01:07:15,687 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 01:07:16,872 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 01:07:18,113 [INFO] short_perspective completed successfully
+2026-01-21 01:07:18,113 [INFO]   🔻 Short Perspective: NONE (score: 1.5/10)
+2026-01-21 01:07:18,113 [INFO]      Red flags: sector_lagging, options_bearish
+2026-01-21 01:07:26,770 [INFO] exit_policy completed successfully
+2026-01-21 01:07:26,773 [INFO] Running decision for MS
+2026-01-21 01:07:26,775 [INFO] Running red_team for MS
+2026-01-21 01:07:27,569 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 01:07:29,818 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 01:07:48,590 [INFO] decision completed successfully
+2026-01-21 01:08:17,030 [INFO] red_team completed successfully
+2026-01-21 01:08:17,033 [INFO] Running position_manager for MS
+2026-01-21 01:08:17,033 [INFO] Running short_perspective for MS
+2026-01-21 01:08:17,621 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 01:08:18,278 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 01:08:19,584 [INFO] short_perspective completed successfully
+2026-01-21 01:08:19,585 [INFO]   🔻 Short Perspective: NONE (score: 1.5/10)
+2026-01-21 01:08:19,585 [INFO]      Red flags: sector_lagging, options_bearish
+2026-01-21 01:08:38,304 [INFO] position_manager completed successfully
+2026-01-21 01:08:38,307 [INFO] Running decision for MS
+2026-01-21 01:08:38,309 [INFO] Running sanity_veto for MS
+2026-01-21 01:08:41,704 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 01:08:43,653 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 01:08:46,770 [INFO] sanity_veto completed successfully
+2026-01-21 01:08:53,061 [INFO] decision completed successfully
+2026-01-21 01:08:53,063 [INFO] Running narrative for MS
+2026-01-21 01:08:53,064 [INFO] Running position_manager for MS
+2026-01-21 01:08:55,738 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 01:08:55,987 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 01:08:59,693 [INFO] narrative completed successfully
+2026-01-21 01:09:04,796 [INFO] position_manager completed successfully
+2026-01-21 01:09:04,798 [INFO] Running sanity_veto for MS
+2026-01-21 01:09:08,538 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 01:09:12,143 [INFO] sanity_veto completed successfully
+2026-01-21 01:09:12,145 [INFO] Running narrative for MS
+2026-01-21 01:09:15,701 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 01:09:24,332 [INFO] narrative completed successfully
+2026-01-21 01:09:24,335 [INFO] Orchestrator complete for MS
+2026-01-21 01:09:24,335 [INFO] Live orchestrator complete for MS
+2026-01-21 01:09:24,358 [INFO] Logged analysis: MS hourly_money_flow_surge -> GO (id=abbc0cdf...)
+2026-01-21 01:09:24,362 [INFO] Exit policy - SL: $173.46 (Below $173.46 20d swing low), TP: $192.68 (20d swing high resistance)
+2026-01-21 01:09:24,370 [WARNING] Risk model sizing failed for MS: relation "ticker_info" does not exist
+2026-01-21 01:09:24,393 [INFO] Stored signal: MS hourly_money_flow_surge @ $184.98
+2026-01-21 01:09:24,418 [INFO] Opened position 5f78bb82-49d9-4c92-bd2d-93d353456efa for MS
+2026-01-21 01:09:24,420 [INFO] ✅ GO: MS @ $184.98 (SL: $173.46, TP: $192.68)
+2026-01-21 01:09:24,421 [INFO] 
+============================================================
+2026-01-21 01:09:24,421 [INFO] SCAN COMPLETE: 1 GO signal(s)
+2026-01-21 01:09:24,421 [INFO] ============================================================
+
+2026-01-21 01:16:22,492 [INFO] Trigger event received (yfinance_news); running scans
+2026-01-21 01:16:22,494 [INFO] === POSITION MONITORING: 2026-01-20 12:16:22.491245-05:00 ===
+2026-01-21 01:16:22,605 [INFO] Monitoring 3 positions: MS, CAT, GOOG
+2026-01-21 01:16:22,628 [WARNING] ⚠️  Found 2 thesis-breaking triggers for positions
+2026-01-21 01:16:22,628 [INFO] 
+⚠️  Reassessing position: PositionTrigger(MS, major_negative_news, MEDIUM)
+2026-01-21 01:16:22,638 [INFO] Using cached profile for MS (age: 6d)
+2026-01-21 01:16:22,638 [INFO] Running position_reassessment for MS
+2026-01-21 01:16:26,105 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 01:16:28,940 [INFO] position_reassessment completed successfully
+2026-01-21 01:16:28,940 [INFO] Decision: HOLD (confidence: 0.95)
+2026-01-21 01:16:28,940 [INFO] Reasoning: The new event is about Clorox (CLX), which is unrelated to Morgan Stanley (MS). The original thesis for MS focuses on its Wealth Management 'flywheel' and potential recovery in Investment Banking and Trading revenues. This event does not impact MS's core business model, earnings, management, or regulatory environment. It is irrelevant to the thesis and constitutes noise rather than a material development. Therefore, the thesis remains intact.
+2026-01-21 01:16:28,940 [INFO] 
+⚠️  Reassessing position: PositionTrigger(GOOG, major_negative_news, MEDIUM)
+2026-01-21 01:16:28,963 [INFO] Using cached profile for GOOG (age: 6d)
+2026-01-21 01:16:28,963 [INFO] Running position_reassessment for GOOG
+2026-01-21 01:16:33,768 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 01:16:39,087 [INFO] position_reassessment completed successfully
+2026-01-21 01:16:39,087 [INFO] Decision: HOLD (confidence: 0.95)
+2026-01-21 01:16:39,087 [INFO] Reasoning: The new event (a bear case article about Dropbox) is unrelated to Google's AI race dominance, partnerships, advertising business, or regulatory risks. Dropbox is a separate company with minimal direct relevance to Google's core thesis. This does not represent a fundamental change to Google's business model, earnings structure, management, or growth drivers. The event is market noise, not a thesis-breaking development.
+2026-01-21 01:16:39,087 [INFO] 
+=== Position Monitoring: 0 exit decision(s) ===
+
+2026-01-21 01:16:39,087 [INFO] 
+============================================================
+2026-01-21 01:16:39,088 [INFO] TRIGGER SCAN: 2026-01-20 12:16 EST
+2026-01-21 01:16:39,088 [INFO] ============================================================
+2026-01-21 01:16:39,099 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-21 01:16:39,495 [INFO] Found 0 new triggers (filtered from 3, suppressed=2)
+2026-01-21 01:16:39,495 [INFO] No triggers found
+2026-01-21 01:32:00,156 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 01:47:00,167 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 02:02:00,179 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 02:05:08,075 [INFO] Hourly bars update received; refreshing account state
+2026-01-21 02:05:08,189 [INFO] Trigger event received (market_bar_hourly); running scans
+2026-01-21 02:05:08,189 [INFO] === POSITION MONITORING: 2026-01-20 12:30:00-05:00 ===
+2026-01-21 02:05:08,210 [INFO] Monitoring 3 positions: MS, GOOG, CAT
+2026-01-21 02:05:08,236 [WARNING] ⚠️  Found 2 thesis-breaking triggers for positions
+2026-01-21 02:05:08,236 [INFO] 
+⚠️  Reassessing position: PositionTrigger(MS, major_negative_news, MEDIUM)
+2026-01-21 02:05:08,244 [INFO] Using cached profile for MS (age: 6d)
+2026-01-21 02:05:08,244 [INFO] Running position_reassessment for MS
+2026-01-21 02:05:10,949 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 02:05:15,123 [WARNING] JSON parse error on attempt 1: Expecting value: line 1 column 1 (char 0)
+2026-01-21 02:05:15,963 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 02:05:39,115 [INFO] position_reassessment completed successfully
+2026-01-21 02:05:39,116 [INFO] Decision: HOLD (confidence: 0.99)
+2026-01-21 02:05:39,116 [INFO] Reasoning: The new event regarding analyst shifts for Clorox (CLX) is completely unrelated to Morgan Stanley (MS) and its original investment thesis. It does not impact MS's wealth management flywheel, potential investment banking recovery, or any of the known risks (cyclical downturns, regulatory scrutiny). This is irrelevant noise, not a thesis-breaking event.
+2026-01-21 02:05:39,116 [INFO] 
+⚠️  Reassessing position: PositionTrigger(GOOG, major_negative_news, MEDIUM)
+2026-01-21 02:05:39,132 [INFO] Using cached profile for GOOG (age: 6d)
+2026-01-21 02:05:39,132 [INFO] Running position_reassessment for GOOG
+2026-01-21 02:05:41,608 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 02:05:57,345 [INFO] position_reassessment completed successfully
+2026-01-21 02:05:57,346 [INFO] Decision: HOLD (confidence: 0.99)
+2026-01-21 02:05:57,346 [INFO] Reasoning: The new event is a bear case analysis of Dropbox (DBX), not Alphabet (GOOG). This is irrelevant to the original thesis on GOOG, which focuses on AI leadership, advertising strength, and partnerships. The event does not impact GOOG's business model, earnings, management, or regulatory risks. It confirms no known risks and is a temporary market noise unrelated to the stock's fundamentals.
+2026-01-21 02:05:57,346 [INFO] 
+=== Position Monitoring: 0 exit decision(s) ===
+
+2026-01-21 02:05:57,346 [INFO] 
+============================================================
+2026-01-21 02:05:57,346 [INFO] TRIGGER SCAN: 2026-01-20 12:30 EST
+2026-01-21 02:05:57,346 [INFO] ============================================================
+2026-01-21 02:05:57,380 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-21 02:05:57,740 [INFO] Found 0 new triggers (filtered from 2, suppressed=2)
+2026-01-21 02:05:57,740 [INFO] No triggers found
+2026-01-21 02:20:57,744 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 02:21:31,275 [INFO] Trigger event received (yfinance_news); running scans
+2026-01-21 02:21:31,278 [INFO] === POSITION MONITORING: 2026-01-20 13:21:31.274741-05:00 ===
+2026-01-21 02:21:31,397 [INFO] Monitoring 3 positions: MS, GOOG, CAT
+2026-01-21 02:21:31,416 [WARNING] ⚠️  Found 2 thesis-breaking triggers for positions
+2026-01-21 02:21:31,416 [INFO] 
+⚠️  Reassessing position: PositionTrigger(MS, major_negative_news, MEDIUM)
+2026-01-21 02:21:31,425 [INFO] Using cached profile for MS (age: 6d)
+2026-01-21 02:21:31,425 [INFO] Running position_reassessment for MS
+2026-01-21 02:21:32,256 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 02:21:35,168 [INFO] position_reassessment completed successfully
+2026-01-21 02:21:35,169 [INFO] Decision: HOLD (confidence: 0.99)
+2026-01-21 02:21:35,169 [INFO] Reasoning: The news event pertains to Clorox (CLX), which is unrelated to Morgan Stanley (MS). This is a clear case of irrelevant information that does not impact the core thesis for MS. The original thesis focuses on wealth management strength and potential recovery in investment banking/trading, while the known risks involve capital markets cyclicality and regulatory scrutiny. This event does not address any of these factors or contradict the bull case assumptions. It is not a fundamental change for MS, nor does it confirm any accepted risk. The market is unlikely to react to this news for MS, as it is specific to another company.
+2026-01-21 02:21:35,169 [INFO] 
+⚠️  Reassessing position: PositionTrigger(GOOG, major_negative_news, MEDIUM)
+2026-01-21 02:21:35,183 [INFO] Using cached profile for GOOG (age: 6d)
+2026-01-21 02:21:35,185 [INFO] Running position_reassessment for GOOG
+2026-01-21 02:21:38,497 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 02:21:43,581 [INFO] position_reassessment completed successfully
+2026-01-21 02:21:43,582 [INFO] Decision: HOLD (confidence: 0.95)
+2026-01-21 02:21:43,582 [INFO] Reasoning: The new event is a bear case analysis of Dropbox (DBX), which is unrelated to Alphabet (GOOG). This does not impact GOOG's core advertising business, AI investments, partnerships, or regulatory risks. The event is irrelevant to the original thesis on GOOG, so it does not constitute a temporary setback, fundamental change, or confirmation of any known risk. Market reaction to this news is unlikely to affect GOOG meaningfully.
+2026-01-21 02:21:43,582 [INFO] 
+=== Position Monitoring: 0 exit decision(s) ===
+
+2026-01-21 02:21:43,582 [INFO] 
+============================================================
+2026-01-21 02:21:43,582 [INFO] TRIGGER SCAN: 2026-01-20 13:21 EST
+2026-01-21 02:21:43,582 [INFO] ============================================================
+2026-01-21 02:21:43,596 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-21 02:21:43,945 [INFO] Found 0 new triggers (filtered from 2, suppressed=3)
+2026-01-21 02:21:43,946 [INFO] No triggers found
+2026-01-21 02:36:43,952 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 02:51:43,957 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 03:05:07,768 [INFO] Hourly bars update received; refreshing account state
+2026-01-21 03:05:07,892 [INFO] Trigger event received (market_bar_hourly); running scans
+2026-01-21 03:05:07,892 [INFO] === POSITION MONITORING: 2026-01-20 13:30:00-05:00 ===
+2026-01-21 03:05:07,919 [INFO] Monitoring 3 positions: MS, CAT, GOOG
+2026-01-21 03:05:07,949 [WARNING] ⚠️  Found 2 thesis-breaking triggers for positions
+2026-01-21 03:05:07,949 [INFO] 
+⚠️  Reassessing position: PositionTrigger(MS, major_negative_news, MEDIUM)
+2026-01-21 03:05:07,958 [INFO] Using cached profile for MS (age: 6d)
+2026-01-21 03:05:07,958 [INFO] Running position_reassessment for MS
+2026-01-21 03:05:09,334 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 03:05:11,653 [INFO] position_reassessment completed successfully
+2026-01-21 03:05:11,653 [INFO] Decision: HOLD (confidence: 0.95)
+2026-01-21 03:05:11,653 [INFO] Reasoning: The new event is completely unrelated to Morgan Stanley (MS) - it discusses analyst shifts for Clorox (CLX), a consumer goods company. This has no bearing on MS's wealth management flywheel, investment banking recovery, or capital markets exposure. The event doesn't contradict bull case assumptions, confirm known risks, or present any material information about MS. This appears to be a data error or irrelevant noise.
+2026-01-21 03:05:11,654 [INFO] 
+⚠️  Reassessing position: PositionTrigger(GOOG, major_negative_news, MEDIUM)
+2026-01-21 03:05:11,681 [INFO] Using cached profile for GOOG (age: 6d)
+2026-01-21 03:05:11,681 [INFO] Running position_reassessment for GOOG
+2026-01-21 03:05:15,436 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 03:05:21,162 [INFO] position_reassessment completed successfully
+2026-01-21 03:05:21,163 [INFO] Decision: HOLD (confidence: 0.99)
+2026-01-21 03:05:21,163 [INFO] Reasoning: The new event is a bear case theory about Dropbox (DBX), which is unrelated to Alphabet (GOOG). This does not impact the core thesis for GOOG, which is based on its AI investments, advertising business, and major partnerships. The event is irrelevant to the original trade thesis and does not address any known risks (antitrust, regulatory actions, or AI execution). The market is unlikely to react to this news regarding GOOG.
+2026-01-21 03:05:21,163 [INFO] 
+=== Position Monitoring: 0 exit decision(s) ===
+
+2026-01-21 03:05:21,163 [INFO] 
+============================================================
+2026-01-21 03:05:21,163 [INFO] TRIGGER SCAN: 2026-01-20 13:30 EST
+2026-01-21 03:05:21,163 [INFO] ============================================================
+2026-01-21 03:05:21,172 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-21 03:05:21,541 [INFO] Found 0 new triggers (filtered from 2, suppressed=3)
+2026-01-21 03:05:21,541 [INFO] No triggers found
+2026-01-21 03:20:21,546 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 03:21:15,425 [INFO] Trigger event received (yfinance_news); running scans
+2026-01-21 03:21:15,429 [INFO] === POSITION MONITORING: 2026-01-20 14:21:15.422973-05:00 ===
+2026-01-21 03:21:15,568 [INFO] Monitoring 3 positions: MS, GOOG, CAT
+2026-01-21 03:21:15,601 [WARNING] ⚠️  Found 2 thesis-breaking triggers for positions
+2026-01-21 03:21:15,601 [INFO] 
+⚠️  Reassessing position: PositionTrigger(MS, major_negative_news, MEDIUM)
+2026-01-21 03:21:15,617 [INFO] Using cached profile for MS (age: 6d)
+2026-01-21 03:21:15,617 [INFO] Running position_reassessment for MS
+2026-01-21 03:21:19,986 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 03:21:23,575 [INFO] position_reassessment completed successfully
+2026-01-21 03:21:23,575 [INFO] Decision: HOLD (confidence: 0.99)
+2026-01-21 03:21:23,575 [INFO] Reasoning: The new event is completely unrelated to Morgan Stanley (MS), as it discusses analyst shifts for Clorox (CLX). This event has no bearing on the original thesis for MS, which focuses on its Wealth Management flywheel and potential recovery in Investment Banking/Trading. The event does not represent a temporary setback, fundamental change, or confirmation of any known risks for MS. It is irrelevant noise that should not impact the trade thesis.
+2026-01-21 03:21:23,575 [INFO] 
+⚠️  Reassessing position: PositionTrigger(GOOG, major_negative_news, MEDIUM)
+2026-01-21 03:21:23,591 [INFO] Using cached profile for GOOG (age: 6d)
+2026-01-21 03:21:23,591 [INFO] Running position_reassessment for GOOG
+2026-01-21 03:21:25,379 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 03:21:28,266 [INFO] position_reassessment completed successfully
+2026-01-21 03:21:28,266 [INFO] Decision: HOLD (confidence: 0.99)
+2026-01-21 03:21:28,266 [INFO] Reasoning: The new event is a bear case theory about Dropbox (DBX), which is unrelated to Alphabet (GOOG). This does not impact GOOG's core AI thesis involving Gemini, major partnerships, or its advertising business. It is not a known risk for GOOG, and the market is unlikely to react to this news regarding GOOG. The event is irrelevant to the original trade thesis.
+2026-01-21 03:21:28,266 [INFO] 
+=== Position Monitoring: 0 exit decision(s) ===
+
+2026-01-21 03:21:28,266 [INFO] 
+============================================================
+2026-01-21 03:21:28,266 [INFO] TRIGGER SCAN: 2026-01-20 14:21 EST
+2026-01-21 03:21:28,266 [INFO] ============================================================
+2026-01-21 03:21:28,273 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-21 03:21:28,584 [INFO] Found 0 new triggers (filtered from 2, suppressed=3)
+2026-01-21 03:21:28,584 [INFO] No triggers found
+2026-01-21 03:36:28,605 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 03:51:28,619 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 04:05:07,874 [INFO] Hourly bars update received; refreshing account state
+2026-01-21 04:05:07,987 [INFO] Trigger event received (market_bar_hourly); running scans
+2026-01-21 04:05:07,987 [INFO] === POSITION MONITORING: 2026-01-20 14:30:00-05:00 ===
+2026-01-21 04:05:08,006 [INFO] Monitoring 3 positions: MS, CAT, GOOG
+2026-01-21 04:05:08,033 [WARNING] ⚠️  Found 2 thesis-breaking triggers for positions
+2026-01-21 04:05:08,033 [INFO] 
+⚠️  Reassessing position: PositionTrigger(MS, major_negative_news, MEDIUM)
+2026-01-21 04:05:08,042 [INFO] Using cached profile for MS (age: 6d)
+2026-01-21 04:05:08,042 [INFO] Running position_reassessment for MS
+2026-01-21 04:05:08,850 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 04:05:19,356 [INFO] position_reassessment completed successfully
+2026-01-21 04:05:19,356 [INFO] Decision: HOLD (confidence: 0.99)
+2026-01-21 04:05:19,356 [INFO] Reasoning: The new event is completely unrelated to Morgan Stanley (MS). The news article discusses analyst shifts for Clorox (CLX), a consumer goods company, and has no bearing on MS's wealth management flywheel, investment banking recovery prospects, or any known risks associated with MS. This is a case of mistaken relevance, not a thesis-breaking event for the MS position. The original bull case and accepted risks remain entirely unchanged.
+2026-01-21 04:05:19,356 [INFO] 
+⚠️  Reassessing position: PositionTrigger(GOOG, major_negative_news, MEDIUM)
+2026-01-21 04:05:19,373 [INFO] Using cached profile for GOOG (age: 6d)
+2026-01-21 04:05:19,373 [INFO] Running position_reassessment for GOOG
+2026-01-21 04:05:23,624 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 04:05:26,397 [INFO] position_reassessment completed successfully
+2026-01-21 04:05:26,398 [INFO] Decision: HOLD (confidence: 0.95)
+2026-01-21 04:05:26,398 [INFO] Reasoning: The new event is a bear case theory about Dropbox (DBX), which is unrelated to Google (GOOG). The original thesis for GOOG focuses on its AI race position, partnerships, and advertising business. This event does not impact GOOG's core business model, earnings, management, or regulatory environment. It is not a known risk for GOOG, and it does not contradict the bull case assumptions. The market is unlikely to react to this news for GOOG, as it pertains to a different company. Therefore, the thesis remains intact.
+2026-01-21 04:05:26,398 [INFO] 
+=== Position Monitoring: 0 exit decision(s) ===
+
+2026-01-21 04:05:26,398 [INFO] 
+============================================================
+2026-01-21 04:05:26,398 [INFO] TRIGGER SCAN: 2026-01-20 14:30 EST
+2026-01-21 04:05:26,398 [INFO] ============================================================
+2026-01-21 04:05:26,427 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-21 04:05:26,870 [INFO] Found 0 new triggers (filtered from 2, suppressed=3)
+2026-01-21 04:05:26,870 [INFO] No triggers found
+2026-01-21 04:20:26,874 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 04:21:30,291 [INFO] Trigger event received (yfinance_news); running scans
+2026-01-21 04:21:30,295 [INFO] === POSITION MONITORING: 2026-01-20 15:21:30.290626-05:00 ===
+2026-01-21 04:21:30,426 [INFO] Monitoring 3 positions: MS, GOOG, CAT
+2026-01-21 04:21:30,447 [WARNING] ⚠️  Found 2 thesis-breaking triggers for positions
+2026-01-21 04:21:30,447 [INFO] 
+⚠️  Reassessing position: PositionTrigger(MS, major_negative_news, MEDIUM)
+2026-01-21 04:21:30,454 [INFO] Using cached profile for MS (age: 6d)
+2026-01-21 04:21:30,454 [INFO] Running position_reassessment for MS
+2026-01-21 04:21:32,591 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 04:21:35,195 [INFO] position_reassessment completed successfully
+2026-01-21 04:21:35,195 [INFO] Decision: HOLD (confidence: 0.99)
+2026-01-21 04:21:35,196 [INFO] Reasoning: The new event is about Clorox (CLX), not Morgan Stanley (MS). There is no direct or indirect connection between analyst shifts for a consumer goods company and MS's thesis centered on wealth management flywheel and investment banking recovery. The event does not impact MS's core business model, earnings structure, management, or regulatory environment. It is irrelevant to the original thesis and known risks. This is clearly a case of temporary noise or unrelated market information that should not affect the position.
+2026-01-21 04:21:35,196 [INFO] 
+⚠️  Reassessing position: PositionTrigger(GOOG, major_negative_news, MEDIUM)
+2026-01-21 04:21:35,217 [INFO] Using cached profile for GOOG (age: 6d)
+2026-01-21 04:21:35,217 [INFO] Running position_reassessment for GOOG
+2026-01-21 04:21:35,570 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 04:21:48,394 [INFO] position_reassessment completed successfully
+2026-01-21 04:21:48,394 [INFO] Decision: HOLD (confidence: 0.99)
+2026-01-21 04:21:48,394 [INFO] Reasoning: The new event is a bear case analysis of Dropbox (DBX), not Alphabet (GOOG). This has no direct bearing on GOOG's original thesis regarding its dominant AI position, advertising cash flow, or partnerships. The event does not address GOOG's antitrust risks or AI execution risks. It appears to be an irrelevant news item mistakenly flagged as material. No part of GOOG's bull case or known risks has been challenged.
+2026-01-21 04:21:48,394 [INFO] 
+=== Position Monitoring: 0 exit decision(s) ===
+
+2026-01-21 04:21:48,394 [INFO] 
+============================================================
+2026-01-21 04:21:48,394 [INFO] TRIGGER SCAN: 2026-01-20 15:21 EST
+2026-01-21 04:21:48,394 [INFO] ============================================================
+2026-01-21 04:21:48,407 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-21 04:21:48,714 [INFO] Found 0 new triggers (filtered from 2, suppressed=3)
+2026-01-21 04:21:48,714 [INFO] No triggers found
+2026-01-21 04:36:48,722 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 04:51:48,728 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 05:05:07,593 [INFO] Hourly bars update received; refreshing account state
+2026-01-21 05:05:07,718 [INFO] Trigger event received (market_bar_hourly); running scans
+2026-01-21 05:05:07,718 [INFO] === POSITION MONITORING: 2026-01-20 15:30:00-05:00 ===
+2026-01-21 05:05:07,737 [INFO] Monitoring 3 positions: MS, GOOG, CAT
+2026-01-21 05:05:07,755 [WARNING] ⚠️  Found 2 thesis-breaking triggers for positions
+2026-01-21 05:05:07,755 [INFO] 
+⚠️  Reassessing position: PositionTrigger(MS, major_negative_news, MEDIUM)
+2026-01-21 05:05:07,763 [INFO] Using cached profile for MS (age: 6d)
+2026-01-21 05:05:07,763 [INFO] Running position_reassessment for MS
+2026-01-21 05:05:11,252 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-01-21 05:05:11,254 [INFO] Retrying request to /chat/completions in 0.429951 seconds
+2026-01-21 05:05:16,531 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 05:05:24,856 [INFO] position_reassessment completed successfully
+2026-01-21 05:05:24,857 [INFO] Decision: HOLD (confidence: 0.99)
+2026-01-21 05:05:24,857 [INFO] Reasoning: The new event is completely unrelated to Morgan Stanley (MS). It discusses analyst shifts for Clorox (CLX), a consumer staples company, and has no bearing on MS's wealth management flywheel, investment banking recovery potential, or the known risks of cyclical downturns and regulatory scrutiny. This is a data error or misattribution, not a thesis-breaking event for MS.
+2026-01-21 05:05:24,857 [INFO] 
+⚠️  Reassessing position: PositionTrigger(GOOG, major_negative_news, MEDIUM)
+2026-01-21 05:05:24,881 [INFO] Using cached profile for GOOG (age: 6d)
+2026-01-21 05:05:24,881 [INFO] Running position_reassessment for GOOG
+2026-01-21 05:05:25,726 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 05:05:41,422 [INFO] position_reassessment completed successfully
+2026-01-21 05:05:41,424 [INFO] Decision: HOLD (confidence: 0.95)
+2026-01-21 05:05:41,424 [INFO] Reasoning: The new event is a bear case theory about Dropbox (DBX), which is unrelated to Google (GOOG). This does not impact GOOG's dominant AI position with Gemini, its major partnerships (Apple, Walmart), or its core advertising business. It does not address any known risks (antitrust, regulatory, AI monetization) specific to GOOG. The event is irrelevant to the original trade thesis.
+2026-01-21 05:05:41,424 [INFO] 
+=== Position Monitoring: 0 exit decision(s) ===
+
+2026-01-21 05:05:41,424 [INFO] 
+============================================================
+2026-01-21 05:05:41,424 [INFO] TRIGGER SCAN: 2026-01-20 15:30 EST
+2026-01-21 05:05:41,425 [INFO] ============================================================
+2026-01-21 05:05:41,444 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-21 05:05:41,825 [INFO] Found 1 new triggers (filtered from 3, suppressed=3)
+2026-01-21 05:05:41,825 [INFO] Found 1 triggers
+2026-01-21 05:05:41,825 [INFO] Consolidated into 1 symbols (avg 1.0 triggers/symbol)
+2026-01-21 05:05:41,827 [INFO] ⏭️  Skipping trigger for MS (active position)
+2026-01-21 05:05:41,827 [INFO] 
+============================================================
+2026-01-21 05:05:41,827 [INFO] SCAN COMPLETE: 0 GO signal(s)
+2026-01-21 05:05:41,827 [INFO] ============================================================
+
+2026-01-21 05:15:04,593 [INFO] Trigger event received (sec_filing); running scans
+2026-01-21 05:15:04,599 [INFO] === POSITION MONITORING: 2026-01-20 16:15:04.592251-05:00 ===
+2026-01-21 05:15:04,761 [INFO] Monitoring 3 positions: MS, CAT, GOOG
+2026-01-21 05:15:04,782 [WARNING] ⚠️  Found 2 thesis-breaking triggers for positions
+2026-01-21 05:15:04,782 [INFO] 
+⚠️  Reassessing position: PositionTrigger(MS, major_negative_news, MEDIUM)
+2026-01-21 05:15:04,787 [INFO] Using cached profile for MS (age: 6d)
+2026-01-21 05:15:04,788 [INFO] Running position_reassessment for MS
+2026-01-21 05:15:07,029 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 05:15:09,802 [INFO] position_reassessment completed successfully
+2026-01-21 05:15:09,803 [INFO] Decision: HOLD (confidence: 0.99)
+2026-01-21 05:15:09,803 [INFO] Reasoning: The new event is about Clorox (CLX), which is completely unrelated to Morgan Stanley (MS). This is likely a data error or irrelevant news. The event does not affect MS's business model, earnings, management, or regulatory environment. It does not contradict the bull case (wealth management flywheel, potential recovery in investment banking/trading) or confirm any known risks (cyclical downturn, regulatory scrutiny). The market impact on MS from this news should be negligible. Therefore, the original thesis remains intact.
+2026-01-21 05:15:09,803 [INFO] 
+⚠️  Reassessing position: PositionTrigger(GOOG, major_negative_news, MEDIUM)
+2026-01-21 05:15:09,831 [INFO] Using cached profile for GOOG (age: 6d)
+2026-01-21 05:15:09,832 [INFO] Running position_reassessment for GOOG
+2026-01-21 05:15:11,929 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 05:15:13,687 [INFO] position_reassessment completed successfully
+2026-01-21 05:15:13,687 [INFO] Decision: HOLD (confidence: 0.99)
+2026-01-21 05:15:13,687 [INFO] Reasoning: The event is a bear case analysis on Dropbox (DBX), not Google (GOOG). This has no direct bearing on Google's core business model, AI strategy, advertising dominance, or partnerships. It does not address or invalidate any aspect of the original GOOG thesis regarding its AI race position, cash cow advertising business, or the known antitrust/regulatory risks. This is unrelated noise.
+2026-01-21 05:15:13,687 [INFO] 
+=== Position Monitoring: 0 exit decision(s) ===
+
+2026-01-21 05:15:13,687 [INFO] 
+============================================================
+2026-01-21 05:15:13,687 [INFO] TRIGGER SCAN: 2026-01-20 16:15 EST
+2026-01-21 05:15:13,687 [INFO] ============================================================
+2026-01-21 05:15:13,704 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-21 05:15:14,074 [INFO] Found 1 new triggers (filtered from 3, suppressed=2)
+2026-01-21 05:15:14,074 [INFO] Found 1 triggers
+2026-01-21 05:15:14,074 [INFO] Consolidated into 1 symbols (avg 1.0 triggers/symbol)
+2026-01-21 05:15:14,075 [INFO] ⏭️  Skipping trigger for MS (active position)
+2026-01-21 05:15:14,075 [INFO] 
+============================================================
+2026-01-21 05:15:14,075 [INFO] SCAN COMPLETE: 0 GO signal(s)
+2026-01-21 05:15:14,075 [INFO] ============================================================
+
+2026-01-21 05:16:39,776 [INFO] Trigger event received (yfinance_news); running scans
+2026-01-21 05:16:39,780 [INFO] === POSITION MONITORING: 2026-01-20 16:16:39.775335-05:00 ===
+2026-01-21 05:16:39,820 [INFO] Monitoring 3 positions: MS, GOOG, CAT
+2026-01-21 05:16:39,855 [WARNING] ⚠️  Found 2 thesis-breaking triggers for positions
+2026-01-21 05:16:39,855 [INFO] 
+⚠️  Reassessing position: PositionTrigger(MS, major_negative_news, MEDIUM)
+2026-01-21 05:16:39,873 [INFO] Using cached profile for MS (age: 6d)
+2026-01-21 05:16:39,873 [INFO] Running position_reassessment for MS
+2026-01-21 05:16:42,320 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 05:16:46,111 [INFO] position_reassessment completed successfully
+2026-01-21 05:16:46,111 [INFO] Decision: HOLD (confidence: 0.99)
+2026-01-21 05:16:46,111 [INFO] Reasoning: The new event is completely unrelated to Morgan Stanley (MS), discussing analyst shifts for Clorox (CLX) instead. This does not impact the original thesis for MS, which focused on wealth management growth and investment banking recovery. The event is irrelevant to MS's business model, known risks, or market conditions. It represents neither a temporary setback nor a fundamental change for MS.
+2026-01-21 05:16:46,111 [INFO] 
+⚠️  Reassessing position: PositionTrigger(GOOG, major_negative_news, MEDIUM)
+2026-01-21 05:16:46,136 [INFO] Using cached profile for GOOG (age: 6d)
+2026-01-21 05:16:46,136 [INFO] Running position_reassessment for GOOG
+2026-01-21 05:16:46,828 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 05:16:52,459 [INFO] position_reassessment completed successfully
+2026-01-21 05:16:52,460 [INFO] Decision: HOLD (confidence: 0.99)
+2026-01-21 05:16:52,460 [INFO] Reasoning: The event is a bear case theory about Dropbox (DBX), which is unrelated to Alphabet/Google (GOOG). This does not impact the core thesis for GOOG, which focuses on AI leadership, advertising cash flow, and partnerships. The news is about a different company and sector entirely.
+2026-01-21 05:16:52,460 [INFO] 
+=== Position Monitoring: 0 exit decision(s) ===
+
+2026-01-21 05:16:52,460 [INFO] 
+============================================================
+2026-01-21 05:16:52,460 [INFO] TRIGGER SCAN: 2026-01-20 16:16 EST
+2026-01-21 05:16:52,460 [INFO] ============================================================
+2026-01-21 05:16:52,464 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-21 05:16:52,834 [INFO] Found 1 new triggers (filtered from 3, suppressed=2)
+2026-01-21 05:16:52,834 [INFO] Found 1 triggers
+2026-01-21 05:16:52,835 [INFO] Consolidated into 1 symbols (avg 1.0 triggers/symbol)
+2026-01-21 05:16:52,838 [INFO] ⏭️  Skipping trigger for MS (active position)
+2026-01-21 05:16:52,838 [INFO] 
+============================================================
+2026-01-21 05:16:52,838 [INFO] SCAN COMPLETE: 0 GO signal(s)
+2026-01-21 05:16:52,838 [INFO] ============================================================
+
+2026-01-21 05:20:26,033 [INFO] Trigger event received (yfinance_news); running scans
+2026-01-21 05:20:26,037 [INFO] === POSITION MONITORING: 2026-01-20 16:20:26.033238-05:00 ===
+2026-01-21 05:20:26,092 [INFO] Monitoring 3 positions: MS, CAT, GOOG
+2026-01-21 05:20:26,108 [WARNING] ⚠️  Found 2 thesis-breaking triggers for positions
+2026-01-21 05:20:26,108 [INFO] 
+⚠️  Reassessing position: PositionTrigger(MS, major_negative_news, MEDIUM)
+2026-01-21 05:20:26,115 [INFO] Using cached profile for MS (age: 6d)
+2026-01-21 05:20:26,115 [INFO] Running position_reassessment for MS
+2026-01-21 05:20:27,303 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 05:20:40,326 [INFO] position_reassessment completed successfully
+2026-01-21 05:20:40,326 [INFO] Decision: HOLD (confidence: 0.99)
+2026-01-21 05:20:40,326 [INFO] Reasoning: The new event is about Clorox (CLX) analyst shifts, which is completely unrelated to Morgan Stanley (MS). This has no impact on MS's wealth management flywheel, investment banking recovery prospects, or any known risks. The event does not address the core business model, earnings structure, management, or regulatory factors for MS. It appears to be a data error or irrelevant news item in the context of the MS position.
+2026-01-21 05:20:40,326 [INFO] 
+⚠️  Reassessing position: PositionTrigger(GOOG, major_negative_news, MEDIUM)
+2026-01-21 05:20:40,345 [INFO] Using cached profile for GOOG (age: 6d)
+2026-01-21 05:20:40,345 [INFO] Running position_reassessment for GOOG
+2026-01-21 05:20:41,155 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 05:20:56,219 [INFO] position_reassessment completed successfully
+2026-01-21 05:20:56,219 [INFO] Decision: HOLD (confidence: 0.95)
+2026-01-21 05:20:56,219 [INFO] Reasoning: The new event is a bear case theory about Dropbox (DBX), which is unrelated to Google (GOOG). It does not impact GOOG's dominant position in AI with Gemini, its core advertising business, or its major partnerships. This event does not contradict the bull case assumptions, confirm any known risks (antitrust, regulatory actions, or AI monetization execution risks), or represent a fundamental change to GOOG's business model. The market is unlikely to react significantly to this news regarding GOOG, as it pertains to a different company and sector.
+2026-01-21 05:20:56,219 [INFO] 
+=== Position Monitoring: 0 exit decision(s) ===
+
+2026-01-21 05:20:56,220 [INFO] 
+============================================================
+2026-01-21 05:20:56,220 [INFO] TRIGGER SCAN: 2026-01-20 16:20 EST
+2026-01-21 05:20:56,220 [INFO] ============================================================
+2026-01-21 05:20:56,234 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-21 05:20:56,670 [INFO] Found 1 new triggers (filtered from 3, suppressed=2)
+2026-01-21 05:20:56,670 [INFO] Found 1 triggers
+2026-01-21 05:20:56,670 [INFO] Consolidated into 1 symbols (avg 1.0 triggers/symbol)
+2026-01-21 05:20:56,672 [INFO] ⏭️  Skipping trigger for MS (active position)
+2026-01-21 05:20:56,672 [INFO] 
+============================================================
+2026-01-21 05:20:56,672 [INFO] SCAN COMPLETE: 0 GO signal(s)
+2026-01-21 05:20:56,672 [INFO] ============================================================
+
+2026-01-21 05:30:05,720 [INFO] Trigger event received (sec_filing); running scans
+2026-01-21 05:30:05,725 [INFO] === POSITION MONITORING: 2026-01-20 16:30:05.717130-05:00 ===
+2026-01-21 05:30:05,870 [INFO] Monitoring 3 positions: MS, CAT, GOOG
+2026-01-21 05:30:05,891 [WARNING] ⚠️  Found 2 thesis-breaking triggers for positions
+2026-01-21 05:30:05,891 [INFO] 
+⚠️  Reassessing position: PositionTrigger(MS, major_negative_news, MEDIUM)
+2026-01-21 05:30:05,900 [INFO] Using cached profile for MS (age: 6d)
+2026-01-21 05:30:05,901 [INFO] Running position_reassessment for MS
+2026-01-21 05:30:08,356 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 05:30:10,394 [INFO] position_reassessment completed successfully
+2026-01-21 05:30:10,394 [INFO] Decision: HOLD (confidence: 0.99)
+2026-01-21 05:30:10,394 [INFO] Reasoning: The news event is about Clorox (CLX), not Morgan Stanley (MS). This is completely unrelated to the original thesis for MS, which focused on wealth management flywheel and investment banking recovery. There is no connection between analyst shifts for a consumer staples company and MS's business model, growth drivers, or known risks. The event does not represent a temporary setback, fundamental change, or confirmation of any known risk for MS.
+2026-01-21 05:30:10,395 [INFO] 
+⚠️  Reassessing position: PositionTrigger(GOOG, major_negative_news, MEDIUM)
+2026-01-21 05:30:10,418 [INFO] Using cached profile for GOOG (age: 6d)
+2026-01-21 05:30:10,419 [INFO] Running position_reassessment for GOOG
+2026-01-21 05:30:11,328 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 05:30:26,381 [INFO] position_reassessment completed successfully
+2026-01-21 05:30:26,383 [INFO] Decision: HOLD (confidence: 0.95)
+2026-01-21 05:30:26,383 [INFO] Reasoning: The new event is a bear case analysis of Dropbox (DBX), which is unrelated to Alphabet (GOOG). It does not address or impact the core bull case for GOOG regarding its AI dominance with Gemini, major partnerships, or advertising cash flow. This event represents market noise, not a thesis-breaking development for GOOG. It confirms no known risks, contradicts no assumptions, and is unlikely to materially affect GOOG's market performance.
+2026-01-21 05:30:26,383 [INFO] 
+=== Position Monitoring: 0 exit decision(s) ===
+
+2026-01-21 05:30:26,383 [INFO] 
+============================================================
+2026-01-21 05:30:26,383 [INFO] TRIGGER SCAN: 2026-01-20 16:30 EST
+2026-01-21 05:30:26,383 [INFO] ============================================================
+2026-01-21 05:30:26,404 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-21 05:30:26,782 [INFO] Found 3 new triggers (filtered from 3, suppressed=2)
+2026-01-21 05:30:26,782 [INFO] Found 3 triggers
+2026-01-21 05:30:26,782 [INFO] Consolidated into 3 symbols (avg 1.0 triggers/symbol)
+2026-01-21 05:30:26,784 [INFO] ⏭️  Skipping trigger for GOOG (active position)
+2026-01-21 05:30:26,786 [INFO] ⏭️  Skipping trigger for CAT (active position)
+2026-01-21 05:30:26,806 [INFO] ⏭️  Skipping trigger for MS (active position)
+2026-01-21 05:30:26,806 [INFO] 
+============================================================
+2026-01-21 05:30:26,806 [INFO] SCAN COMPLETE: 0 GO signal(s)
+2026-01-21 05:30:26,806 [INFO] ============================================================
+
+2026-01-21 05:30:36,343 [INFO] Trigger event received (earnings_event); running scans
+2026-01-21 05:30:36,344 [INFO] === POSITION MONITORING: 2026-01-20 16:30:36.343393-05:00 ===
+2026-01-21 05:30:36,396 [INFO] Monitoring 3 positions: MS, GOOG, CAT
+2026-01-21 05:30:36,425 [WARNING] ⚠️  Found 2 thesis-breaking triggers for positions
+2026-01-21 05:30:36,426 [INFO] 
+⚠️  Reassessing position: PositionTrigger(MS, major_negative_news, MEDIUM)
+2026-01-21 05:30:36,435 [INFO] Using cached profile for MS (age: 6d)
+2026-01-21 05:30:36,435 [INFO] Running position_reassessment for MS
+2026-01-21 05:30:37,936 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 05:30:40,079 [INFO] position_reassessment completed successfully
+2026-01-21 05:30:40,079 [INFO] Decision: HOLD (confidence: 0.95)
+2026-01-21 05:30:40,080 [INFO] Reasoning: The new event is about Clorox (CLX) analyst shifts and has no direct relevance to Morgan Stanley (MS). It does not impact MS's wealth management flywheel, investment banking recovery potential, or capital markets cyclicality. This is unrelated news that does not invalidate any aspect of the original thesis, confirm known risks, or represent a fundamental change for MS. The market reaction for MS is likely unaffected by this CLX-specific news.
+2026-01-21 05:30:40,080 [INFO] 
+⚠️  Reassessing position: PositionTrigger(GOOG, major_negative_news, MEDIUM)
+2026-01-21 05:30:40,119 [INFO] Using cached profile for GOOG (age: 6d)
+2026-01-21 05:30:40,119 [INFO] Running position_reassessment for GOOG
+2026-01-21 05:30:40,470 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 05:30:50,921 [INFO] position_reassessment completed successfully
+2026-01-21 05:30:50,923 [INFO] Decision: HOLD (confidence: 0.99)
+2026-01-21 05:30:50,923 [INFO] Reasoning: The event is a bear case theory about Dropbox (DBX), not Alphabet (GOOG). This has no direct bearing on the original thesis for GOOG, which centers on its AI leadership (Gemini), key partnerships, and strong advertising business. The news does not threaten GOOG's core business model, reveal structural problems, or involve key management changes. It is unrelated to the known risks of antitrust lawsuits or AI monetization execution. The market's reaction to this Dropbox-specific news is irrelevant to GOOG's investment thesis.
+2026-01-21 05:30:50,923 [INFO] 
+=== Position Monitoring: 0 exit decision(s) ===
+
+2026-01-21 05:30:50,923 [INFO] 
+============================================================
+2026-01-21 05:30:50,923 [INFO] TRIGGER SCAN: 2026-01-20 16:30 EST
+2026-01-21 05:30:50,923 [INFO] ============================================================
+2026-01-21 05:30:50,934 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-21 05:30:51,334 [INFO] Found 3 new triggers (filtered from 3, suppressed=2)
+2026-01-21 05:30:51,335 [INFO] Found 3 triggers
+2026-01-21 05:30:51,335 [INFO] Consolidated into 3 symbols (avg 1.0 triggers/symbol)
+2026-01-21 05:30:51,336 [INFO] ⏭️  Skipping trigger for GOOG (active position)
+2026-01-21 05:30:51,337 [INFO] ⏭️  Skipping trigger for CAT (active position)
+2026-01-21 05:30:51,337 [INFO] ⏭️  Skipping trigger for MS (active position)
+2026-01-21 05:30:51,337 [INFO] 
+============================================================
+2026-01-21 05:30:51,337 [INFO] SCAN COMPLETE: 0 GO signal(s)
+2026-01-21 05:30:51,337 [INFO] ============================================================
+
+2026-01-21 05:45:51,346 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 06:02:04,607 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 06:17:04,621 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 06:21:03,413 [INFO] Trigger event received (yfinance_news); running scans
+2026-01-21 06:21:03,414 [INFO] === POSITION MONITORING: 2026-01-20 17:21:03.412791-05:00 ===
+2026-01-21 06:21:03,516 [INFO] Monitoring 3 positions: MS, CAT, GOOG
+2026-01-21 06:21:03,533 [WARNING] ⚠️  Found 2 thesis-breaking triggers for positions
+2026-01-21 06:21:03,533 [INFO] 
+⚠️  Reassessing position: PositionTrigger(MS, major_negative_news, MEDIUM)
+2026-01-21 06:21:03,540 [INFO] Using cached profile for MS (age: 6d)
+2026-01-21 06:21:03,540 [INFO] Running position_reassessment for MS
+2026-01-21 06:21:04,862 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 06:21:09,334 [INFO] position_reassessment completed successfully
+2026-01-21 06:21:09,334 [INFO] Decision: HOLD (confidence: 0.99)
+2026-01-21 06:21:09,334 [INFO] Reasoning: The new event is completely unrelated to Morgan Stanley (MS) as it discusses analyst shifts for Clorox (CLX), a consumer goods company. This does not affect the core thesis for MS, which is based on its Wealth Management flywheel and potential recovery in Investment Banking/Trading. The event is irrelevant to MS's business model, known risks, or market conditions. It represents noise, not a fundamental change.
+2026-01-21 06:21:09,334 [INFO] 
+⚠️  Reassessing position: PositionTrigger(GOOG, major_negative_news, MEDIUM)
+2026-01-21 06:21:09,373 [INFO] Using cached profile for GOOG (age: 6d)
+2026-01-21 06:21:09,373 [INFO] Running position_reassessment for GOOG
+2026-01-21 06:21:10,495 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 06:21:12,341 [INFO] position_reassessment completed successfully
+2026-01-21 06:21:12,342 [INFO] Decision: HOLD (confidence: 0.95)
+2026-01-21 06:21:12,342 [INFO] Reasoning: The event is a bear case theory for Dropbox (DBX), not Google (GOOG). It has no direct relevance to GOOG's original thesis regarding its AI race dominance with Gemini, core advertising business, or the known antitrust/regulatory risks. This does not represent a fundamental change, contradict bull case assumptions, or confirm an accepted risk for GOOG. The market is unlikely to react significantly to this news regarding GOOG.
+2026-01-21 06:21:12,342 [INFO] 
+=== Position Monitoring: 0 exit decision(s) ===
+
+2026-01-21 06:21:12,342 [INFO] 
+============================================================
+2026-01-21 06:21:12,342 [INFO] TRIGGER SCAN: 2026-01-20 17:21 EST
+2026-01-21 06:21:12,342 [INFO] ============================================================
+2026-01-21 06:21:12,360 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-21 06:21:12,731 [INFO] Found 3 new triggers (filtered from 3, suppressed=2)
+2026-01-21 06:21:12,731 [INFO] Found 3 triggers
+2026-01-21 06:21:12,732 [INFO] Consolidated into 3 symbols (avg 1.0 triggers/symbol)
+2026-01-21 06:21:12,734 [INFO] ⏭️  Skipping trigger for GOOG (active position)
+2026-01-21 06:21:12,752 [INFO] ⏭️  Skipping trigger for CAT (active position)
+2026-01-21 06:21:12,757 [INFO] ⏭️  Skipping trigger for MS (active position)
+2026-01-21 06:21:12,757 [INFO] 
+============================================================
+2026-01-21 06:21:12,757 [INFO] SCAN COMPLETE: 0 GO signal(s)
+2026-01-21 06:21:12,757 [INFO] ============================================================
+
+2026-01-21 06:36:12,760 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 06:51:12,767 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 07:06:12,774 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 07:21:01,796 [INFO] Trigger event received (yfinance_news); running scans
+2026-01-21 07:21:01,798 [INFO] === POSITION MONITORING: 2026-01-20 18:21:01.795802-05:00 ===
+2026-01-21 07:21:01,926 [INFO] Monitoring 3 positions: MS, CAT, GOOG
+2026-01-21 07:21:01,945 [WARNING] ⚠️  Found 2 thesis-breaking triggers for positions
+2026-01-21 07:21:01,945 [INFO] 
+⚠️  Reassessing position: PositionTrigger(MS, major_negative_news, MEDIUM)
+2026-01-21 07:21:01,952 [INFO] Using cached profile for MS (age: 6d)
+2026-01-21 07:21:01,952 [INFO] Running position_reassessment for MS
+2026-01-21 07:21:05,414 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 07:21:08,242 [INFO] position_reassessment completed successfully
+2026-01-21 07:21:08,242 [INFO] Decision: HOLD (confidence: 0.95)
+2026-01-21 07:21:08,242 [INFO] Reasoning: The new event is about Hims & Hers Health (HIMS) stock declining, which is unrelated to Morgan Stanley (MS). The original thesis for MS focuses on its Wealth Management business and potential recovery in Investment Banking/Trading. This event does not impact MS's core business model, earnings, management, or regulatory environment. It is not a known risk for MS and does not contradict the bull case assumptions. The market reaction to HIMS is irrelevant to MS's thesis. Therefore, the thesis remains intact.
+2026-01-21 07:21:08,242 [INFO] 
+⚠️  Reassessing position: PositionTrigger(GOOG, major_negative_news, MEDIUM)
+2026-01-21 07:21:08,262 [INFO] Using cached profile for GOOG (age: 6d)
+2026-01-21 07:21:08,262 [INFO] Running position_reassessment for GOOG
+2026-01-21 07:21:10,995 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 07:21:13,400 [INFO] position_reassessment completed successfully
+2026-01-21 07:21:13,401 [INFO] Decision: HOLD (confidence: 0.95)
+2026-01-21 07:21:13,401 [INFO] Reasoning: The new event is a bear case theory about Dropbox (DBX), not Google (GOOG). It is unrelated to GOOG's AI dominance, advertising business, or the known risks (antitrust, regulatory actions, AI monetization). This does not impact the core thesis for GOOG, which remains intact. The event is a temporary noise item with no direct relevance to GOOG's fundamentals.
+2026-01-21 07:21:13,401 [INFO] 
+=== Position Monitoring: 0 exit decision(s) ===
+
+2026-01-21 07:21:13,401 [INFO] 
+============================================================
+2026-01-21 07:21:13,401 [INFO] TRIGGER SCAN: 2026-01-20 18:21 EST
+2026-01-21 07:21:13,401 [INFO] ============================================================
+2026-01-21 07:21:13,420 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-21 07:21:13,692 [INFO] Found 2 new triggers (filtered from 2, suppressed=3)
+2026-01-21 07:21:13,692 [INFO] Found 2 triggers
+2026-01-21 07:21:13,692 [INFO] Consolidated into 2 symbols (avg 1.0 triggers/symbol)
+2026-01-21 07:21:13,694 [INFO] ⏭️  Skipping trigger for GOOG (active position)
+2026-01-21 07:21:13,695 [INFO] ⏭️  Skipping trigger for CAT (active position)
+2026-01-21 07:21:13,696 [INFO] 
+============================================================
+2026-01-21 07:21:13,696 [INFO] SCAN COMPLETE: 0 GO signal(s)
+2026-01-21 07:21:13,696 [INFO] ============================================================
+
+2026-01-21 07:30:14,686 [INFO] Watchlist already built for 2026-01-20; skipping rebuild
+2026-01-21 07:45:14,698 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 08:00:14,710 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 08:15:14,734 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 08:21:26,580 [INFO] Trigger event received (yfinance_news); running scans
+2026-01-21 08:21:26,584 [INFO] === POSITION MONITORING: 2026-01-20 19:21:26.578542-05:00 ===
+2026-01-21 08:21:26,756 [INFO] Monitoring 3 positions: MS, GOOG, CAT
+2026-01-21 08:21:26,787 [WARNING] ⚠️  Found 2 thesis-breaking triggers for positions
+2026-01-21 08:21:26,787 [INFO] 
+⚠️  Reassessing position: PositionTrigger(MS, major_negative_news, MEDIUM)
+2026-01-21 08:21:26,796 [INFO] Using cached profile for MS (age: 6d)
+2026-01-21 08:21:26,796 [INFO] Running position_reassessment for MS
+2026-01-21 08:21:28,696 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 08:21:52,049 [INFO] position_reassessment completed successfully
+2026-01-21 08:21:52,050 [INFO] Decision: HOLD (confidence: 0.95)
+2026-01-21 08:21:52,050 [INFO] Reasoning: The new event involves a completely unrelated company (Hims & Hers Health, HIMS) and has no direct or material connection to Morgan Stanley (MS). It does not affect MS's core business model, wealth management flywheel, investment banking recovery potential, or any known risks outlined in the original thesis. This is irrelevant noise, not a thesis-breaking event for MS.
+2026-01-21 08:21:52,050 [INFO] 
+⚠️  Reassessing position: PositionTrigger(GOOG, major_negative_news, MEDIUM)
+2026-01-21 08:21:52,069 [INFO] Using cached profile for GOOG (age: 6d)
+2026-01-21 08:21:52,069 [INFO] Running position_reassessment for GOOG
+2026-01-21 08:21:55,462 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 08:21:59,470 [INFO] position_reassessment completed successfully
+2026-01-21 08:21:59,471 [INFO] Decision: HOLD (confidence: 0.95)
+2026-01-21 08:21:59,471 [INFO] Reasoning: The event is a bear case theory on Dropbox (DBX), which is unrelated to Google (GOOG) and its core AI and advertising business thesis. The original thesis focuses on Google's AI race position with Gemini, major partnerships, and its advertising cash flow. The event does not address any of these elements, nor does it confirm any known risks like antitrust or AI monetization execution. It represents market noise, not a fundamental change to Google's business model or growth drivers.
+2026-01-21 08:21:59,471 [INFO] 
+=== Position Monitoring: 0 exit decision(s) ===
+
+2026-01-21 08:21:59,471 [INFO] 
+============================================================
+2026-01-21 08:21:59,471 [INFO] TRIGGER SCAN: 2026-01-20 19:21 EST
+2026-01-21 08:21:59,471 [INFO] ============================================================
+2026-01-21 08:21:59,491 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-21 08:21:59,707 [INFO] Found 0 new triggers (filtered from 0, suppressed=3)
+2026-01-21 08:21:59,707 [INFO] No triggers found
+2026-01-21 08:36:59,714 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 08:51:59,729 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 09:06:59,742 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 09:15:28,123 [INFO] Trigger event received (yfinance_news); running scans
+2026-01-21 09:15:28,128 [INFO] === POSITION MONITORING: 2026-01-20 20:15:28.121392-05:00 ===
+2026-01-21 09:15:28,272 [INFO] Monitoring 3 positions: MS, GOOG, CAT
+2026-01-21 09:15:28,294 [WARNING] ⚠️  Found 2 thesis-breaking triggers for positions
+2026-01-21 09:15:28,294 [INFO] 
+⚠️  Reassessing position: PositionTrigger(MS, major_negative_news, MEDIUM)
+2026-01-21 09:15:28,305 [INFO] Using cached profile for MS (age: 6d)
+2026-01-21 09:15:28,305 [INFO] Running position_reassessment for MS
+2026-01-21 09:15:33,338 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 09:15:37,064 [INFO] position_reassessment completed successfully
+2026-01-21 09:15:37,064 [INFO] Decision: HOLD (confidence: 0.98)
+2026-01-21 09:15:37,064 [INFO] Reasoning: The new event regarding Hims & Hers Health (HIMS) stock decline is completely unrelated to Morgan Stanley (MS). MS's core business model revolves around wealth management and investment banking, not direct involvement with HIMS. This event does not threaten MS's wealth management 'flywheel', recovery potential in capital markets, or involve regulatory scrutiny on its operations. It represents market noise specific to another company and has no material impact on the original trade thesis for MS.
+2026-01-21 09:15:37,064 [INFO] 
+⚠️  Reassessing position: PositionTrigger(GOOG, major_negative_news, MEDIUM)
+2026-01-21 09:15:37,113 [INFO] Using cached profile for GOOG (age: 6d)
+2026-01-21 09:15:37,115 [INFO] Running position_reassessment for GOOG
+2026-01-21 09:15:37,593 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 09:15:43,984 [INFO] position_reassessment completed successfully
+2026-01-21 09:15:43,985 [INFO] Decision: HOLD (confidence: 0.95)
+2026-01-21 09:15:43,985 [INFO] Reasoning: The event is a bear case theory on Dropbox (DBX), not Google (GOOG). This is unrelated to the original thesis on GOOG's AI position, advertising cash flow, or partnerships. It does not threaten GOOG's core business model, reveal structural problems, or involve key management changes. The event confirms no known risk for GOOG and is a temporary market noise item with no direct impact on GOOG's fundamentals. The market is unlikely to react materially to this unrelated news.
+2026-01-21 09:15:43,985 [INFO] 
+=== Position Monitoring: 0 exit decision(s) ===
+
+2026-01-21 09:15:43,985 [INFO] 
+============================================================
+2026-01-21 09:15:43,985 [INFO] TRIGGER SCAN: 2026-01-20 20:15 EST
+2026-01-21 09:15:43,985 [INFO] ============================================================
+2026-01-21 09:15:43,998 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-21 09:15:44,179 [INFO] Found 0 new triggers (filtered from 0, suppressed=2)
+2026-01-21 09:15:44,179 [INFO] No triggers found
+2026-01-21 09:30:44,183 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 09:45:44,197 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 10:00:44,208 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 10:15:44,216 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 10:20:44,890 [INFO] Trigger event received (yfinance_news); running scans
+2026-01-21 10:20:44,891 [INFO] === POSITION MONITORING: 2026-01-20 21:20:44.888922-05:00 ===
+2026-01-21 10:20:44,976 [INFO] Monitoring 3 positions: MS, CAT, GOOG
+2026-01-21 10:20:44,994 [WARNING] ⚠️  Found 2 thesis-breaking triggers for positions
+2026-01-21 10:20:44,994 [INFO] 
+⚠️  Reassessing position: PositionTrigger(MS, major_negative_news, MEDIUM)
+2026-01-21 10:20:45,004 [INFO] Using cached profile for MS (age: 6d)
+2026-01-21 10:20:45,005 [INFO] Running position_reassessment for MS
+2026-01-21 10:20:48,961 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 10:20:54,923 [INFO] position_reassessment completed successfully
+2026-01-21 10:20:54,925 [INFO] Decision: HOLD (confidence: 0.99)
+2026-01-21 10:20:54,925 [INFO] Reasoning: The new event regarding Hims & Hers Health (HIMS) stock decline is completely unrelated to Morgan Stanley (MS). MS is a global financial services firm focused on wealth management, investment banking, and trading, while HIMS is a digital health company. This event does not impact MS's core business model, financial performance, regulatory environment, or management. It is irrelevant noise that does not contradict the bull case assumptions (wealth management flywheel, potential capital markets recovery) or confirm any known risks (cyclical downturn, regulatory scrutiny) for MS. The event represents a temporary, unrelated market movement with no fundamental bearing on MS's thesis.
+2026-01-21 10:20:54,925 [INFO] 
+⚠️  Reassessing position: PositionTrigger(GOOG, major_negative_news, MEDIUM)
+2026-01-21 10:20:54,944 [INFO] Using cached profile for GOOG (age: 6d)
+2026-01-21 10:20:54,945 [INFO] Running position_reassessment for GOOG
+2026-01-21 10:20:55,922 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 10:21:11,571 [INFO] position_reassessment completed successfully
+2026-01-21 10:21:11,571 [INFO] Decision: HOLD (confidence: 0.99)
+2026-01-21 10:21:11,571 [INFO] Reasoning: The new event is a bear case theory about Dropbox (DBX), which is a different company and unrelated to Alphabet (GOOG). This does not affect GOOG's core AI thesis, advertising business, or known regulatory risks. The event is irrelevant to the original trade thesis, representing neither a temporary setback nor a fundamental change for GOOG. It does not contradict bull case assumptions, confirm accepted risks, or provide new material information about GOOG. The market is unlikely to react to this news regarding GOOG.
+2026-01-21 10:21:11,571 [INFO] 
+=== Position Monitoring: 0 exit decision(s) ===
+
+2026-01-21 10:21:11,571 [INFO] 
+============================================================
+2026-01-21 10:21:11,571 [INFO] TRIGGER SCAN: 2026-01-20 21:20 EST
+2026-01-21 10:21:11,571 [INFO] ============================================================
+2026-01-21 10:21:11,578 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-21 10:21:11,712 [INFO] Found 0 new triggers (filtered from 0, suppressed=1)
+2026-01-21 10:21:11,713 [INFO] No triggers found
+2026-01-21 10:36:11,719 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 10:51:11,730 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 11:06:11,744 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 11:20:46,699 [INFO] Trigger event received (yfinance_news); running scans
+2026-01-21 11:20:46,702 [INFO] === POSITION MONITORING: 2026-01-20 22:20:46.698991-05:00 ===
+2026-01-21 11:20:46,830 [INFO] Monitoring 3 positions: MS, CAT, GOOG
+2026-01-21 11:20:46,851 [WARNING] ⚠️  Found 2 thesis-breaking triggers for positions
+2026-01-21 11:20:46,851 [INFO] 
+⚠️  Reassessing position: PositionTrigger(MS, major_negative_news, MEDIUM)
+2026-01-21 11:20:46,858 [INFO] Using cached profile for MS (age: 6d)
+2026-01-21 11:20:46,859 [INFO] Running position_reassessment for MS
+2026-01-21 11:20:49,238 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 11:20:52,915 [INFO] position_reassessment completed successfully
+2026-01-21 11:20:52,916 [INFO] Decision: HOLD (confidence: 0.99)
+2026-01-21 11:20:52,916 [INFO] Reasoning: The new event is about Hims & Hers Health (HIMS) stock, which is unrelated to Morgan Stanley (MS). The original thesis for MS focuses on Wealth Management and Investment Banking/Trading revenues, with known risks around cyclical downturns and regulatory scrutiny. The HIMS news does not impact MS's core business model, earnings, management, or regulatory environment. This is clearly irrelevant noise, not a thesis-breaking event. The event is temporary and unrelated to MS's operations, and it does not contradict the bull case or confirm any known risks for MS. The market is unlikely to react to this news for MS, as it pertains to a different company entirely.
+2026-01-21 11:20:52,916 [INFO] 
+⚠️  Reassessing position: PositionTrigger(GOOG, major_negative_news, MEDIUM)
+2026-01-21 11:20:52,926 [INFO] Using cached profile for GOOG (age: 6d)
+2026-01-21 11:20:52,926 [INFO] Running position_reassessment for GOOG
+2026-01-21 11:20:57,836 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 11:21:01,160 [INFO] position_reassessment completed successfully
+2026-01-21 11:21:01,161 [INFO] Decision: HOLD (confidence: 0.99)
+2026-01-21 11:21:01,161 [INFO] Reasoning: The new event is a bear case theory about Dropbox (DBX), which is unrelated to Alphabet (GOOG). The original thesis for GOOG focuses on its AI capabilities, advertising business, and specific partnerships. A negative article about Dropbox does not impact GOOG's core business model, earnings, management, or regulatory environment. This event is irrelevant to the trade thesis and does not constitute a temporary setback or fundamental change for GOOG. It does not contradict the bull case assumptions or confirm any known risks. The market is unlikely to react to this news regarding GOOG.
+2026-01-21 11:21:01,161 [INFO] 
+=== Position Monitoring: 0 exit decision(s) ===
+
+2026-01-21 11:21:01,161 [INFO] 
+============================================================
+2026-01-21 11:21:01,161 [INFO] TRIGGER SCAN: 2026-01-20 22:20 EST
+2026-01-21 11:21:01,161 [INFO] ============================================================
+2026-01-21 11:21:01,175 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-21 11:21:01,347 [INFO] Found 0 new triggers (filtered from 0, suppressed=1)
+2026-01-21 11:21:01,347 [INFO] No triggers found
+2026-01-21 11:36:01,355 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 11:51:01,358 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 12:06:01,366 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 12:20:37,983 [INFO] Trigger event received (yfinance_news); running scans
+2026-01-21 12:20:37,985 [INFO] === POSITION MONITORING: 2026-01-20 23:20:37.983437-05:00 ===
+2026-01-21 12:20:38,054 [INFO] Monitoring 3 positions: MS, GOOG, CAT
+2026-01-21 12:20:38,069 [WARNING] ⚠️  Found 2 thesis-breaking triggers for positions
+2026-01-21 12:20:38,069 [INFO] 
+⚠️  Reassessing position: PositionTrigger(MS, major_negative_news, MEDIUM)
+2026-01-21 12:20:38,079 [INFO] Using cached profile for MS (age: 6d)
+2026-01-21 12:20:38,080 [INFO] Running position_reassessment for MS
+2026-01-21 12:20:41,413 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 12:20:43,690 [INFO] position_reassessment completed successfully
+2026-01-21 12:20:43,690 [INFO] Decision: HOLD (confidence: 0.95)
+2026-01-21 12:20:43,690 [INFO] Reasoning: The event details describe negative news about 'HIMS' (Hims & Hers Health), which is unrelated to Morgan Stanley (MS). The original thesis for MS focused on its Wealth Management flywheel and potential recovery in Investment Banking/Trading. This news about a different company does not impact MS's core business model, financial performance, or the specific risks outlined in the original thesis. It represents market noise, not a fundamental change to the MS investment case.
+2026-01-21 12:20:43,690 [INFO] 
+⚠️  Reassessing position: PositionTrigger(GOOG, major_negative_news, MEDIUM)
+2026-01-21 12:20:43,704 [INFO] Using cached profile for GOOG (age: 6d)
+2026-01-21 12:20:43,704 [INFO] Running position_reassessment for GOOG
+2026-01-21 12:20:45,114 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 12:20:54,067 [INFO] position_reassessment completed successfully
+2026-01-21 12:20:54,067 [INFO] Decision: HOLD (confidence: 0.95)
+2026-01-21 12:20:54,067 [INFO] Reasoning: The new event is a general market headline indicating a price dip with negative sentiment, but it lacks specific details about fundamental changes to Alphabet's business. It does not directly contradict the bull case assumptions regarding AI dominance, major partnerships, or the core advertising cash cow. The event appears to be a temporary market reaction or noise, not a confirmation of the known risks (antitrust or AI monetization issues) in a material way. The original thesis remains intact as no structural threats or thesis-breaking developments are reported.
+2026-01-21 12:20:54,067 [INFO] 
+=== Position Monitoring: 0 exit decision(s) ===
+
+2026-01-21 12:20:54,067 [INFO] 
+============================================================
+2026-01-21 12:20:54,068 [INFO] TRIGGER SCAN: 2026-01-20 23:20 EST
+2026-01-21 12:20:54,068 [INFO] ============================================================
+2026-01-21 12:20:54,079 [INFO] Scanning 5 watchlist symbols for triggers...
+2026-01-21 12:20:54,239 [INFO] Found 0 new triggers (filtered from 0, suppressed=0)
+2026-01-21 12:20:54,239 [INFO] No triggers found
+2026-01-21 12:35:54,250 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 12:50:54,262 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 13:05:54,273 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 13:15:37,444 [INFO] Trigger event received (yfinance_news); running scans
+2026-01-21 13:15:37,447 [INFO] === POSITION MONITORING: 2026-01-21 00:15:37.444024-05:00 ===
+2026-01-21 13:15:37,566 [INFO] Monitoring 3 positions: MS, CAT, GOOG
+2026-01-21 13:15:37,585 [WARNING] ⚠️  Found 1 thesis-breaking triggers for positions
+2026-01-21 13:15:37,586 [INFO] 
+⚠️  Reassessing position: PositionTrigger(GOOG, major_negative_news, MEDIUM)
+2026-01-21 13:15:37,594 [INFO] Using cached profile for GOOG (age: 6d)
+2026-01-21 13:15:37,594 [INFO] Running position_reassessment for GOOG
+2026-01-21 13:15:39,349 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 13:15:47,683 [INFO] position_reassessment completed successfully
+2026-01-21 13:15:47,683 [INFO] Decision: HOLD (confidence: 0.92)
+2026-01-21 13:15:47,683 [INFO] Reasoning: The event is a general market headline about a stock price dip with negative sentiment, but it contains no specific information about Google's core business, AI strategy, partnerships, or regulatory landscape. It does not address any of the bull case assumptions (dominant AI position with Gemini, major partnerships, cash cow advertising business) or directly confirm the known risks (antitrust, AI monetization execution). This appears to be short-term market noise or a reaction to broader market conditions, not a fundamental change to the investment thesis. The original thesis remains intact, and the event is likely a temporary setback.
+2026-01-21 13:15:47,684 [INFO] 
+=== Position Monitoring: 0 exit decision(s) ===
+
+2026-01-21 13:15:47,684 [INFO] 
+============================================================
+2026-01-21 13:15:47,684 [INFO] TRIGGER SCAN: 2026-01-21 00:15 EST
+2026-01-21 13:15:47,684 [INFO] ============================================================
+2026-01-21 13:15:47,700 [INFO] No watchlist found for 2026-01-21
+2026-01-21 13:15:47,700 [INFO] No triggers found
+2026-01-21 13:30:47,706 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 13:45:47,720 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 14:00:47,737 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 14:15:47,751 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 14:20:40,954 [INFO] Trigger event received (yfinance_news); running scans
+2026-01-21 14:20:40,956 [INFO] === POSITION MONITORING: 2026-01-21 01:20:40.953675-05:00 ===
+2026-01-21 14:20:41,084 [INFO] Monitoring 3 positions: MS, GOOG, CAT
+2026-01-21 14:20:41,105 [WARNING] ⚠️  Found 1 thesis-breaking triggers for positions
+2026-01-21 14:20:41,105 [INFO] 
+⚠️  Reassessing position: PositionTrigger(GOOG, major_negative_news, MEDIUM)
+2026-01-21 14:20:41,113 [INFO] Using cached profile for GOOG (age: 6d)
+2026-01-21 14:20:41,113 [INFO] Running position_reassessment for GOOG
+2026-01-21 14:20:44,926 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 14:20:47,658 [INFO] position_reassessment completed successfully
+2026-01-21 14:20:47,659 [INFO] Decision: HOLD (confidence: 0.90)
+2026-01-21 14:20:47,659 [INFO] Reasoning: The event is a news article reporting a market dip with negative sentiment, but it contains no specific fundamental information that contradicts the original thesis. The bull case centered on Google's AI positioning and advertising cash flow remains intact. This appears to be routine market volatility or a reaction to general market conditions, not a development that threatens the core business model, key partnerships, or growth drivers outlined in the thesis. The event does not confirm a known risk (like a new regulatory action) in a material way. The market reaction is likely noise.
+2026-01-21 14:20:47,659 [INFO] 
+=== Position Monitoring: 0 exit decision(s) ===
+
+2026-01-21 14:20:47,659 [INFO] 
+============================================================
+2026-01-21 14:20:47,659 [INFO] TRIGGER SCAN: 2026-01-21 01:20 EST
+2026-01-21 14:20:47,659 [INFO] ============================================================
+2026-01-21 14:20:47,693 [INFO] No watchlist found for 2026-01-21
+2026-01-21 14:20:47,693 [INFO] No triggers found
+2026-01-21 14:35:47,702 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 14:50:47,730 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 15:05:47,745 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 15:20:26,060 [INFO] Trigger event received (yfinance_news); running scans
+2026-01-21 15:20:26,064 [INFO] === POSITION MONITORING: 2026-01-21 02:20:26.059257-05:00 ===
+2026-01-21 15:20:26,186 [INFO] Monitoring 3 positions: MS, CAT, GOOG
+2026-01-21 15:20:26,202 [WARNING] ⚠️  Found 1 thesis-breaking triggers for positions
+2026-01-21 15:20:26,202 [INFO] 
+⚠️  Reassessing position: PositionTrigger(GOOG, major_negative_news, MEDIUM)
+2026-01-21 15:20:26,209 [INFO] Using cached profile for GOOG (age: 6d)
+2026-01-21 15:20:26,209 [INFO] Running position_reassessment for GOOG
+2026-01-21 15:20:31,989 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 15:20:43,057 [INFO] position_reassessment completed successfully
+2026-01-21 15:20:43,057 [INFO] Decision: HOLD (confidence: 0.95)
+2026-01-21 15:20:43,058 [INFO] Reasoning: The new event is a generic negative news article about a market dip, with no specific details provided that challenge the original thesis. The original bull case centered on Google's AI leadership, partnerships, and advertising cash flow, with known risks including antitrust and regulatory issues. This news appears to reflect short-term market volatility or sentiment, not a fundamental change such as loss of key partnerships, AI setbacks, or regulatory actions that would threaten the core business model. It does not contradict bull case assumptions or confirm a known risk in a material way. The market reaction is likely noise, and the thesis remains intact.
+2026-01-21 15:20:43,058 [INFO] 
+=== Position Monitoring: 0 exit decision(s) ===
+
+2026-01-21 15:20:43,058 [INFO] 
+============================================================
+2026-01-21 15:20:43,058 [INFO] TRIGGER SCAN: 2026-01-21 02:20 EST
+2026-01-21 15:20:43,058 [INFO] ============================================================
+2026-01-21 15:20:43,071 [INFO] No watchlist found for 2026-01-21
+2026-01-21 15:20:43,071 [INFO] No triggers found
+2026-01-21 15:35:43,078 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 15:50:43,092 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 16:05:43,106 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 16:20:41,807 [INFO] Trigger event received (yfinance_news); running scans
+2026-01-21 16:20:41,810 [INFO] === POSITION MONITORING: 2026-01-21 03:20:41.804254-05:00 ===
+2026-01-21 16:20:41,949 [INFO] Monitoring 3 positions: MS, GOOG, CAT
+2026-01-21 16:20:41,973 [WARNING] ⚠️  Found 1 thesis-breaking triggers for positions
+2026-01-21 16:20:41,973 [INFO] 
+⚠️  Reassessing position: PositionTrigger(GOOG, major_negative_news, MEDIUM)
+2026-01-21 16:20:41,982 [INFO] Using cached profile for GOOG (age: 6d)
+2026-01-21 16:20:41,983 [INFO] Running position_reassessment for GOOG
+2026-01-21 16:20:45,800 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 16:20:49,487 [INFO] position_reassessment completed successfully
+2026-01-21 16:20:49,488 [INFO] Decision: HOLD (confidence: 0.90)
+2026-01-21 16:20:49,489 [INFO] Reasoning: The new event is a news article with negative sentiment but lacks specific details about a fundamental change to Alphabet's business. The original thesis is based on Google's dominant AI position, strong partnerships, and cash-generating advertising business. This event appears to be a market reaction or temporary dip, not a structural threat. It does not contradict the bull case assumptions (Gemini, Apple/Walmart partnerships, advertising strength) nor confirm a known risk like antitrust or regulatory action in a material way. The market's reaction is likely noise, and the core thesis remains intact. The severity is MEDIUM, but without concrete information, it's not thesis-breaking.
+2026-01-21 16:20:49,489 [INFO] 
+=== Position Monitoring: 0 exit decision(s) ===
+
+2026-01-21 16:20:49,489 [INFO] 
+============================================================
+2026-01-21 16:20:49,489 [INFO] TRIGGER SCAN: 2026-01-21 03:20 EST
+2026-01-21 16:20:49,489 [INFO] ============================================================
+2026-01-21 16:20:49,516 [INFO] No watchlist found for 2026-01-21
+2026-01-21 16:20:49,516 [INFO] No triggers found
+2026-01-21 16:35:49,525 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 16:50:49,537 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 17:05:49,546 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 17:15:28,627 [INFO] Trigger event received (yfinance_news); running scans
+2026-01-21 17:15:28,630 [INFO] === POSITION MONITORING: 2026-01-21 04:15:28.626089-05:00 ===
+2026-01-21 17:15:28,794 [INFO] Monitoring 3 positions: MS, GOOG, CAT
+2026-01-21 17:15:28,823 [WARNING] ⚠️  Found 1 thesis-breaking triggers for positions
+2026-01-21 17:15:28,824 [INFO] 
+⚠️  Reassessing position: PositionTrigger(GOOG, major_negative_news, MEDIUM)
+2026-01-21 17:15:28,835 [INFO] Cached profile for GOOG is stale (age: 7d, refreshing...)
+2026-01-21 17:15:28,853 [INFO] Generating Ticker Profile for GOOG
+2026-01-21 17:15:29,264 [INFO] GOOG: Quantitative base score = 0.613 (incl. money flow)
+2026-01-21 17:15:29,966 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 17:17:38,722 [INFO] Running position_reassessment for GOOG
+2026-01-21 17:17:40,593 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 17:17:49,464 [INFO] position_reassessment completed successfully
+2026-01-21 17:17:49,465 [INFO] Decision: HOLD (confidence: 0.92)
+2026-01-21 17:17:49,465 [INFO] Reasoning: The new event is a generic negative news article with a sentiment score but provides no specific details on the underlying cause. The original thesis is based on GOOG's dominant cash-generative core advertising business funding growth initiatives and Google Cloud's high-growth trajectory. A negative headline without substantive information does not invalidate these core assumptions. This appears to be market noise or a temporary reaction, not a fundamental change to the business model, competitive position, or growth drivers. It does not confirm any specific known risk beyond general market volatility. The market's reaction is likely short-term and not thesis-breaking.
+2026-01-21 17:17:49,465 [INFO] 
+=== Position Monitoring: 0 exit decision(s) ===
+
+2026-01-21 17:17:49,466 [INFO] 
+============================================================
+2026-01-21 17:17:49,466 [INFO] TRIGGER SCAN: 2026-01-21 04:15 EST
+2026-01-21 17:17:49,466 [INFO] ============================================================
+2026-01-21 17:17:49,491 [INFO] No watchlist found for 2026-01-21
+2026-01-21 17:17:49,492 [INFO] No triggers found
+2026-01-21 17:32:49,498 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 17:47:49,516 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 18:15:06,885 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 18:20:54,261 [INFO] Trigger event received (yfinance_news); running scans
+2026-01-21 18:20:54,264 [INFO] === POSITION MONITORING: 2026-01-21 05:20:54.260433-05:00 ===
+2026-01-21 18:20:54,412 [INFO] Monitoring 3 positions: MS, CAT, GOOG
+2026-01-21 18:20:54,441 [WARNING] ⚠️  Found 1 thesis-breaking triggers for positions
+2026-01-21 18:20:54,441 [INFO] 
+⚠️  Reassessing position: PositionTrigger(GOOG, major_negative_news, MEDIUM)
+2026-01-21 18:20:54,453 [INFO] Using cached profile for GOOG (age: 0d)
+2026-01-21 18:20:54,453 [INFO] Running position_reassessment for GOOG
+2026-01-21 18:20:57,261 [INFO] HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-21 18:21:00,677 [INFO] position_reassessment completed successfully
+2026-01-21 18:21:00,677 [INFO] Decision: HOLD (confidence: 0.90)
+2026-01-21 18:21:00,677 [INFO] Reasoning: The new event is a news article with negative sentiment about Alphabet's stock price dip, but it lacks specific fundamental details. The original thesis is based on Google's dominant advertising business, growth in Google Cloud, and known risks like AI competition and macroeconomic factors. This news appears to be a short-term market reaction or noise, not a structural change. It does not directly threaten the core business model, earnings structure, management, or regulatory environment. The event is likely a temporary setback or market overreaction, aligning with known risks (e.g., macroeconomic impacts) rather than invalidating the bull case. The severity is MEDIUM, but without concrete information, it's insufficient to break the thesis.
+2026-01-21 18:21:00,677 [INFO] 
+=== Position Monitoring: 0 exit decision(s) ===
+
+2026-01-21 18:21:00,677 [INFO] 
+============================================================
+2026-01-21 18:21:00,678 [INFO] TRIGGER SCAN: 2026-01-21 05:20 EST
+2026-01-21 18:21:00,678 [INFO] ============================================================
+2026-01-21 18:21:00,692 [INFO] No watchlist found for 2026-01-21
+2026-01-21 18:21:00,692 [INFO] No triggers found
+2026-01-21 18:36:00,702 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 18:51:00,713 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 19:00:38,530 [INFO] Trigger event received (earnings_event); running scans
+2026-01-21 19:00:38,532 [INFO] === POSITION MONITORING: 2026-01-21 06:00:38.529853-05:00 ===
+2026-01-21 19:00:38,645 [INFO] Monitoring 3 positions: MS, CAT, GOOG
+2026-01-21 19:00:38,680 [INFO] No thesis-breaking triggers detected
+2026-01-21 19:00:38,680 [INFO] 
+============================================================
+2026-01-21 19:00:38,680 [INFO] TRIGGER SCAN: 2026-01-21 06:00 EST
+2026-01-21 19:00:38,680 [INFO] ============================================================
+2026-01-21 19:00:38,687 [INFO] Scanning 11 watchlist symbols for triggers...
+2026-01-21 19:00:38,980 [INFO] Found 0 new triggers (filtered from 0, suppressed=1)
+2026-01-21 19:00:38,980 [INFO] No triggers found
+2026-01-21 19:15:38,984 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 19:21:26,497 [INFO] Trigger event received (yfinance_news); running scans
+2026-01-21 19:21:26,499 [INFO] === POSITION MONITORING: 2026-01-21 06:21:26.497269-05:00 ===
+2026-01-21 19:21:26,580 [INFO] Monitoring 3 positions: MS, CAT, GOOG
+2026-01-21 19:21:26,598 [INFO] No thesis-breaking triggers detected
+2026-01-21 19:21:26,598 [INFO] 
+============================================================
+2026-01-21 19:21:26,598 [INFO] TRIGGER SCAN: 2026-01-21 06:21 EST
+2026-01-21 19:21:26,598 [INFO] ============================================================
+2026-01-21 19:21:26,605 [INFO] Scanning 11 watchlist symbols for triggers...
+2026-01-21 19:21:27,180 [INFO] Found 0 new triggers (filtered from 0, suppressed=1)
+2026-01-21 19:21:27,180 [INFO] No triggers found
+2026-01-21 19:36:27,189 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 19:51:27,208 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 20:06:27,212 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 20:21:27,224 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 20:21:56,790 [INFO] Trigger event received (yfinance_news); running scans
+2026-01-21 20:21:56,793 [INFO] === POSITION MONITORING: 2026-01-21 07:21:56.790452-05:00 ===
+2026-01-21 20:21:56,821 [INFO] Monitoring 3 positions: MS, GOOG, CAT
+2026-01-21 20:21:56,856 [INFO] No thesis-breaking triggers detected
+2026-01-21 20:21:56,856 [INFO] 
+============================================================
+2026-01-21 20:21:56,856 [INFO] TRIGGER SCAN: 2026-01-21 07:21 EST
+2026-01-21 20:21:56,856 [INFO] ============================================================
+2026-01-21 20:21:56,862 [INFO] Scanning 11 watchlist symbols for triggers...
+2026-01-21 20:21:57,114 [INFO] Found 0 new triggers (filtered from 0, suppressed=4)
+2026-01-21 20:21:57,114 [INFO] No triggers found
+2026-01-21 20:36:57,118 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 20:51:57,123 [INFO] No ingest notifications in the last 900 seconds
+2026-01-21 21:00:15,586 [INFO] Trigger event received (sec_filing); running scans
+2026-01-21 21:00:15,593 [INFO] === POSITION MONITORING: 2026-01-21 08:00:15.582586-05:00 ===
+2026-01-21 21:00:15,715 [INFO] Monitoring 3 positions: MS, GOOG, CAT
+2026-01-21 21:00:15,748 [INFO] No thesis-breaking triggers detected
+2026-01-21 21:00:15,748 [INFO] 
+============================================================
+2026-01-21 21:00:15,749 [INFO] TRIGGER SCAN: 2026-01-21 08:00 EST
+2026-01-21 21:00:15,749 [INFO] ============================================================
+2026-01-21 21:00:15,752 [INFO] Scanning 11 watchlist symbols for triggers...
+2026-01-21 21:00:16,007 [INFO] Found 0 new triggers (filtered from 0, suppressed=4)
+2026-01-21 21:00:16,007 [INFO] No triggers found

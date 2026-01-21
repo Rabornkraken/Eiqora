@@ -154,6 +154,19 @@ async def track_trade_outcome(trigger, entry_price, stop_loss, take_profit, entr
     """Track hypothetical trade outcome with detailed exit logging."""
     
     symbol = trigger.symbol
+
+    from datetime import datetime as dt, date as dt_date, timezone as dt_timezone
+
+    def _as_aware_utc(value):
+        if isinstance(value, dt):
+            if value.tzinfo is None:
+                return value.replace(tzinfo=dt_timezone.utc)
+            return value.astimezone(dt_timezone.utc)
+        if isinstance(value, dt_date):
+            return dt.combine(value, dt.min.time()).replace(tzinfo=dt_timezone.utc)
+        return None
+
+    entry_time = _as_aware_utc(entry_time) or entry_time
     
     logger.info(f"\n📊 Tracking {symbol} trade:")
     logger.info(f"   Entry: ${entry_price:.2f} at {entry_time}")
@@ -190,8 +203,8 @@ async def track_trade_outcome(trigger, entry_price, stop_loss, take_profit, entr
                 logger.info(f"   🛑 STOP LOSS HIT at {bar_time}")
                 logger.info(f"      Bar low: ${low:.2f}, SL: ${stop_loss:.2f}")
                 logger.info(f"      Exit: ${stop_loss:.2f} ({pnl_pct:+.2f}%)")
-                from datetime import datetime as dt
-                days_held = (dt.combine(bar_time, dt.min.time()) - entry_time).days if isinstance(bar_time, date) else (bar_time - entry_time).days
+                bar_time_dt = _as_aware_utc(bar_time)
+                days_held = (bar_time_dt - entry_time).days if bar_time_dt and entry_time else 0
                 logger.info(f"      Held: {i + 1} bars ({days_held} days)")
                 return {
                     'outcome': 'SL',
@@ -207,8 +220,8 @@ async def track_trade_outcome(trigger, entry_price, stop_loss, take_profit, entr
                 logger.info(f"   🎯 TAKE PROFIT HIT at {bar_time}")
                 logger.info(f"      Bar high: ${high:.2f}, TP: ${take_profit:.2f}")
                 logger.info(f"      Exit: ${take_profit:.2f} ({pnl_pct:+.2f}%)")
-                from datetime import datetime as dt
-                days_held = (dt.combine(bar_time, dt.min.time()) - entry_time).days if isinstance(bar_time, date) else (bar_time - entry_time).days
+                bar_time_dt = _as_aware_utc(bar_time)
+                days_held = (bar_time_dt - entry_time).days if bar_time_dt and entry_time else 0
                 logger.info(f"      Held: {i + 1} bars ({days_held} days)")
                 return {
                     'outcome': 'TP',
@@ -226,8 +239,8 @@ async def track_trade_outcome(trigger, entry_price, stop_loss, take_profit, entr
         logger.info(f"   ⏱️  TIME EXPIRED at {final_time}")
         logger.info(f"      Final close: ${final_close:.2f}")
         logger.info(f"      Exit: ${final_close:.2f} ({pnl_pct:+.2f}%)")
-        from datetime import datetime as dt
-        days_held = (dt.combine(final_time, dt.min.time()) - entry_time).days if isinstance(final_time, date) else (final_time - entry_time).days
+        final_time_dt = _as_aware_utc(final_time)
+        days_held = (final_time_dt - entry_time).days if final_time_dt and entry_time else 0
         logger.info(f"      Held: {len(rows)} bars ({days_held} days)")
         
         return {

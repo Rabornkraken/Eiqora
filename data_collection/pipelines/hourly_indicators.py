@@ -184,14 +184,14 @@ def find_support_resistance(df: pd.DataFrame, lookback: int = 20) -> dict:
     }
 
 
-def calculate_hourly_indicators_for_symbol(conn, symbol: str, lookback_hours: int = 48) -> int:
+def calculate_hourly_indicators_for_symbol(conn, symbol: str, lookback_hours: int | None = 48) -> int:
     """
     Calculate hourly indicators for a single symbol.
     
     Args:
         conn: Database connection
         symbol: Stock symbol
-        lookback_hours: Hours of history to process (default 48 = ~2 days)
+        lookback_hours: Hours of history to process (default 48). If None or 0, process all history.
     
     Returns: Number of rows updated
     """
@@ -199,14 +199,18 @@ def calculate_hourly_indicators_for_symbol(conn, symbol: str, lookback_hours: in
         SELECT datetime, open, high, low, close, volume
         FROM market_bar_hourly
         WHERE symbol = %s
-          AND datetime >= %s
-        ORDER BY datetime ASC
     """
+    params = [symbol]
     
-    cutoff_time = datetime.now() - timedelta(hours=lookback_hours)
+    if lookback_hours:
+        query += " AND datetime >= %s"
+        cutoff_time = datetime.now() - timedelta(hours=lookback_hours)
+        params.append(cutoff_time)
+        
+    query += " ORDER BY datetime ASC"
     
     with conn.cursor() as cur:
-        cur.execute(query, (symbol, cutoff_time))
+        cur.execute(query, tuple(params))
         rows = cur.fetchall()
         
         if len(rows) < 30:  # Need minimum data

@@ -83,10 +83,15 @@ class ExitPolicyAgent(BaseAgent[ExitPolicyOutput]):
     
     async def _gather_data(self, state: SwingTradeState) -> dict[str, Any]:
         """Gather context and idea data for exit policy."""
+        context = state.get("context", {})
+        market_data = state.get("market_data", {})
+        price_levels = market_data.get("price_levels", {}) if isinstance(market_data, dict) else {}
+        
         return {
             "ideas": state.get("ideas", {}),
-            "context": state.get("context", {}),
+            "context": context,
             "chart": state.get("chart", {}),
+            "price_levels": price_levels,
         }
 
     def _coerce_float(self, value: Any) -> float | None:
@@ -117,25 +122,25 @@ class ExitPolicyAgent(BaseAgent[ExitPolicyOutput]):
         return num
 
     def _default_sl_mult(self, setup_type: str, rv20: float | None, conviction: str) -> float:
-        """Swing trading SL multipliers (tightened from position trading defaults)."""
+        """Swing trading SL multipliers (structure-first, wider than intraday)."""
         setup = (setup_type or "").upper()
         if "BREAKOUT" in setup:
-            base = 1.5  # Tight stop below breakout level
+            base = 2.0  # Below breakout, avoid noise
         elif "PULLBACK" in setup:
-            base = 1.75  # Moderate stop below swing low
+            base = 2.5  # Below swing low
         elif "REVERSAL" in setup:
-            base = 2.0  # More room for volatility
+            base = 3.0  # Reversals need room
         elif "EARNINGS" in setup or "EVENT" in setup:
-            base = 2.5  # Events need more room for whipsaws
+            base = 3.5  # Events need more room for whipsaws
         else:
-            base = 1.75  # Default swing trading stop
+            base = 2.5  # Default swing trading stop
 
-        # Volatility adjustments (reduced impact for swing trading)
+        # Volatility adjustments
         if rv20 is not None:
             if rv20 > 0.04:
-                base *= 1.1  # Slightly wider in high vol (was 1.2)
+                base *= 1.1  # Wider in high vol
             elif rv20 < 0.015:
-                base *= 0.9  # Tighter in low vol
+                base *= 0.95  # Slightly tighter in low vol
 
         # Conviction adjustments (minimal impact)
         if conviction == "HIGH":
@@ -143,18 +148,18 @@ class ExitPolicyAgent(BaseAgent[ExitPolicyOutput]):
         elif conviction == "LOW":
             base *= 0.95  # Slightly tighter for low conviction
 
-        return self._clamp(base, 1.0, 3.0)  # Range: 1.0-3.0 ATR
+        return self._clamp(base, 1.5, 5.0)  # Range: 1.5-5.0 ATR
 
     def _default_tp_mult(self, setup_type: str) -> float:
-        """Swing trading TP multipliers (tightened for realistic targets)."""
+        """Swing trading TP multipliers (realistic targets)."""
         setup = (setup_type or "").upper()
         if "BREAKOUT" in setup:
-            base = 3.0  # Target 1:2 R:R from 1.5x SL
+            base = 4.0  # Target ~1:2 R:R from 2.0x SL
         elif "REVERSAL" in setup:
-            base = 2.5  # Target ~1:1.25 R:R from 2.0x SL
+            base = 3.5  # Target ~1:1.2-1.3 R:R from 3.0x SL
         else:
-            base = 2.75  # Target ~1:1.6 R:R from 1.75x SL
-        return self._clamp(base, 2.0, 6.0)  # Range: 2.0-6.0 ATR
+            base = 3.75  # Target ~1:1.5 R:R from 2.5x SL
+        return self._clamp(base, 2.5, 8.0)  # Range: 2.5-8.0 ATR
 
     def _normalize_output(
         self,
@@ -197,6 +202,11 @@ class ExitPolicyAgent(BaseAgent[ExitPolicyOutput]):
                 atr14 = current_price * 0.02
         if rv20 is None and atr14 and current_price > 0:
             rv20 = atr14 / current_price
+        if atr14 and current_price > 0:
+            atr_pct = atr14 / current_price
+            if atr_pct < 0.005:
+                fallback_pct = rv20 if rv20 and rv20 > 0 else 0.02
+                atr14 = current_price * fallback_pct
 
         default_sl_mult = self._default_sl_mult(setup_type, rv20, conviction)
         default_tp_mult = self._default_tp_mult(setup_type)
@@ -211,6 +221,11 @@ class ExitPolicyAgent(BaseAgent[ExitPolicyOutput]):
         key_resistance = self._coerce_float(key_levels.get("resistance") if isinstance(key_levels, dict) else None)
         invalidation = chart.get("invalidation", {}) if isinstance(chart, dict) else {}
         invalidation_level = self._coerce_float(invalidation.get("level") if isinstance(invalidation, dict) else None)
+        price_levels = data.get("price_levels", {}) or {}
+        swing_low_20d = self._coerce_float(price_levels.get("low_20d"))
+        swing_high_20d = self._coerce_float(price_levels.get("high_20d"))
+        swing_low_60d = self._coerce_float(price_levels.get("low_60d"))
+        swing_high_60d = self._coerce_float(price_levels.get("high_60d"))
 
         sl_level = self._coerce_float(bracket.sl_level)
         tp_level = self._coerce_float(bracket.tp_level)
@@ -221,12 +236,26 @@ class ExitPolicyAgent(BaseAgent[ExitPolicyOutput]):
             if invalidation_level is not None:
                 sl_level = invalidation_level
                 sl_rationale = sl_rationale or "Below invalidation level"
-            elif direction == "LONG" and key_support is not None:
-                sl_level = key_support
-                sl_rationale = sl_rationale or "Below support"
-            elif direction == "SHORT" and key_resistance is not None:
-                sl_level = key_resistance
-                sl_rationale = sl_rationale or "Above resistance"
+            elif direction == "LONG":
+                if swing_low_20d is not None:
+                    sl_level = swing_low_20d * 0.99
+                    sl_rationale = sl_rationale or "Below 20d swing low"
+                elif key_support is not None:
+                    sl_level = key_support
+                    sl_rationale = sl_rationale or "Below support"
+                elif swing_low_60d is not None:
+                    sl_level = swing_low_60d * 0.99
+                    sl_rationale = sl_rationale or "Below 60d swing low"
+            else:
+                if swing_high_20d is not None:
+                    sl_level = swing_high_20d * 1.01
+                    sl_rationale = sl_rationale or "Above 20d swing high"
+                elif key_resistance is not None:
+                    sl_level = key_resistance
+                    sl_rationale = sl_rationale or "Above resistance"
+                elif swing_high_60d is not None:
+                    sl_level = swing_high_60d * 1.01
+                    sl_rationale = sl_rationale or "Above 60d swing high"
 
         if sl_mult is None:
             if sl_level is not None and atr14 and atr14 > 0:
@@ -242,18 +271,30 @@ class ExitPolicyAgent(BaseAgent[ExitPolicyOutput]):
             elif direction == "SHORT" and sl_level <= current_price:
                 sl_level = None
 
-        # Enforce minimum stop width based on default catastrophic stop.
-        if sl_mult < default_sl_mult:
-            sl_mult = default_sl_mult
-            sl_level = None
-            sl_rationale = "Catastrophic stop widened to default"
-
         if sl_level is None and atr14 and atr14 > 0 and current_price > 0:
             if direction == "SHORT":
                 sl_level = current_price + (atr14 * sl_mult)
             else:
                 sl_level = current_price - (atr14 * sl_mult)
             sl_rationale = sl_rationale or "ATR-based catastrophic stop"
+        
+        # Enforce minimum stop distance (>= 1.5x ATR and >= 3%).
+        MIN_STOP_PCT = 0.03
+        MIN_ATR_MULT = 1.5
+        if sl_level is not None and current_price > 0:
+            stop_distance = abs(sl_level - current_price)
+            min_distance = current_price * MIN_STOP_PCT
+            if atr14 and atr14 > 0:
+                min_distance = max(min_distance, atr14 * MIN_ATR_MULT)
+
+            if stop_distance < min_distance:
+                if direction == "SHORT":
+                    sl_level = current_price + min_distance
+                else:
+                    sl_level = current_price - min_distance
+                sl_rationale = "Widened to minimum swing distance"
+                if atr14 and atr14 > 0:
+                    sl_mult = min_distance / atr14
 
         if tp_level is None:
             if direction == "LONG" and key_resistance is not None:
@@ -277,7 +318,7 @@ class ExitPolicyAgent(BaseAgent[ExitPolicyOutput]):
             elif direction == "SHORT" and tp_level >= current_price:
                 tp_level = None
 
-        # Enforce minimum reward vs stop width (1:1.5 R:R for swing trading).
+        # Enforce minimum reward vs stop width (>=1:1.5).
         min_tp_mult = max(default_tp_mult, sl_mult * 1.5)
         if tp_mult < min_tp_mult:
             tp_mult = min_tp_mult
@@ -349,6 +390,7 @@ class ExitPolicyAgent(BaseAgent[ExitPolicyOutput]):
         ideas = data.get("ideas", {})
         context = data.get("context", {})
         chart = data.get("chart", {})
+        price_levels = data.get("price_levels", {})
         
         primary_idea_id = ideas.get("primary_idea_id")
         ideas_list = ideas.get("ideas", [])
@@ -401,9 +443,17 @@ Return a default exit policy with idea_id="none".
         key_support_text = f"${key_support:.2f}" if key_support is not None else "None"
         key_resistance_text = f"${key_resistance:.2f}" if key_resistance is not None else "None"
         invalidation_text = f"${invalidation_level:.2f}" if invalidation_level is not None else "None"
-        ma50_text = f"${ma50:.2f}" if ma50 is not None else "None"
+        ma50_text = f"${ma50:.2f}"if ma50 is not None else "None"
         ma200_text = f"${ma200:.2f}" if ma200 is not None else "None"
         price_text = f"${current_price:.2f}" if current_price > 0 else "N/A"
+        
+        # Swing lows/highs for structure-based stops
+        swing_low_20d = price_levels.get("low_20d")
+        swing_high_20d = price_levels.get("high_20d")
+        swing_low_60d = price_levels.get("low_60d")
+        swing_low_20d_text = f"${swing_low_20d:.2f}" if swing_low_20d else "None"
+        swing_high_20d_text = f"${swing_high_20d:.2f}" if swing_high_20d else "None"
+        swing_low_60d_text = f"${swing_low_60d:.2f}" if swing_low_60d else "None"
 
         return f"""
 Define ADAPTIVE exit policy for {symbol}.
@@ -417,8 +467,11 @@ IDEA:
 - Conviction: {conviction}
 - Setup Type: {setup_type}
 
-CHART STRUCTURE (use for explicit levels):
+CHART STRUCTURE (PRIMARY - use for stop placement):
 - Current Price: {price_text}
+- **20d Swing Low: {swing_low_20d_text}** ← Use this for LONG stops!
+- **20d Swing High: {swing_high_20d_text}** ← Use this for SHORT stops!
+- 60d Swing Low: {swing_low_60d_text}
 - Key Support: {key_support_text}
 - Key Resistance: {key_resistance_text}
 - Invalidation Level: {invalidation_text}
@@ -430,11 +483,33 @@ VOLATILITY CONTEXT:
 - VIX: {vix:.1f}
 - Regime: {vol_regime}
 
-ADAPTIVE INSTRUCTIONS:
-1. If clear support/resistance exists → Use explicit levels (prefer this!)
-2. If no clear levels → Use ATR multiples with setup-specific ranges
-3. Adjust for volatility regime (wider in HIGH, tighter in LOW)
-4. Adjust for conviction (HIGH = wider, more room to work)
+STOP LOSS PLACEMENT (CRITICAL - Professional Swing Trading Method):
+
+**STEP 1: Identify Structure Level**
+For LONG trades, place stop BELOW:
+1. **20d Swing Low** (most common - use if available)
+2. Key Support level (if stronger than swing low)
+3. MA50/MA200 (if no swing low visible)
+
+For SHORT trades, place stop ABOVE:
+1. **20d Swing High** (most common)
+2. Key Resistance level
+3. MA50/MA200
+
+**STEP 2: Validate Distance**
+- Stop must be AT LEAST 1.5x ATR away from entry
+- Stop must be AT LEAST 3% away from entry
+- If structure stop is closer, widen to meet BOTH minimums
+
+**STEP 3: Provide Both sl_level AND sl_mult**
+- sl_level: Exact $ price (from structure)
+- sl_mult: Calculate as distance/ATR for reference
+- sl_rationale: "Below $X.XX 20d swing low" or "Below $X.XX support"
+
+**ONLY use pure ATR if**:
+- No swing low/high available
+- No clear support/resistance
+- Then use setup-specific multipliers (1.5-2.5x ATR)
 
 EXAMPLE OUTPUT WITH CHART LEVELS:
 {{
@@ -452,11 +527,11 @@ EXAMPLE OUTPUT WITHOUT LEVELS (ATR-based):
 {{
   "bracket": {{
     "sl_level": null,
-    "sl_mult": 3.0,
+    "sl_mult": 2.5,
     "tp_level": null,
-    "tp_mult": 3.5,
-    "sl_rationale": "3.0x ATR for {setup_type}",
-    "tp_rationale": "3.5x ATR target"
+    "tp_mult": 3.75,
+    "sl_rationale": "2.5x ATR for {setup_type}",
+    "tp_rationale": "3.75x ATR target"
   }}
 }}
 
@@ -469,50 +544,40 @@ CONSTRAINTS:
     def _get_system_prompt(self) -> str:
         return """You are an Exit Policy Agent that defines ADAPTIVE exit strategies for SWING TRADING.
 
-**SWING TRADING FOCUS: Tighter stops, realistic targets, 1:1.5+ risk/reward!**
+**SWING TRADING FOCUS: Structure-first stops with minimum distance safeguards.**
 
 PHILOSOPHY:
-- Swing trades hold 3-15 days, not weeks/months
-- Stops should be TIGHT (1.5-2.5x ATR), not catastrophic backstops
-- Targets should be ACHIEVABLE (2.5-3.5x ATR)
-- Exit quickly on thesis breaks
+- Use structure (swing low/high, support/resistance) for stop placement.
+- Validate against volatility to avoid noise.
+- Typical swing stops are 3-5% unless structure demands wider.
+- Targets should maintain >=1:1.5 reward/risk.
 
 DECISION PROCESS:
-1. Set TIGHT stop (1.5-2.0x ATR) - swing trades don't need massive room
-2. Set REALISTIC TP (2.5-3.5x ATR) - achievable within holding period
-3. Enforce minimum 1:1.5 risk/reward ratio
+1. Place SL at structure level (swing low/high, support/resistance).
+2. Ensure stop is >= 1.5x ATR and >= 3% from entry.
+3. Set TP to meet >=1:1.5 reward/risk (structure if available).
 
 SETUP-SPECIFIC SWING STOPS:
 
 **BREAKOUT** (clean level break):
-- SL: 1.0-1.5x ATR (tight below breakout level)
-- TP: 2.5-3.0x ATR (target 1:2 R:R)
-- Rationale: "Tight stop below breakout"
+- SL: below breakout level or swing low, widened to min distance
+- TP: structure or ATR target (>=1:1.5 R:R)
 
 **PULLBACK** (buy the dip):
-- SL: 1.5-2.0x ATR (below swing low)
-- TP: 2.5-3.0x ATR
-- Rationale: "Below swing low structure"
+- SL: below swing low/support, widened to min distance
+- TP: structure or ATR target
 
 **REVERSAL** (V-bottom, climax):
-- SL: 2.0-2.5x ATR (more room for volatility)
-- TP: 3.0-4.0x ATR
-- Rationale: "Reversal needs some room"
+- SL: wider, below swing low, widened to min distance
+- TP: structure or ATR target
 
 **EARNINGS/EVENT**:
-- SL: 2.0-2.5x ATR (events are volatile)
-- TP: 3.0-4.0x ATR
-- Rationale: "Event-driven wider stop"
+- SL: wider, structure-first, widened to min distance
+- TP: structure or ATR target
 
 **DEFAULT** (no specific setup):
-- SL: 1.75x ATR (swing trading standard)
-- TP: 2.75x ATR
-- Rationale: "Standard swing trading stop"
-
-VOLATILITY ADJUSTMENTS:
-- RV20 > 4% (HIGH vol) → Multiply SL by 1.1
-- RV20 < 1.5% (LOW vol) → Multiply SL by 0.9
-- Keep within 1.0-3.0x ATR range
+- SL: structure-first, widened to min distance
+- TP: structure or ATR target
 
 TIME STOPS:
 - SWING_SHORT: 10 days
@@ -523,28 +588,28 @@ OUTPUT SCHEMA:
 {
   "idea_id": "<idea ID>",
   "bracket": {
-    "tp_mult": 2.75,           # Swing trading TP (2.0-6.0 range)
+    "tp_mult": 3.75,
     "tp_level": <chart level> or null,
-    "sl_mult": 1.75,           # Swing trading SL (1.0-3.0 range)
+    "sl_mult": 2.5,
     "sl_level": <chart level> or null,
     "time_stop_days": 15,
-    "sl_rationale": "1.75x ATR below entry",
-    "tp_rationale": "2.75x ATR target, 1:1.6 R:R"
+    "sl_rationale": "Below 20d swing low",
+    "tp_rationale": "Structure target"
   },
   "vol_basis_type": "RV20",
   "trailing_stop": null,
   "scale_out_levels": [],
-  "notes": "Swing trade with tight stop and realistic target"
+  "notes": "Swing trade with structure-based stop"
 }
 
 HARD LIMITS:
-- sl_mult: 1.0 to 3.0 (NOT wider!)
-- tp_mult: 2.0 to 6.0
+- sl_mult: 1.5 to 5.0
+- tp_mult: 2.5 to 8.0
 - sl_rationale <= 120 chars
 - tp_rationale <= 120 chars
 - notes <= 200 chars
 
-**Return ONLY valid JSON. Use TIGHT stops appropriate for swing trading timeframes.**"""
+**Return ONLY valid JSON.**"""
     
     def _build_state_update(self, state: SwingTradeState, result: ExitPolicyOutput) -> dict[str, Any]:
         """Build state update with exit policy."""
