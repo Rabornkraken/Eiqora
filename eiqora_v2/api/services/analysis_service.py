@@ -3,9 +3,25 @@ Analysis Service - Business logic for stock analysis
 Integrates with eiqora_v2 orchestrators
 """
 import uuid
+import json
+from uuid import UUID
 from datetime import datetime
 from typing import Dict, Any, Optional
 import asyncio
+
+
+def parse_json_field(value):
+    """Parse a JSON field that might be a string or dict"""
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            return None
+    return value
 
 from ..models.analysis import AnalysisResponse, AnalysisDetail
 from eiqora_v2.config.orchestrator import OrchestratorConfig
@@ -115,21 +131,116 @@ class AnalysisService:
         Returns:
             AnalysisDetail or None if not found
         """
-        # Check running analyses
+        # Check running analyses first
         if analysis_id in self.running_analyses:
             data = self.running_analyses[analysis_id]
             return self._build_analysis_detail(data)
 
-        # Check completed analyses
+        # Check completed in-memory analyses
         if analysis_id in self.completed_analyses:
             data = self.completed_analyses[analysis_id]
             return self._build_analysis_detail(data)
+
+        # Query database for historical analyses
+        try:
+            from eiqora_v2.tools.db import get_connection
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.info(f"Querying database for analysis_id: {analysis_id}")
+
+            # Convert string to UUID for database query
+            try:
+                analysis_uuid = UUID(analysis_id)
+            except ValueError as e:
+                logger.error(f"Invalid UUID format: {analysis_id}, error: {e}")
+                return None
+
+            async with get_connection() as conn:
+                logger.info(f"Database connection established, querying for UUID: {analysis_uuid}")
+                # Use text cast to avoid UUID type issues in asyncpg
+                row = await conn.fetchrow(
+                    """
+                    SELECT
+                        analysis_id,
+                        symbol,
+                        analysis_time,
+                        trigger_type,
+                        trigger_detail,
+                        final_decision,
+                        decision_reason,
+                        topdown_output,
+                        context_output,
+                        chart_output,
+                        fundamental_output,
+                        idea_generator_output,
+                        exit_policy_output,
+                        decision_output,
+                        position_manager_output,
+                        red_team_output,
+                        risk_model_output,
+                        sanity_veto_output
+                    FROM analysis_log
+                    WHERE analysis_id::text = $1
+                    """,
+                    analysis_id,  # Pass original string, not UUID object
+                )
+                logger.info(f"Query result: {row is not None}")
+
+                if row:
+                    return AnalysisDetail(
+                        analysis_id=str(row["analysis_id"]),
+                        symbol=row["symbol"],
+                        status="completed",
+                        created_at=row["analysis_time"],
+                        completed_at=row["analysis_time"],
+                        result={"decision": row["final_decision"], "reasoning": row["decision_reason"]},
+                        error=None,
+                        trigger_type=row["trigger_type"],
+                        agent_outputs={
+                            "topdown": parse_json_field(row["topdown_output"]),
+                            "context": parse_json_field(row["context_output"]),
+                            "chart": parse_json_field(row["chart_output"]),
+                            "fundamental": parse_json_field(row["fundamental_output"]),
+                            "ideas": parse_json_field(row["idea_generator_output"]),
+                            "exit_policy": parse_json_field(row["exit_policy_output"]),
+                            "decision": parse_json_field(row["decision_output"]),
+                            "position_manager": parse_json_field(row["position_manager_output"]),
+                            "red_team": parse_json_field(row["red_team_output"]),
+                            "risk_model": parse_json_field(row["risk_model_output"]),
+                            "veto": parse_json_field(row["sanity_veto_output"]),
+                        },
+                        decision=row["final_decision"],
+                        steps=["completed"],
+                        # Add raw fields for frontend compatibility - parse JSON strings
+                        final_decision=row["final_decision"],
+                        decision_reason=row["decision_reason"],
+                        trigger_detail=parse_json_field(row["trigger_detail"]),
+                        topdown_output=parse_json_field(row["topdown_output"]),
+                        context_output=parse_json_field(row["context_output"]),
+                        chart_output=parse_json_field(row["chart_output"]),
+                        idea_generator_output=parse_json_field(row["idea_generator_output"]),
+                        exit_policy_output=parse_json_field(row["exit_policy_output"]),
+                        red_team_output=parse_json_field(row["red_team_output"]),
+                        decision_output=parse_json_field(row["decision_output"]),
+                        position_manager_output=parse_json_field(row["position_manager_output"]),
+                        risk_model_output=parse_json_field(row["risk_model_output"]),
+                    )
+
+        except Exception as e:
+            import logging
+            import traceback
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error fetching analysis from database: {e}")
+            logger.error(traceback.format_exc())
+            # Re-raise to see the actual error
+            raise
 
         return None
 
     async def list_analyses(self, limit: int = 20, status: Optional[str] = None) -> list:
         """
-        List analyses
+        List analyses from database
 
         Args:
             limit: Maximum number of analyses to return
@@ -138,34 +249,65 @@ class AnalysisService:
         Returns:
             List of AnalysisResponse
         """
-        all_analyses = list(self.running_analyses.values()) + list(
-            self.completed_analyses.values()
-        )
+        try:
+            from eiqora_v2.tools.db import get_connection
 
-        # Filter by status if provided
-        if status:
-            all_analyses = [a for a in all_analyses if a["status"] == status]
+            async with get_connection() as conn:
+                # Query analysis_log from database
+                rows = await conn.fetch(
+                    """
+                    SELECT
+                        analysis_id,
+                        symbol,
+                        analysis_time as created_at,
+                        trigger_type,
+                        final_decision,
+                        decision_reason,
+                        decision_output
+                    FROM analysis_log
+                    ORDER BY analysis_time DESC
+                    LIMIT $1
+                    """,
+                    limit,
+                )
 
-        # Sort by created_at descending
-        all_analyses.sort(key=lambda x: x["created_at"], reverse=True)
+                return [
+                    AnalysisResponse(
+                        analysis_id=str(row["analysis_id"]),
+                        symbol=row["symbol"],
+                        status="completed",
+                        created_at=row["created_at"],
+                        completed_at=row["created_at"],
+                        result={"decision": row["final_decision"], "reasoning": row["decision_reason"]},
+                        error=None,
+                        trigger_type=row["trigger_type"],
+                    )
+                    for row in rows
+                ]
 
-        # Apply limit
-        all_analyses = all_analyses[:limit]
-
-        # Convert to response models
-        return [
-            AnalysisResponse(
-                analysis_id=a["analysis_id"],
-                symbol=a["symbol"],
-                status=a["status"],
-                created_at=a["created_at"],
-                completed_at=a["completed_at"],
-                result=a["result"],
-                error=a["error"],
-                trigger_type=a["trigger_type"],
+        except Exception as e:
+            print(f"Error fetching analyses from database: {e}")
+            # Fall back to in-memory storage
+            all_analyses = list(self.running_analyses.values()) + list(
+                self.completed_analyses.values()
             )
-            for a in all_analyses
-        ]
+            if status:
+                all_analyses = [a for a in all_analyses if a["status"] == status]
+            all_analyses.sort(key=lambda x: x["created_at"], reverse=True)
+            all_analyses = all_analyses[:limit]
+            return [
+                AnalysisResponse(
+                    analysis_id=a["analysis_id"],
+                    symbol=a["symbol"],
+                    status=a["status"],
+                    created_at=a["created_at"],
+                    completed_at=a["completed_at"],
+                    result=a["result"],
+                    error=a["error"],
+                    trigger_type=a["trigger_type"],
+                )
+                for a in all_analyses
+            ]
 
     def _build_analysis_detail(self, data: Dict[str, Any]) -> AnalysisDetail:
         """Build AnalysisDetail from raw data"""

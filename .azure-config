@@ -1,0 +1,9 @@
+RESOURCE_GROUP=eiqora-rg
+LOCATION=southeastasia
+ACR_NAME=eiqoraacr6e53f1e0
+KEYVAULT_NAME=eiqora-kv-25ac9ead
+POSTGRES_SERVER=eiqora-pg-727264b6
+POSTGRES_ADMIN=eiqoraadmin
+CONTAINER_ENV=eiqora-env
+STORAGE_ACCOUNT=eiqorafrontend
+API_URL=https://eiqora-api.salmonriver-3b9ccf9a.southeastasia.azurecontainerapps.io

@@ -34,14 +34,18 @@ def summarize_run(run_id: str) -> None:
             # 1. Fetch High-Level Run Metrics from trigger_backtest_run
             cur.execute(
                 """
-                SELECT 
+                SELECT
                     total_triggers,
                     executed_trades,
                     win_rate,
                     total_pnl_pct,
                     avg_pnl_pct,
                     best_trigger_type,
-                    worst_trigger_type
+                    worst_trigger_type,
+                    starting_capital,
+                    final_capital,
+                    total_return_pct,
+                    max_drawdown_pct
                 FROM trigger_backtest_run
                 WHERE run_id = %s
                 """,
@@ -53,16 +57,35 @@ def summarize_run(run_id: str) -> None:
                 print("No run record found in trigger_backtest_run.")
                 return
 
-            total, executed, wr, total_pnl, avg_pnl, best, worst = run_metrics
+            (total, executed, wr, total_pnl, avg_pnl, best, worst,
+             start_cap, final_cap, total_return, max_dd) = run_metrics
             
-            print(f"Overall Metrics (from run table):")
-            print(f"  Total Triggers : {total}")
-            print(f"  Executed Trades: {executed}")
-            print(f"  Win Rate       : {float(wr):.2f}%" if wr is not None else "  Win Rate       : N/A")
-            print(f"  Total PnL      : {float(total_pnl):.2f}%" if total_pnl is not None else "  Total PnL      : N/A")
-            print(f"  Avg PnL/Trade  : {float(avg_pnl):.2f}%" if avg_pnl is not None else "  Avg PnL/Trade  : N/A")
-            print(f"  Best Trigger   : {best}")
-            print(f"  Worst Trigger  : {worst}")
+            # Calculate profit/loss in dollars
+            start_val = float(start_cap) if start_cap else 10000.0
+            final_val = float(final_cap) if final_cap else start_val
+            profit_loss = final_val - start_val
+            
+            print()
+            print("📊 BACKTEST RESULTS SUMMARY")
+            print("=" * 60)
+            print()
+            print("🎯 TRADE STATISTICS")
+            print(f"   Signals Detected  : {total:,}")
+            print(f"   Trades Executed   : {executed:,}")
+            print(f"   Win Rate          : {float(wr):.1f}%" if wr is not None else "   Win Rate          : N/A")
+            print(f"   Avg Gain per Trade: {float(avg_pnl):.2f}%" if avg_pnl is not None else "   Avg Gain per Trade: N/A")
+            print()
+            print("💰 CAPITAL PERFORMANCE (5% of capital/trade)")
+            print(f"   Starting Capital  : ${start_val:,.2f}")
+            print(f"   Final Capital     : ${final_val:,.2f}")
+            print(f"   Net Profit/Loss   : ${profit_loss:+,.2f}")
+            print(f"   Return on Capital : {float(total_return):+.1f}%" if total_return is not None else "   Return on Capital : N/A")
+            print(f"   Max Drawdown      : {float(max_dd):.1f}%" if max_dd is not None else "   Max Drawdown      : N/A")
+            print()
+            print("🏆 BEST & WORST TRIGGERS")
+            print(f"   Best Performer    : {best}")
+            print(f"   Worst Performer   : {worst}")
+            print()
             print("-" * 60)
 
             # 2. Detailed Breakdown (from JSON column)
@@ -77,15 +100,23 @@ def summarize_run(run_id: str) -> None:
             row = cur.fetchone()
             details = row[0] if row and row[0] else []
 
-    print(f"{'Trigger Type':<30} {'Count':<8} {'Win Rate':<10} {'PnL':<10} {'Avg PnL':<10}")
-    print("-" * 75)
+    print()
+    print("📈 TRIGGER PERFORMANCE BREAKDOWN")
+    print("=" * 85)
+    print(f"{'Trigger':<32} {'Trades':<8} {'Win%':<8} {'Avg%':<8} {'Est. Net PnL':<12}")
+    print("-" * 85)
     
     # Sort by Total PnL (descending)
     details.sort(key=lambda x: x.get('total_pnl_pct', 0), reverse=True)
     
     for d in details:
-        print(f"{d['trigger_type']:<30} {d['count']:<8} {d['win_rate']:<9}% {d['total_pnl_pct']:<9}% {d['avg_pnl_pct']:<9}%")
-    print("=" * 60)
+        profit_str = ""
+        print(f"{d['trigger_type']:<32} {d['count']:<8} {d['win_rate']:<7.1f}% {d['avg_pnl_pct']:+<7.2f}% {profit_str:<12}")
+
+    print("=" * 85)
+    print()
+    print("NOTE: Capital performance uses 5% of current capital per trade.")
+    print()
 
 
 def smoke_assertions() -> None:
@@ -125,6 +156,7 @@ def main() -> None:
     parser.add_argument("--no-run", action="store_true", help="Skip run and only summarize")
     parser.add_argument("--sl-mult", type=float, default=1.5, help="Stop loss ATR multiplier (default: 1.5)")
     parser.add_argument("--tp-mult", type=float, default=3.0, help="Take profit ATR multiplier (default: 3.0)")
+    parser.add_argument("--risk-pct", type=float, default=5.0, help="Risk percentage per trade (default: 5.0)")
     args = parser.parse_args()
 
     smoke_assertions()
@@ -140,6 +172,8 @@ def main() -> None:
                 args.end_date,
                 args.sl_mult,
                 args.tp_mult,
+                10000.0,  # starting_capital
+                args.risk_pct,
             )
         )
         print(f"Run complete: {run_id}")

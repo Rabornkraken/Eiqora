@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-
-const API_BASE_URL = 'http://localhost:8000';
+import { getWatchlist } from '../services/api';
 
 function Watchlist() {
     const [watchlist, setWatchlist] = useState([]);
@@ -15,9 +13,9 @@ function Watchlist() {
 
     const fetchWatchlist = async () => {
         try {
-            const response = await axios.get(`${API_BASE_URL}/api/watchlist`);
-            setWatchlist(response.data.watchlist || []);
-            setScanDate(response.data.scan_date);
+            const data = await getWatchlist();
+            setWatchlist(data.watchlist || []);
+            setScanDate(data.date);
             setLoading(false);
         } catch (err) {
             console.error('Failed to fetch watchlist:', err);

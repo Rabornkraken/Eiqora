@@ -28,3 +28,21 @@ class RedTeamOutput(BaseModel):
         max_length=400,
         description="Concise red-team summary"
     )
+
+    # Short perspective fields (merged from ShortPerspectiveAgent)
+    short_case_strength: Literal["STRONG", "MODERATE", "WEAK", "NONE"] = Field(
+        default="NONE",
+        description="Strength of the contrarian short case"
+    )
+    short_score: float = Field(
+        default=0.0,
+        description="Quantitative short score (0-10)"
+    )
+    recommend_reject_long: bool = Field(
+        default=False,
+        description="True if short case is strong enough to reject the long trade"
+    )
+    short_red_flags: list[str] = Field(
+        default_factory=list,
+        description="Short-case red flags from deterministic scoring"
+    )

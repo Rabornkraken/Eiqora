@@ -46,7 +46,7 @@ function TradingHistory() {
                         <tr>
                             <th>Company</th>
                             <th>Action</th>
-                            <th>Shares</th>
+                            <th>Size</th>
                             <th>Entry Price</th>
                             <th>Exit Price</th>
                             <th>P&L</th>
@@ -58,9 +58,19 @@ function TradingHistory() {
                     </thead>
                     <tbody>
                         {trades.map((trade, index) => {
-                            const pnl = (trade.exit_price - trade.entry_price) * trade.shares;
-                            const pnlPercent = ((trade.exit_price - trade.entry_price) / trade.entry_price) * 100;
+                            // Use realized_pnl from API (v1) or pnl (legacy)
+                            const pnl = trade.realized_pnl ?? trade.pnl ?? 0;
+                            const pnlPercent = trade.realized_pnl_pct ?? trade.pnl_pct ?? 0;
                             const isProfitable = pnl >= 0;
+
+                            // Map direction (v1) or action (legacy) to display
+                            const action = trade.direction
+                                ? (trade.direction === 'LONG' ? 'BUY' : 'SELL')
+                                : (trade.action || 'BUY');
+                            const isLong = trade.direction ? trade.direction === 'LONG' : action === 'BUY';
+
+                            // Calculate position size display (10% = 10)
+                            const positionSize = trade.position_size_pct ? `${(trade.position_size_pct * 100).toFixed(0)}%` : '-';
 
                             const entryDate = new Date(trade.entry_date);
                             const exitDate = new Date(trade.exit_date);
@@ -86,14 +96,14 @@ function TradingHistory() {
                                             <span className="font-bold">{trade.symbol}</span>
                                         </div>
                                     </td>
-                                    <td className={trade.action === 'BUY' ? 'status-go' : 'status-no-go'}>
-                                        {trade.action}
+                                    <td className={isLong ? 'status-go' : 'status-no-go'}>
+                                        {action}
                                     </td>
-                                    <td>{trade.shares}</td>
+                                    <td>{positionSize}</td>
                                     <td>${trade.entry_price.toFixed(2)}</td>
                                     <td>${trade.exit_price.toFixed(2)}</td>
                                     <td className={isProfitable ? 'status-go' : 'status-no-go'}>
-                                        ${Math.abs(pnl).toLocaleString()} {isProfitable ? '▲' : '▼'}
+                                        ${Math.abs(pnl).toFixed(2)} {isProfitable ? '▲' : '▼'}
                                     </td>
                                     <td className={isProfitable ? 'status-go' : 'status-no-go'}>
                                         {pnlPercent >= 0 ? '+' : ''}{pnlPercent.toFixed(2)}%

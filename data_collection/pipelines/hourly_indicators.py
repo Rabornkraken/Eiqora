@@ -17,11 +17,15 @@ Indicators calculated:
 
 import argparse
 import logging
+import os
 from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 
 from data_collection.db.connection import get_connection
+from data_collection.common.db import notify_ingest
+
+NOTIFY_CHANNEL = os.getenv("EIQORA_INGEST_CHANNEL", "eiqora_ingest")
 
 logging.basicConfig(
     level=logging.INFO,
@@ -325,7 +329,23 @@ def run(limit: int | None = None, lookback_hours: int = 48) -> None:
                 continue
         
         logger.info(f"✅ Hourly indicators complete: {total_updated} bars updated across {len(symbols)} symbols")
-    
+
+        if total_updated:
+            try:
+                notify_ingest(
+                    conn,
+                    NOTIFY_CHANNEL,
+                    {
+                        "source": "market_bar_hourly",
+                        "latest_at": datetime.utcnow().isoformat(),
+                        "total_updated": total_updated,
+                    },
+                )
+                conn.commit()
+                logger.info("Sent ingest notification for hourly indicators")
+            except Exception as exc:
+                logger.warning(f"Failed to notify ingest channel: {exc}")
+
     finally:
         conn.close()
 

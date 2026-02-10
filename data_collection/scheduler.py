@@ -141,6 +141,16 @@ def create_scheduler() -> BlockingScheduler:
         hour=18,
         minute=30,
     )
+
+    # Daily Technical Indicators - After daily bars at 7 PM ET
+    scheduler.add_job(
+        run_pipeline,
+        'cron',
+        args=['data_collection.pipelines.daily_technical_indicators'],
+        id='daily_technical_indicators',
+        hour=19,
+        minute=0,
+    )
     
     # ═══════════════════════════════════════════════════════════════════
     # MEDIUM PRIORITY - News and sentiment

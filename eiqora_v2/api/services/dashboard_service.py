@@ -50,7 +50,7 @@ class DashboardService:
                         profile_score,
                         total_score,
                         updated_at
-                    FROM watchlist
+                    FROM daily_watchlist
                     WHERE scan_date = $1::date
                     ORDER BY total_score DESC
                     LIMIT 20
@@ -110,8 +110,8 @@ class DashboardService:
                         take_profit,
                         conviction,
                         reasoning,
-                        direction
-                    FROM signal
+                        trigger_type as direction
+                    FROM trade_signal
                     WHERE action = 'GO'
                     ORDER BY signal_date DESC
                     LIMIT $1
@@ -192,50 +192,69 @@ class DashboardService:
             from eiqora_v2.tools.db import get_connection
 
             async with get_connection() as conn:
-                # Query active positions
-                    positions_count = await conn.fetchval(
-                        """
-                        SELECT COUNT(*)
-                        FROM position
-                        WHERE status = 'ACTIVE'
-                        """
-                    )
+                # Query active positions count
+                positions_count = await conn.fetchval(
+                    """
+                    SELECT COUNT(*)
+                    FROM position
+                    WHERE status = 'ACTIVE'
+                    """
+                )
 
-                # Query recent signals for win rate
-                rows = await conn.fetch(
+                # Query closed trades count and stats
+                closed_stats = await conn.fetchrow(
                     """
                     SELECT
-                        COUNT(*) as total,
-                        SUM(CASE WHEN actual_return > 0 THEN 1 ELSE 0 END) as wins,
-                        AVG(actual_return) as avg_return
-                    FROM signal
-                    WHERE signal_date >= NOW() - INTERVAL '90 days'
-                        AND actual_return IS NOT NULL
+                        COUNT(*) as total_closed,
+                        COUNT(CASE WHEN realized_pnl > 0 THEN 1 END) as wins,
+                        SUM(realized_pnl) as total_pnl
+                    FROM position
+                    WHERE status = 'CLOSED'
                     """
                 )
 
-                if rows and rows[0]["total"] > 0:
-                    total = rows[0]["total"]
-                    wins = rows[0]["wins"] or 0
-                    avg_return = rows[0]["avg_return"] or 0.0
-                    win_rate = wins / total
-                else:
-                    total = 0
-                    win_rate = 0.0
-                    avg_return = 0.0
+                total_trades = closed_stats["total_closed"] or 0
+                wins = closed_stats["wins"] or 0
+                total_pnl = float(closed_stats["total_pnl"] or 0)
 
-                # Get total analyses from analysis service
-                from ..services.analysis_service import analysis_service
+                # Calculate win rate
+                win_rate_str = None
+                if total_trades > 0:
+                    win_rate_pct = (wins / total_trades) * 100
+                    win_rate_str = f"{win_rate_pct:.1f}%"
 
-                total_analyses = len(analysis_service.running_analyses) + len(
-                    analysis_service.completed_analyses
+                # Get account state for equity
+                account = await conn.fetchrow(
+                    """
+                    SELECT equity, realized_pnl, unrealized_pnl, starting_equity
+                    FROM account_state
+                    LIMIT 1
+                    """
                 )
 
+                current_equity_str = None
+                total_return_str = None
+                if account:
+                    equity = float(account["equity"] or 0)
+                    starting = float(account["starting_equity"] or 10000)
+                    realized = float(account["realized_pnl"] or 0)
+                    unrealized = float(account["unrealized_pnl"] or 0)
+
+                    current_equity_str = f"${equity:,.2f}"
+
+                    # Total return = (current equity - starting) / starting * 100
+                    if starting > 0:
+                        total_return_pct = ((equity - starting) / starting) * 100
+                        sign = "+" if total_return_pct >= 0 else ""
+                        total_return_str = f"{sign}{total_return_pct:.2f}%"
+
                 return SystemStats(
-                    total_analyses=total_analyses,
+                    total_trades=total_trades,
                     active_positions=positions_count or 0,
-                    win_rate=float(win_rate),
-                    avg_return=float(avg_return),
+                    win_rate=win_rate_str,
+                    total_return=total_return_str,
+                    current_equity=current_equity_str,
+                    sharpe_ratio=None,  # Would require daily returns calculation
                     last_updated=datetime.utcnow(),
                 )
 
@@ -243,12 +262,177 @@ class DashboardService:
             # If database query fails, return default stats
             print(f"Error fetching system stats: {e}")
             return SystemStats(
-                total_analyses=0,
+                total_trades=0,
                 active_positions=0,
-                win_rate=0.0,
-                avg_return=0.0,
+                win_rate=None,
+                total_return=None,
+                current_equity=None,
+                sharpe_ratio=None,
                 last_updated=datetime.utcnow(),
             )
+
+
+    async def get_equity_history(self, days: int = 30) -> List[dict]:
+        """
+        Get equity history for chart
+
+        Args:
+            days: Number of days of history to return
+
+        Returns:
+            List of equity snapshots
+        """
+        try:
+            from eiqora_v2.tools.db import get_connection
+
+            async with get_connection() as conn:
+                # Query daily equity snapshots
+                rows = await conn.fetch(
+                    """
+                    SELECT DISTINCT ON (DATE(asof_ts))
+                        asof_ts as timestamp,
+                        equity,
+                        cash_balance,
+                        unrealized_pnl,
+                        realized_pnl,
+                        positions_count
+                    FROM account_snapshot
+                    WHERE asof_ts >= NOW() - INTERVAL '%s days'
+                    ORDER BY DATE(asof_ts), asof_ts DESC
+                    """ % days
+                )
+
+                return [
+                    {
+                        "timestamp": row["timestamp"].isoformat(),
+                        "equity": float(row["equity"] or 0),
+                        "cash_balance": float(row["cash_balance"] or 0),
+                        "unrealized_pnl": float(row["unrealized_pnl"] or 0),
+                        "realized_pnl": float(row["realized_pnl"] or 0),
+                        "positions_count": row["positions_count"] or 0,
+                    }
+                    for row in rows
+                ]
+
+        except Exception as e:
+            print(f"Error fetching equity history: {e}")
+            return []
+
+    async def get_trading_history(self, limit: int = 50) -> List[dict]:
+        """
+        Get trading history (closed positions)
+
+        Args:
+            limit: Maximum number of trades to return
+
+        Returns:
+            List of closed trades
+        """
+        try:
+            from eiqora_v2.tools.db import get_connection
+
+            async with get_connection() as conn:
+                # Query closed positions
+                rows = await conn.fetch(
+                    """
+                    SELECT
+                        position_id,
+                        symbol,
+                        direction,
+                        entry_date,
+                        exit_date,
+                        entry_price,
+                        exit_price,
+                        position_size_pct,
+                        realized_pnl,
+                        realized_pnl_pct,
+                        exit_reason,
+                        exit_type
+                    FROM position
+                    WHERE status = 'CLOSED'
+                    ORDER BY exit_date DESC
+                    LIMIT $1
+                    """,
+                    limit,
+                )
+
+                return [
+                    {
+                        "position_id": str(row["position_id"]),
+                        "symbol": row["symbol"],
+                        "direction": row["direction"],
+                        "entry_date": row["entry_date"].isoformat() if row["entry_date"] else None,
+                        "exit_date": row["exit_date"].isoformat() if row["exit_date"] else None,
+                        "entry_price": float(row["entry_price"] or 0),
+                        "exit_price": float(row["exit_price"] or 0),
+                        "position_size_pct": float(row["position_size_pct"] or 0),
+                        "realized_pnl": float(row["realized_pnl"] or 0),
+                        "realized_pnl_pct": float(row["realized_pnl_pct"] or 0),
+                        "exit_reason": row["exit_reason"],
+                        "exit_type": row["exit_type"],
+                    }
+                    for row in rows
+                ]
+
+        except Exception as e:
+            print(f"Error fetching trading history: {e}")
+            return []
+
+    async def get_account(self) -> dict:
+        """
+        Get account summary
+
+        Returns:
+            Account summary with cash_balance, equity, unrealized_pnl, realized_pnl
+        """
+        try:
+            from eiqora_v2.tools.db import get_connection
+
+            async with get_connection() as conn:
+                # Query account_state
+                row = await conn.fetchrow(
+                    """
+                    SELECT
+                        cash_balance,
+                        equity,
+                        unrealized_pnl,
+                        realized_pnl,
+                        starting_equity,
+                        positions_count
+                    FROM account_state
+                    LIMIT 1
+                    """
+                )
+
+                if row:
+                    return {
+                        "cash_balance": float(row["cash_balance"] or 0),
+                        "equity": float(row["equity"] or 0),
+                        "unrealized_pnl": float(row["unrealized_pnl"] or 0),
+                        "realized_pnl": float(row["realized_pnl"] or 0),
+                        "starting_equity": float(row["starting_equity"] or 10000),
+                        "positions_count": row["positions_count"] or 0,
+                    }
+                else:
+                    return {
+                        "cash_balance": 0,
+                        "equity": 0,
+                        "unrealized_pnl": 0,
+                        "realized_pnl": 0,
+                        "starting_equity": 10000,
+                        "positions_count": 0,
+                    }
+
+        except Exception as e:
+            print(f"Error fetching account: {e}")
+            return {
+                "cash_balance": 0,
+                "equity": 0,
+                "unrealized_pnl": 0,
+                "realized_pnl": 0,
+                "starting_equity": 10000,
+                "positions_count": 0,
+            }
 
 
 # Singleton instance

@@ -29,13 +29,14 @@ class SignalManager:
             Signal ID
         """
         signal_id = str(uuid4())
-        
+
         async with get_connection() as conn:
             # Convert agent_outputs and trigger_detail to JSON
             agent_outputs_json = json.dumps(signal.get("agent_outputs", {}), default=str)
             trigger_detail_json = json.dumps(signal.get("trigger_detail", {}), default=str)
-            
-            await conn.execute("""
+
+            # Use RETURNING to get the actual row id (handles upsert correctly)
+            row = await conn.fetchrow("""
                 INSERT INTO trade_signal (
                     id, symbol, signal_date, trigger_type, action,
                     entry_price, stop_loss, take_profit, conviction,
@@ -43,7 +44,7 @@ class SignalManager:
                 ) VALUES (
                     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
                 )
-                ON CONFLICT (symbol, signal_date, trigger_type) 
+                ON CONFLICT (symbol, signal_date, trigger_type)
                 DO UPDATE SET
                     action = EXCLUDED.action,
                     entry_price = EXCLUDED.entry_price,
@@ -53,6 +54,7 @@ class SignalManager:
                     reasoning = EXCLUDED.reasoning,
                     agent_outputs = EXCLUDED.agent_outputs,
                     trigger_detail = EXCLUDED.trigger_detail
+                RETURNING id
             """,
                 signal_id,
                 signal["symbol"],
@@ -67,13 +69,15 @@ class SignalManager:
                 agent_outputs_json,
                 trigger_detail_json,
             )
-            
+
+            actual_id = str(row["id"]) if row else signal_id
+
             _logger.info(
                 f"Stored signal: {signal['symbol']} {signal['trigger_type']} "
                 f"@ ${signal.get('entry_price', 0):.2f}"
             )
-        
-        return signal_id
+
+        return actual_id
     
     async def store_signals(self, signals: list[dict[str, Any]]) -> list[str]:
         """

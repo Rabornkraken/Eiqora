@@ -22,17 +22,23 @@ DEFAULT_STARTING_EQUITY = float(os.getenv("ACCOUNT_STARTING_EQUITY", "10000"))
 DEFAULT_CASH_BALANCE = float(os.getenv("ACCOUNT_CASH_BALANCE", str(DEFAULT_STARTING_EQUITY)))
 
 
+MAX_POSITION_PCT = 0.25  # Hard cap: no single position > 25% of equity
+
+
 def _normalize_position_pct(value: Any) -> float | None:
     try:
         pct = float(value)
     except (TypeError, ValueError):
         return None
     if pct <= 0:
-        return pct
-    if pct > 1.0:
+        return None
+    # Values >= 1.0 are treated as percentages (e.g. 5 → 0.05, 1 → 0.01).
+    # No realistic single position should be 100% of equity.
+    if pct >= 1.0:
         pct = pct / 100.0
-    if pct > 1.0:
-        pct = 1.0
+    # Hard cap to prevent oversized positions
+    if pct > MAX_POSITION_PCT:
+        pct = MAX_POSITION_PCT
     return pct
 
 
@@ -335,7 +341,7 @@ async def open_position(
 
     async with get_connection() as conn:
         account_state = await _ensure_account_state(conn)
-        base_equity = account_state.get("starting_equity") or DEFAULT_STARTING_EQUITY
+        base_equity = account_state.get("equity") or account_state.get("starting_equity") or DEFAULT_STARTING_EQUITY
         notional_value = None
         shares = None
         position_size_pct = _normalize_position_pct(position_size_pct)
@@ -360,6 +366,26 @@ async def open_position(
         if existing:
             logger.info("Position already active for %s; skipping open", symbol)
             return str(existing["position_id"])
+
+        # --- Cash check BEFORE inserting position row ---
+        if notional_value is not None:
+            cash_balance = account_state.get("cash_balance")
+            if cash_balance is None:
+                cash_balance = base_equity
+            cash_balance = float(cash_balance)
+
+            # Guard: don't let cash go negative
+            if float(notional_value) > cash_balance:
+                logger.warning(
+                    "Position for %s would exceed cash balance "
+                    "(notional=$%.2f, cash=$%.2f); capping to available cash",
+                    symbol, float(notional_value), cash_balance,
+                )
+                notional_value = max(cash_balance, 0.0)
+                if notional_value <= 0 or entry_price <= 0:
+                    logger.warning("No cash available for %s; skipping position", symbol)
+                    return None
+                shares = float(notional_value) / float(entry_price)
 
         position_id = await conn.fetchval(
             """
@@ -399,11 +425,10 @@ async def open_position(
             position_size_pct,
             signal_id,
         )
+
+        # Deduct cash after successful insert
         if notional_value is not None:
-            cash_balance = account_state.get("cash_balance")
-            if cash_balance is None:
-                cash_balance = base_equity
-            cash_balance = float(cash_balance) - float(notional_value)
+            cash_balance -= float(notional_value)
             await conn.execute(
                 """
                 UPDATE account_state

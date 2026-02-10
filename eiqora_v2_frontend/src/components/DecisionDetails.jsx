@@ -48,7 +48,7 @@ function DecisionDetails({ decision, onClose }) {
                     <div>
                         <div className="text-xl font-bold">{decision.symbol}</div>
                         <div className="text-sm text-muted">
-                            {new Date(decision.analysis_time).toLocaleString()}
+                            {new Date(decision.created_at || decision.analysis_time).toLocaleString()}
                         </div>
                     </div>
                     <button className="modal-close" onClick={onClose}>✕</button>
@@ -70,7 +70,6 @@ function DecisionDetails({ decision, onClose }) {
                             {renderAgentOutput('Top-Down Analysis', details.topdown_output)}
                             {renderAgentOutput('Context Analysis', details.context_output)}
                             {renderAgentOutput('Chart Analysis', details.chart_output)}
-                            {renderAgentOutput('Fundamental Analysis', details.fundamental_output)}
                             {renderAgentOutput('Idea Generator', details.idea_generator_output)}
                             {renderAgentOutput('Exit Policy', details.exit_policy_output)}
                             {renderAgentOutput('Red Team Review', details.red_team_output)}

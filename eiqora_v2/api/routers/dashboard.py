@@ -102,3 +102,67 @@ async def get_system_stats():
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch system stats: {str(e)}")
+
+
+@router.get("/equity-history")
+async def get_equity_history(
+    days: int = Query(30, ge=1, le=365, description="Number of days of history")
+):
+    """
+    Get equity history for chart
+
+    Retrieve daily equity snapshots for performance chart.
+
+    Args:
+        days: Number of days of history (1-365)
+
+    Returns:
+        List of equity snapshots with timestamp, equity, cash_balance, etc.
+    """
+    try:
+        history = await dashboard_service.get_equity_history(days=days)
+        return {"history": history, "total": len(history)}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch equity history: {str(e)}")
+
+
+@router.get("/trading-history")
+async def get_trading_history(
+    limit: int = Query(50, ge=1, le=200, description="Maximum number of trades to return")
+):
+    """
+    Get trading history (closed positions)
+
+    Retrieve list of closed trades with P&L.
+
+    Args:
+        limit: Maximum number of trades to return (1-200)
+
+    Returns:
+        List of closed trades with entry/exit prices and realized P&L
+    """
+    try:
+        trades = await dashboard_service.get_trading_history(limit=limit)
+        return {"trades": trades, "total": len(trades)}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch trading history: {str(e)}")
+
+
+@router.get("/account")
+async def get_account():
+    """
+    Get account summary
+
+    Retrieve current account state including cash balance, equity, and P&L.
+
+    Returns:
+        Account summary with cash_balance, equity, unrealized_pnl, realized_pnl
+    """
+    try:
+        account = await dashboard_service.get_account()
+        return account
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch account: {str(e)}")

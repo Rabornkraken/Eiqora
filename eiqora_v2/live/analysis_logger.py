@@ -155,8 +155,9 @@ async def log_analysis(
         analysis_id (UUID string)
     """
     analysis_id = str(uuid4())
+    now_et = datetime.now(EASTERN_TZ)
     trigger_hash = _compute_trigger_hash(trigger_detail)
-    
+
     # Extract decision reason
     decision = final_state.get("decision", {})
     decision_reason = decision.get("reason") or decision.get("reasoning") or ""
@@ -192,8 +193,8 @@ async def log_analysis(
         """,
             analysis_id,
             symbol,
-            datetime.now(EASTERN_TZ).date(),
-            datetime.now(EASTERN_TZ),
+            now_et.date(),
+            now_et,
             trigger_type,
             trigger_detail.get("news_id") or trigger_detail.get("id"),
             json.dumps(trigger_detail, default=str),
@@ -207,7 +208,7 @@ async def log_analysis(
             json.dumps(final_state.get("ideas", {}), default=str),
             json.dumps(final_state.get("exit_policy", {}), default=str),
             json.dumps(final_state.get("red_team", {}), default=str),
-            json.dumps(final_state.get("short_perspective", {}), default=str),
+            None,  # short_perspective_output - now merged into red_team
             json.dumps(final_state.get("decision", {}), default=str),
             json.dumps(final_state.get("position_manager", {}), default=str),
             json.dumps(final_state.get("sanity_veto", {}), default=str),

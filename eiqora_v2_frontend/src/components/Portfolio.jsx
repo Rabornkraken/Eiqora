@@ -40,15 +40,25 @@ function Portfolio() {
         return <div className="error">{error}</div>;
     }
 
-    const totalPositionsValue = positions.reduce((sum, pos) => sum + pos.market_value, 0);
+    // API returns current_price and entry_price but not market_value directly
+    // Calculate market_value from current_price * shares (if available) or estimate from unrealized_pnl
+    const processedPositions = positions.map(pos => {
+        // If shares not provided, estimate from unrealized_pnl / price_change
+        const priceChange = pos.current_price - pos.entry_price;
+        const shares = pos.shares || (priceChange !== 0 ? pos.unrealized_pnl / priceChange : 1);
+        const market_value = pos.market_value || (pos.current_price * shares);
+        return { ...pos, shares, market_value };
+    });
+
+    const totalPositionsValue = processedPositions.reduce((sum, pos) => sum + (pos.market_value || 0), 0);
     const cashBalance = account?.cash_balance || 0;
-    const totalValue = totalPositionsValue + cashBalance;
+    const totalValue = totalPositionsValue + cashBalance || 1; // Avoid division by zero
 
     // Prepare data for pie chart (positions + cash)
     const chartData = [
-        ...positions.map(pos => ({
+        ...processedPositions.map(pos => ({
             name: pos.symbol,
-            value: pos.market_value,
+            value: pos.market_value || 0,
             percentage: ((pos.market_value / totalValue) * 100).toFixed(1)
         })),
         ...(cashBalance > 0 ? [{
@@ -159,9 +169,9 @@ function Portfolio() {
                             </tr>
                         </thead>
                         <tbody>
-                            {positions.map((position) => {
-                                const pnl = position.market_value - (position.entry_price * position.shares);
-                                const pnlPercent = ((position.current_price - position.entry_price) / position.entry_price) * 100;
+                            {processedPositions.map((position) => {
+                                const pnl = position.unrealized_pnl || (position.market_value - (position.entry_price * position.shares));
+                                const pnlPercent = position.unrealized_pnl_pct || ((position.current_price - position.entry_price) / position.entry_price) * 100;
                                 const isProfitable = pnl >= 0;
 
                                 return (
@@ -184,10 +194,10 @@ function Portfolio() {
                                                 <span className="font-bold">{position.symbol}</span>
                                             </div>
                                         </td>
-                                        <td>{position.shares.toFixed(2)}</td>
-                                        <td>${position.entry_price.toFixed(2)}</td>
-                                        <td>${position.current_price.toFixed(2)}</td>
-                                        <td>${position.market_value.toFixed(2)}</td>
+                                        <td>{(position.shares || 0).toFixed(2)}</td>
+                                        <td>${(position.entry_price || 0).toFixed(2)}</td>
+                                        <td>${(position.current_price || 0).toFixed(2)}</td>
+                                        <td>${(position.market_value || 0).toFixed(2)}</td>
                                         <td className={isProfitable ? 'status-go' : 'status-no-go'}>
                                             ${Math.abs(pnl).toLocaleString()} {isProfitable ? '▲' : '▼'}
                                         </td>

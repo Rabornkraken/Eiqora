@@ -1,0 +1,30 @@
+# Eiqora Legacy API Server (api.py)
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first for layer caching
+COPY requirements-legacy.txt ./
+
+# Install only minimal runtime dependencies for api.py
+RUN pip install --no-cache-dir -r requirements-legacy.txt
+
+# Copy application code
+COPY api.py ./
+COPY eiqora_v2/ ./eiqora_v2/
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV TZ=America/New_York
+
+# Expose API port
+EXPOSE 8000
+
+# Run API server
+CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000"]

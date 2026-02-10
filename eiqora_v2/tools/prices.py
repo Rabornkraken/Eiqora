@@ -19,26 +19,26 @@ async def get_prices(
 ) -> list[dict[str, Any]]:
     """
     Fetch daily OHLCV bars from market_bar_daily.
-    
+
     Args:
         symbol: Stock ticker symbol
         window_days: Number of trading days to fetch
         asof_time: Point-in-time reference (no data after this time)
-    
+
     Returns:
-        List of price bar dicts with keys: date, open, high, low, close, volume, vwap, mfi_14, cmf_20, obv, ad_line
+        List of price bar dicts with keys: date, open, high, low, close, volume, vwap, mfi_14, cmf_20, obv, ad_line, support_level, resistance_level
     """
     async with get_connection() as conn:
         rows = await conn.fetch("""
             SELECT date, open, high, low, close, volume, vwap,
-                   mfi_14, cmf_20, obv, ad_line
+                   mfi_14, cmf_20, obv, ad_line, support_level, resistance_level
             FROM market_bar_daily
             WHERE symbol = $1
               AND date <= $2::date
               AND date >= ($2::date - interval '1 day' * $3)
             ORDER BY date ASC
         """, symbol, asof_time, window_days)
-        
+
         return [dict(r) for r in rows]
 
 
@@ -199,14 +199,13 @@ async def get_indicators(
     tr_smooth = tr.ewm(span=14, adjust=False).mean()
     plus_di = 100 * (plus_dm.ewm(span=14, adjust=False).mean() / tr_smooth)
     minus_di = 100 * (minus_dm.ewm(span=14, adjust=False).mean() / tr_smooth)
-    dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, np.nan)
-    adx = dx.ewm(span=14, adjust=False).mean()
-    adx14 = float(adx.iloc[-1]) if not pd.isna(adx.iloc[-1]) else 25.0
+    dx = 100 * abs(plus_di - minus_di) / (plus_di + minus_di).replace(0, np.nan)
+    adx = float(dx.ewm(span=14, adjust=False).mean().iloc[-1])
     
-    # Stochastic (14, 3)
-    lowest_low = low.rolling(14).min()
-    highest_high = high.rolling(14).max()
-    stoch_k = 100 * ((close - lowest_low) / (highest_high - lowest_low).replace(0, np.nan))
+    # Stochastic Oscillator (14, 3)
+    low_min = low.rolling(14).min()
+    high_max = high.rolling(14).max()
+    stoch_k = 100 * ((close - low_min) / (high_max - low_min))
     stoch_d = stoch_k.rolling(3).mean()
     stochastic = {
         "k": float(stoch_k.iloc[-1]) if not pd.isna(stoch_k.iloc[-1]) else 50.0,
@@ -260,9 +259,9 @@ async def get_indicators(
     elif rsi14 < 30:
         state_tags.append("OVERSOLD_RSI")
     
-    if adx14 > 25:
+    if adx > 25:
         state_tags.append("STRONG_TREND")
-    elif adx14 < 15:
+    elif adx < 15:
         state_tags.append("WEAK_TREND")
     
     if macd["bullish_cross"]:
@@ -270,12 +269,14 @@ async def get_indicators(
     elif macd["bearish_cross"]:
         state_tags.append("MACD_BEARISH_CROSS")
     
-    # Extract money flow indicators from latest bar (if available)
+    # Extract money flow indicators and levels from latest bar (if available)
     latest_bar = prices[-1]
     mfi_14 = float(latest_bar.get('mfi_14')) if latest_bar.get('mfi_14') is not None else None
     cmf_20 = float(latest_bar.get('cmf_20')) if latest_bar.get('cmf_20') is not None else None
     obv_db = float(latest_bar.get('obv')) if latest_bar.get('obv') is not None else None
     ad_line = float(latest_bar.get('ad_line')) if latest_bar.get('ad_line') is not None else None
+    support_level = float(latest_bar.get('support_level')) if latest_bar.get('support_level') is not None else None
+    resistance_level = float(latest_bar.get('resistance_level')) if latest_bar.get('resistance_level') is not None else None
     
     # Money flow state tags
     if mfi_14 is not None:
@@ -302,7 +303,7 @@ async def get_indicators(
         "rsi14": rsi14,
         "macd": macd,
         "bollinger": bollinger,
-        "adx14": adx14,
+        "adx14": adx,
         "stochastic": stochastic,
         "obv": obv_data,
         # Money Flow Indicators (from DB)
@@ -310,6 +311,9 @@ async def get_indicators(
         "cmf_20": cmf_20,
         "obv_db": obv_db,
         "ad_line": ad_line,
+        # Price Levels
+        "support_level": support_level,
+        "resistance_level": resistance_level,
         # Momentum
         "ret_5d": ret_5d,
         "ret_20d": ret_20d,

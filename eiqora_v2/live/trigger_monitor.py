@@ -31,6 +31,18 @@ from eiqora_v2.live.trigger_helpers import (
     check_influential_suppressors,
     get_intraday_relative_strength,
 )
+from eiqora_v2.tools.ict_patterns import (
+    Bar,
+    find_fair_value_gaps,
+    find_swing_points,
+    detect_liquidity_sweep,
+    find_order_blocks,
+    is_price_in_fvg,
+    is_price_in_order_block,
+    get_recent_swing_high,
+    get_recent_swing_low,
+)
+
 
 _logger = logging.getLogger(__name__)
 EASTERN_TZ = ZoneInfo("America/New_York")
@@ -46,6 +58,9 @@ FUNDAMENTAL_OVERRIDE_TRIGGERS = {
     "sec_8k",
     "supply_chain_cascade",  # NEW
 }
+
+# Daily triggers excluded from live scanning (weak in backtest)
+EXCLUDED_DAILY_TRIGGERS = {"daily_macd_crossover", "daily_breakout"}
 
 # Hourly/intraday triggers (use hourly scoring)
 HOURLY_INTRADAY_TRIGGERS = {
@@ -63,6 +78,10 @@ HOURLY_INTRADAY_TRIGGERS = {
     # NEW: Research-backed triggers (Jan 2026):
     "macd_bullish_crossover",
     "stochastic_oversold_bounce",
+    # ICT/SMC triggers:
+    "fvg_bullish_fill",
+    "liquidity_sweep_reversal",
+    "order_block_retest",
 }
 
 # Daily/swing triggers (use daily scoring)
@@ -712,32 +731,32 @@ class TriggerMonitor:
                     detected_at=check_time,
                 ))
                 
+                # DISABLED: volume_surge_confluence showed -0.60% avg PnL in honest backtest (losing money)
                 # Confluence Trigger (Daily MA20 alignment + Not Overbought + Relative Strength)
-                # OPTIMIZATION: Added RSI < 65 filter and intraday RS check to avoid chasing extended moves
-                intraday_vs_spy = intraday_rs.get('vs_spy', 0) if intraday_rs.get('available') else 0
-                if ma20_state == "ABOVE" and rsi14 < 65 and intraday_vs_spy > 0:
-                    triggers.append(Trigger(
-                        symbol=symbol,
-                        trigger_type="volume_surge_confluence",
-                        priority="HIGH",
-                        details=details,
-                        detected_at=check_time,
-                    ))
+                # intraday_vs_spy = intraday_rs.get('vs_spy', 0) if intraday_rs.get('available') else 0
+                # if ma20_state == "ABOVE" and rsi14 < 65 and intraday_vs_spy > 0:
+                #     triggers.append(Trigger(
+                #         symbol=symbol,
+                #         trigger_type="volume_surge_confluence",
+                #         priority="HIGH",
+                #         details=details,
+                #         detected_at=check_time,
+                #     ))
 
             # Hourly Breakout (unchanged for now, usually implies trend)
             levels = await get_price_levels(symbol, 60, check_time)
             high_10d = float(levels.get("high_10d") or 0)
             breakout_level = high_10d
-            
+
             if (
                 breakout_level > 0
-                and current_price > breakout_level * 1.002
+                and daily_price > breakout_level * 1.002
                 and vol_ratio > 1.1
                 and daily_price >= 5.0
             ):
                 details = {
                     "breakout_level": round(breakout_level, 4),
-                    "current_price": current_price,
+                    "current_price": daily_price,
                     "volume_ratio": round(vol_ratio, 2),
                     "rsi_hourly": rsi_hourly,
                     "ma20_state": ma20_state,
@@ -812,7 +831,7 @@ class TriggerMonitor:
                 current_price = hourly_stored.get("current_price", 0)
                 support_level = hourly_stored.get("support_level", 0)
                 
-                price_near_support = abs(current_price - support_level) / current_price < 0.02 if support_level else False
+                price_near_support = (abs(current_price - support_level) / current_price < 0.02) if (support_level and current_price > 0) else False
                 rsi_recovering = 25 < hourly_rsi < 40 if hourly_rsi else False
                 
                 if (
@@ -973,10 +992,375 @@ class TriggerMonitor:
                         details=details,
                         detected_at=check_time,
                     ))
+                
+                # DISABLED: stochastic_oversold_bounce_mtf showed -0.22% avg PnL in honest backtest (losing money)
+                # MTF Confluence: Daily MA50 ABOVE + CMF > 0
+                # if ma50_state == "ABOVE" and cmf_20 and cmf_20 > 0:
+                #     triggers.append(Trigger(
+                #         symbol=symbol,
+                #         trigger_type="stochastic_oversold_bounce_mtf",
+                #         priority="HIGH",
+                #         details=details,
+                #         detected_at=check_time,
+                #     ))
+            
+            # === ICT/SMC TRIGGERS ===
+            # Fetch hourly bars for pattern detection
+            try:
+                async with get_connection() as conn:
+                    rows = await conn.fetch("""
+                        SELECT datetime, open, high, low, close, volume
+                        FROM market_bar_hourly
+                        WHERE symbol = $1
+                          AND datetime <= $2
+                        ORDER BY datetime DESC
+                        LIMIT 50
+                    """, symbol, check_time)
+                    
+                    if len(rows) >= 10:
+                        hourly_bars = [
+                            Bar(
+                                datetime=r['datetime'],
+                                open=float(r['open']),
+                                high=float(r['high']),
+                                low=float(r['low']),
+                                close=float(r['close']),
+                                volume=float(r['volume']),
+                            )
+                            for r in reversed(rows)
+                        ]
+                        
+                        current_bar = hourly_bars[-1]
+                        current_price = current_bar.close
+                        
+                        # 1. FAIR VALUE GAP (FVG) FILL
+                        fvgs = find_fair_value_gaps(hourly_bars, lookback=20)
+                        for fvg in fvgs:
+                            if fvg.type == 'bullish' and is_price_in_fvg(current_price, fvg):
+                                details = {
+                                    "fvg_top": fvg.top,
+                                    "fvg_bottom": fvg.bottom,
+                                    "fvg_formed": fvg.formation_time.isoformat(),
+                                    "current_price": current_price,
+                                    "ma50_state": ma50_state,
+                                    "rsi14": rsi14,
+                                    **common_details,
+                                }
+                                
+                                # Original ICT version
+                                triggers.append(Trigger(
+                                    symbol=symbol,
+                                    trigger_type="fvg_bullish_fill",
+                                    priority="MEDIUM",
+                                    details=details,
+                                    detected_at=check_time,
+                                ))
+                                
+                                # DISABLED: fvg_bullish_fill_mtf showed only 0.31% avg PnL (minimal edge)
+                                # MTF Confluence: Daily MA50 ABOVE + RSI 30-60
+                                # if ma50_state == "ABOVE" and 30 < rsi14 < 60:
+                                #     triggers.append(Trigger(
+                                #         symbol=symbol,
+                                #         trigger_type="fvg_bullish_fill_mtf",
+                                #         priority="HIGH",
+                                #         details=details,
+                                #         detected_at=check_time,
+                                #     ))
+                                break  # Only one FVG trigger per check
+                        
+                        # 2. LIQUIDITY SWEEP REVERSAL
+                        swing_points = find_swing_points(hourly_bars, lookback=5)
+                        sweep = detect_liquidity_sweep(current_bar, swing_points)
+                        
+                        if sweep and sweep['type'] == 'bullish':
+                            details = {
+                                "sweep_type": sweep['type'],
+                                "swing_level": sweep['swing_level'],
+                                "sweep_depth_pct": round(sweep['sweep_depth_pct'], 2),
+                                "current_price": current_price,
+                                "ma50_state": ma50_state,
+                                "rsi14": rsi14,
+                                "stoch_k": stoch_k if 'stoch_k' in dir() else None,
+                                **common_details,
+                            }
+                            
+                            # Original ICT version
+                            triggers.append(Trigger(
+                                symbol=symbol,
+                                trigger_type="liquidity_sweep_reversal",
+                                priority="MEDIUM",
+                                details=details,
+                                detected_at=check_time,
+                            ))
+                            
+                            # DISABLED: liquidity_sweep_reversal_mtf showed only 0.21% avg PnL (minimal edge)
+                            # MTF Confluence: Daily trend UP + stochastic < 80
+                            # stoch_data = daily.get("stochastic", {})
+                            # stoch_k_daily = stoch_data.get("k", 50)
+                            # if ma50_state == "ABOVE" and stoch_k_daily < 80:
+                            #     triggers.append(Trigger(
+                            #         symbol=symbol,
+                            #         trigger_type="liquidity_sweep_reversal_mtf",
+                            #         priority="HIGH",
+                            #         details=details,
+                            #         detected_at=check_time,
+                            #     ))
+                        
+                        # 3. ORDER BLOCK RETEST
+                        order_blocks = find_order_blocks(hourly_bars, lookback=20, min_move_pct=1.0)
+                        for ob in order_blocks:
+                            if ob.type == 'bullish' and is_price_in_order_block(current_price, ob):
+                                details = {
+                                    "ob_top": ob.top,
+                                    "ob_bottom": ob.bottom,
+                                    "ob_formed": ob.formation_time.isoformat(),
+                                    "current_price": current_price,
+                                    "ma20_state": ma20_state,
+                                    "cmf_20": cmf_20,
+                                    **common_details,
+                                }
+                                
+                                # Original ICT version
+                                triggers.append(Trigger(
+                                    symbol=symbol,
+                                    trigger_type="order_block_retest",
+                                    priority="MEDIUM",
+                                    details=details,
+                                    detected_at=check_time,
+                                ))
+                                
+                                # MTF Confluence: Daily MA20 ABOVE + CMF > 0
+                                if ma20_state == "ABOVE" and cmf_20 and cmf_20 > 0:
+                                    triggers.append(Trigger(
+                                        symbol=symbol,
+                                        trigger_type="order_block_retest_mtf",
+                                        priority="HIGH",
+                                        details=details,
+                                        detected_at=check_time,
+                                    ))
+                                break  # Only one OB trigger per check
+                                
+            except Exception as ict_e:
+                _logger.debug(f"{symbol}: ICT trigger check failed - {ict_e}")
                     
         except Exception as e:
             _logger.debug(f"{symbol}: Hourly technical trigger check failed - {e}")
         
+        return triggers
+
+    async def check_daily_technical_triggers(
+        self,
+        symbol: str,
+        check_time: datetime,
+    ) -> list[Trigger]:
+        """Check for daily/swing technical triggers."""
+        triggers = []
+
+        try:
+            # We only need daily indicators (200 days for MAs)
+            daily = await get_indicators(symbol, 200, check_time)
+            if daily.get("error"):
+                return triggers
+
+            # Extract metrics
+            current_price = float(daily.get("current_price") or 0)
+            rsi14 = float(daily.get("rsi14") or 50)
+
+            stoch = daily.get("stochastic", {})
+            stoch_k = float(stoch.get("k", 50))
+            stoch_d = float(stoch.get("d", 50))
+
+            macd = daily.get("macd", {})
+            macd_line = float(macd.get("line", 0))
+            macd_signal = float(macd.get("signal", 0))
+
+            support = float(daily.get("support_level") or 0)
+            resistance = float(daily.get("resistance_level") or 0)
+
+            vol_z = float(daily.get("volume_z_20d") or 0)
+
+            details_base = {
+                "current_price": current_price,
+                "rsi14": rsi14,
+                "stoch_k": stoch_k,
+                "stoch_d": stoch_d,
+                "macd_line": macd_line,
+                "macd_signal": macd_signal,
+                "volume_z_score": vol_z,
+            }
+
+            # 1. Stochastic Oversold Bounce (K < 25 and K > D)
+            # Indicates momentum turning up from oversold conditions
+            if stoch_k < 25 and stoch_k > stoch_d:
+                triggers.append(Trigger(
+                    symbol=symbol,
+                    trigger_type="daily_stochastic_bounce",
+                    priority="HIGH",
+                    details=details_base,
+                    detected_at=check_time,
+                ))
+
+            # 2. Daily RSI Oversold (< 30)
+            # Classic mean reversion setup
+            if rsi14 < 30:
+                triggers.append(Trigger(
+                    symbol=symbol,
+                    trigger_type="daily_rsi_oversold",
+                    priority="MEDIUM",
+                    details=details_base,
+                    detected_at=check_time,
+                ))
+
+            # 3. MACD Bullish Crossover (Line crosses above Signal)
+            # Only consider if below zero line (trend reversal/dip buy)
+            if macd.get("bullish_cross") and macd_line < 0:
+                 triggers.append(Trigger(
+                    symbol=symbol,
+                    trigger_type="daily_macd_crossover",
+                    priority="HIGH",
+                    details=details_base,
+                    detected_at=check_time,
+                ))
+
+            # 4. Resistance Breakout (Close > Resistance)
+            if resistance > 0 and current_price > resistance:
+                triggers.append(Trigger(
+                    symbol=symbol,
+                    trigger_type="daily_breakout",
+                    priority="HIGH",
+                    details={**details_base, "resistance": resistance, "breakout_level": resistance},
+                    detected_at=check_time,
+                ))
+
+            # 5. Volume Surge (Z-Score > 3.0)
+            # Statistical anomaly indicating major interest
+            if vol_z > 3.0:
+                triggers.append(Trigger(
+                    symbol=symbol,
+                    trigger_type="daily_volume_surge",
+                    priority="MEDIUM",
+                    details=details_base,
+                    detected_at=check_time,
+                ))
+
+        except Exception as e:
+            _logger.debug(f"{symbol}: Daily trigger check failed - {e}")
+
+        return triggers
+
+    async def check_daily_ict_triggers(
+        self,
+        symbol: str,
+        check_time: datetime,
+    ) -> list[Trigger]:
+        """
+        Detect ICT patterns on daily bars.
+
+        Uses Fair Value Gaps, Liquidity Sweeps, and Order Blocks on daily timeframe.
+
+        Args:
+            symbol: Stock symbol
+            check_time: Datetime to check for triggers
+
+        Returns:
+            List of Trigger objects for detected ICT patterns
+        """
+        triggers = []
+
+        try:
+            # Fetch last 50 daily bars
+            async with get_connection() as conn:
+                rows = await conn.fetch("""
+                    SELECT date, open, high, low, close, volume
+                    FROM market_bar_daily
+                    WHERE symbol = $1
+                      AND date <= $2::date
+                    ORDER BY date DESC
+                    LIMIT 50
+                """, symbol, check_time.date())
+
+                if len(rows) < 10:
+                    return triggers
+
+                # Convert to Bar objects (reverse to chronological order)
+                daily_bars = [
+                    Bar(
+                        datetime=datetime.combine(r['date'], datetime.min.time()),
+                        open=float(r['open']),
+                        high=float(r['high']),
+                        low=float(r['low']),
+                        close=float(r['close']),
+                        volume=float(r['volume']) if r['volume'] else 0,
+                    )
+                    for r in reversed(rows)
+                ]
+
+                current_bar = daily_bars[-1]
+                current_price = current_bar.close
+
+                # Common details
+                base_details = {
+                    "current_price": current_price,
+                    "check_date": check_time.date().isoformat(),
+                }
+
+                # 1. FAIR VALUE GAP (FVG) FILL
+                fvgs = find_fair_value_gaps(daily_bars, lookback=20)
+                for fvg in fvgs:
+                    if fvg.type == 'bullish' and is_price_in_fvg(current_price, fvg):
+                        triggers.append(Trigger(
+                            symbol=symbol,
+                            trigger_type="daily_fvg_bullish_fill",
+                            priority="MEDIUM",
+                            details={
+                                **base_details,
+                                "fvg_top": fvg.top,
+                                "fvg_bottom": fvg.bottom,
+                                "fvg_formed": fvg.formation_time.isoformat(),
+                            },
+                            detected_at=check_time,
+                        ))
+                        break  # Only one FVG trigger per check
+
+                # 2. LIQUIDITY SWEEP REVERSAL
+                swing_points = find_swing_points(daily_bars, lookback=5)
+                sweep = detect_liquidity_sweep(current_bar, swing_points)
+
+                if sweep and sweep['type'] == 'bullish':
+                    triggers.append(Trigger(
+                        symbol=symbol,
+                        trigger_type="daily_liquidity_sweep_reversal",
+                        priority="MEDIUM",
+                        details={
+                            **base_details,
+                            "sweep_type": sweep['type'],
+                            "swing_level": sweep['swing_level'],
+                            "sweep_depth_pct": round(sweep['sweep_depth_pct'], 2),
+                        },
+                        detected_at=check_time,
+                    ))
+
+                # 3. ORDER BLOCK RETEST
+                order_blocks = find_order_blocks(daily_bars, lookback=20, min_move_pct=1.0)
+                for ob in order_blocks:
+                    if ob.type == 'bullish' and is_price_in_order_block(current_price, ob):
+                        triggers.append(Trigger(
+                            symbol=symbol,
+                            trigger_type="daily_order_block_retest",
+                            priority="MEDIUM",
+                            details={
+                                **base_details,
+                                "ob_top": ob.top,
+                                "ob_bottom": ob.bottom,
+                                "ob_formed": ob.formation_time.isoformat(),
+                            },
+                            detected_at=check_time,
+                        ))
+                        break  # Only one OB trigger per check
+
+        except Exception as e:
+            _logger.debug(f"{symbol}: Daily ICT trigger check failed - {e}")
+
         return triggers
     
     async def scan_watchlist(
@@ -1065,6 +1449,19 @@ class TriggerMonitor:
             if attach_scores(supply_chain):
                 symbol_triggers.append(supply_chain)
 
+            # Daily technical triggers
+            daily_tech = await self.check_daily_technical_triggers(symbol, check_time)
+            daily_tech = [t for t in daily_tech if t.trigger_type not in EXCLUDED_DAILY_TRIGGERS]
+            for t in daily_tech:
+                attach_scores(t)
+            symbol_triggers.extend(daily_tech)
+
+            # Daily ICT triggers
+            daily_ict = await self.check_daily_ict_triggers(symbol, check_time)
+            for t in daily_ict:
+                attach_scores(t)
+            symbol_triggers.extend(daily_ict)
+
             # Apply analysis gate per trigger
             for trigger in symbol_triggers:
                 # Get daily technical score (from candidate selection)
@@ -1108,7 +1505,7 @@ class TriggerMonitor:
                         }
                         
                         # Check cache
-                        cached = get_cached_analysis(
+                        cached = await get_cached_analysis(
                             trigger.symbol,
                             trigger.trigger_type,
                             trigger.detected_at.date()

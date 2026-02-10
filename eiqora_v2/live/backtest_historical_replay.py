@@ -315,7 +315,7 @@ async def save_backtest_analysis(run_id, trigger, final_state, decision: str, pr
         'idea_generator_output': safe_json_dumps(final_state.get('ideas')) if final_state.get('ideas') else None,
         'exit_policy_output': safe_json_dumps(final_state.get('exit_policy')) if final_state.get('exit_policy') else None,
         'red_team_output': safe_json_dumps(final_state.get('red_team')) if final_state.get('red_team') else None,
-        'short_perspective_output': safe_json_dumps(final_state.get('short_perspective')) if final_state.get('short_perspective') else None,
+        'short_perspective_output': None,  # now merged into red_team
         'decision_output': safe_json_dumps(final_state.get('decision')) if final_state.get('decision') else None,
         'position_manager_output': safe_json_dumps(final_state.get('position_manager')) if final_state.get('position_manager') else None,
         'veto_output': safe_json_dumps(final_state.get('veto')) if final_state.get('veto') else None,
@@ -506,161 +506,196 @@ async def run_historical_backtest(
     for ttype, count in sorted(by_type.items(), key=lambda x: -x[1]):
         logger.info(f"  {ttype}: {count}")
     
-    # Step 2: Process through production pipeline
-    logger.info(f"\n\nStep 2: Processing triggers through production pipeline...")
-    logger.info("(This will make real LLM calls)")
-    
+    # Step 2: Process through production agent pipeline (NO live table writes)
+    logger.info(f"\n\nStep 2: Processing triggers through agent pipeline...")
+    logger.info("(Orchestrator-only mode: NO writes to live position/signal/analysis_log tables)")
+
     results = []
     go_count = 0
     no_go_count = 0
     error_count = 0
-    
-    # Track positions and analyses created during backtest (to clean up later)
-    backtest_position_ids = []
-    backtest_analysis_ids = []
-    
-    # Track active backtest positions (in-memory, for position management)
+
+    # Track active backtest positions IN-MEMORY ONLY (never touches live DB)
     active_backtest_positions = {}  # symbol -> {'entry_time': datetime, 'entry_price': float}
-    
+
+    # Set up orchestrator + enricher directly (bypass LiveTradingPipeline)
+    from eiqora_v2.live.orchestrator import LiveTradingOrchestrator
+    from eiqora_v2.services.context_enrichment import ContextEnricher
+    from eiqora_v2.services.profile_generator import ProfileGenerator
+    from eiqora_v2.services.signal_quality import assess_full_signal_quality
+
+    profile_generator = ProfileGenerator()
+    context_enricher = ContextEnricher(profile_generator)
+    orchestrator = LiveTradingOrchestrator()
+
+    # Track symbols already analyzed today (in-memory dedup)
+    analyzed_today = set()  # (symbol, date)
+
     for i, trigger in enumerate(triggers, 1):
         logger.info(f"\n{'='*80}")
         logger.info(f"Processing {i}/{len(triggers)}: {trigger.symbol} ({trigger.trigger_type})")
         logger.info(f"{'='*80}")
-        
-        # REALISTIC BACKTEST: Check trigger cache to prevent duplicate analysis
-        # This mirrors live pipeline behavior where triggers are cached per day
-        try:
-            from eiqora_v2.live.trigger_cache import get_cached_analysis
-            
-            cached = get_cached_analysis(
-                trigger.symbol,
-                trigger.trigger_type,
-                trigger.detected_at.date()
-            )
-            
-            if cached and cached.get('expires_at') and cached['expires_at'].replace(tzinfo=None) > trigger.detected_at.replace(tzinfo=None):
-                logger.info(f"⏭️  Skipping already processed trigger: {trigger.symbol} {trigger.trigger_type}")
-                no_go_count += 1
-                result = {
-                    'trigger': trigger,
-                    'decision': 'NO_GO',
-                    'reason': 'Cached - already analyzed today',
-                    'signal': None,
-                    'outcome': None,
-                }
-                results.append(result)
-                continue
-        except Exception as e:
-            logger.debug(f"Cache check failed (continuing anyway): {e}")
-        
-        # BACKTEST POSITION CHECK: Skip if we already have an active position in this symbol
+
+        # In-memory dedup: skip if same symbol already analyzed same day
+        dedup_key = (trigger.symbol, trigger.detected_at.date())
+        if dedup_key in analyzed_today:
+            logger.info(f"⏭️  Skipping {trigger.symbol} (already analyzed on {trigger.detected_at.date()})")
+            no_go_count += 1
+            results.append({
+                'trigger': trigger,
+                'decision': 'NO_GO',
+                'reason': 'Already analyzed today',
+                'signal': None,
+                'outcome': None,
+            })
+            continue
+
+        # In-memory position check (no DB query)
         if trigger.symbol in active_backtest_positions:
             logger.info(f"⏭️  Skipping {trigger.symbol} (active backtest position from {active_backtest_positions[trigger.symbol]['entry_time']})")
             no_go_count += 1
-            result = {
+            results.append({
                 'trigger': trigger,
                 'decision': 'NO_GO',
                 'reason': 'Active backtest position exists',
                 'signal': None,
                 'outcome': None,
-            }
-            results.append(result)
+            })
             continue
-        
+
         try:
             import time
             start_time = time.time()
-            
-            # Run through EXACT production pipeline
-            signal = await pipeline.process_trigger(trigger)
-            
+
+            # Enrich context (read-only DB queries, no writes)
+            enrichment = await context_enricher.enrich(
+                symbol=trigger.symbol,
+                asof_time=trigger.detected_at,
+                include_profile=True,
+            )
+            profile_dict = enrichment.get("profile")
+            market_data = enrichment.get("market_data") or {}
+            freshness = enrichment.get("data_freshness") or {}
+            enrichment_errors = enrichment.get("errors") or []
+
+            # Signal quality assessment (pure function, no DB)
+            signal_quality = assess_full_signal_quality(trigger.details)
+            enriched_trigger_details = {**trigger.details, **signal_quality}
+
+            # Build initial state (same as live pipeline)
+            initial_state = {
+                "symbol": trigger.symbol,
+                "asof_time": trigger.detected_at,
+                "trigger_type": trigger.trigger_type,
+                "trigger_priority": trigger.priority,
+                "trigger_detail": enriched_trigger_details,
+                "profile": profile_dict,
+                "market_data": market_data,
+                "data_freshness": freshness,
+                "enrichment_errors": enrichment_errors,
+            }
+
+            # Run agent pipeline directly (no live table writes)
+            final_state = await orchestrator.run(initial_state)
+
             processing_time_ms = int((time.time() - start_time) * 1000)
-            
-            # Get final state from pipeline's last analysis
-            # Note: process_trigger doesn't return state, need to get it differently
-            # For now, we'll save what we have
-            
-            if signal:
-                # GO decision - track outcome
+            analyzed_today.add(dedup_key)
+
+            # Extract decision
+            decision = final_state.get("decision", {})
+            action = decision.get("final_call") or decision.get("decision") or "NO_GO"
+            veto = final_state.get("veto", {})
+            if isinstance(veto, dict) and veto.get("veto"):
+                action = "NO_GO"
+
+            if action == "GO":
                 go_count += 1
-                
-                # Track IDs for cleanup
-                if 'position_id' in signal:
-                    backtest_position_ids.append(signal['position_id'])
-                if 'analysis_id' in signal:
-                    backtest_analysis_ids.append(signal['analysis_id'])
-                
-                entry_price = signal['entry_price']
-                stop_loss = signal['stop_loss']
-                take_profit = signal['take_profit']
-                
+
+                rule = decision.get("rule", {}) or {}
+                context = final_state.get("context", {})
+                direction = rule.get("direction", "LONG")
+
+                entry_price = rule.get("entry_level") or context.get("current_price", 0)
+
+                # Prefer hourly price if available
+                hourly_data = market_data.get("hourly_indicators") or {}
+                hourly_price = hourly_data.get("current_price")
+                if hourly_price and not hourly_data.get("error"):
+                    try:
+                        entry_price = float(hourly_price)
+                    except (TypeError, ValueError):
+                        pass
+
+                # Get exit levels from exit policy or ATR fallback
+                exit_policy = final_state.get("exit_policy", {}) or {}
+                bracket = exit_policy.get("bracket", {}) if isinstance(exit_policy, dict) else {}
+
+                stop_loss = bracket.get("sl_level")
+                take_profit = bracket.get("tp_level")
+
+                if stop_loss is None or take_profit is None:
+                    sl_mult = bracket.get("sl_mult") or rule.get("sl_mult", 3.0)
+                    tp_mult = bracket.get("tp_mult") or rule.get("tp_mult")
+                    atr = context.get("atr14", entry_price * 0.02)
+
+                    if direction == "SHORT":
+                        stop_loss = stop_loss or (entry_price + (atr * sl_mult))
+                        if tp_mult:
+                            take_profit = take_profit or (entry_price - (atr * tp_mult))
+                    else:
+                        stop_loss = stop_loss or (entry_price - (atr * sl_mult))
+                        if tp_mult:
+                            take_profit = take_profit or (entry_price + (atr * tp_mult))
+
+                signal = {
+                    'entry_price': entry_price,
+                    'stop_loss': stop_loss,
+                    'take_profit': take_profit,
+                    'agent_outputs': final_state,
+                    'conviction': decision.get('conviction', 'MEDIUM'),
+                }
+
                 outcome = await track_trade_outcome(
-                    trigger,
-                    entry_price,
-                    stop_loss,
-                    take_profit,
-                    trigger.detected_at
+                    trigger, entry_price, stop_loss, take_profit, trigger.detected_at
                 )
-                
-                # Track position open in backtest
+
+                # Track position in-memory only
                 active_backtest_positions[trigger.symbol] = {
                     'entry_time': trigger.detected_at,
                     'entry_price': entry_price,
                 }
-                logger.info(f"📍 Opened backtest position for {trigger.symbol}")
-                
-                # Close position after outcome (SL/TP/EXPIRED)
+                logger.info(f"📍 Opened backtest position for {trigger.symbol} (in-memory only)")
+
+                # Close in-memory position on outcome
                 if outcome['outcome'] in ['SL', 'TP', 'EXPIRED']:
-                    # CRITICAL FIX: Close in database, not just memory
-                    # Without this, position stays in DB and blocks all future triggers!
-                    try:
-                        from eiqora_v2.tools.positions import close_position
-                        
-                        await close_position(
-                            symbol=trigger.symbol,
-                            exit_price=outcome.get('exit_price'),
-                            exit_reason=f"Backtest {outcome['outcome']}: {outcome.get('pnl', 0):+.2f}%",
-                            exit_type=outcome['outcome'],
-                            exit_time=outcome.get('exit_time') or trigger.detected_at
-                        )
-                        logger.info(f"🗄️  Closed position in database for {trigger.symbol}")
-                    except Exception as e:
-                        logger.warning(f"Failed to close position in database: {e}")
-                    
-                    # Also close in memory tracker
                     if trigger.symbol in active_backtest_positions:
                         del active_backtest_positions[trigger.symbol]
                         logger.info(f"🔓 Closed backtest position for {trigger.symbol} ({outcome['outcome']})")
-                
+
                 result = {
                     'trigger': trigger,
                     'decision': 'GO',
                     'signal': signal,
                     'outcome': outcome,
                 }
-                
+
                 logger.info(f"✅ GO: {trigger.symbol}")
                 logger.info(f"   Entry: ${entry_price:.2f}, SL: ${stop_loss:.2f}, TP: ${take_profit:.2f}")
                 logger.info(f"   Outcome: {outcome['outcome']}, P&L: {outcome['pnl']:+.2f}%")
-                
-                # Save to database if enabled
+
+                # Save to backtest-specific tables only
                 if save_to_db and run_id:
                     try:
                         analysis_id = await save_backtest_analysis(
-                            run_id, trigger, signal.get('agent_outputs', {}), 'GO', processing_time_ms
+                            run_id, trigger, final_state, 'GO', processing_time_ms
                         )
                         await save_backtest_position(run_id, analysis_id, trigger, signal, outcome)
                     except Exception as e:
-                        logger.warning(f"Failed to save to database: {e}")
-                
+                        logger.warning(f"Failed to save to backtest DB: {e}")
+
             else:
-                # NO_GO decision
                 no_go_count += 1
-                
-                # Track analysis_id for NO_GO (need to get it from pipeline state)
-                # For now, we'll track by querying the latest analysis_log entry
-                # This is a workaround since pipeline returns None for NO_GO
-                
+
                 result = {
                     'trigger': trigger,
                     'decision': 'NO_GO',
@@ -668,23 +703,22 @@ async def run_historical_backtest(
                     'outcome': None,
                 }
                 logger.info(f"❌ NO_GO: {trigger.symbol}")
-                
-                # Save NO_GO analysis to database if enabled
+
+                # Save to backtest-specific tables only
                 if save_to_db and run_id:
                     try:
                         await save_backtest_analysis(
-                            run_id, trigger, {}, 'NO_GO', processing_time_ms
+                            run_id, trigger, final_state, 'NO_GO', processing_time_ms
                         )
                     except Exception as e:
-                        logger.warning(f"Failed to save to database: {e}")
-            
+                        logger.warning(f"Failed to save to backtest DB: {e}")
+
             results.append(result)
-            
-            # Progress summary
+
             if i % 10 == 0:
                 logger.info(f"\n--- Progress: {i}/{len(triggers)} ---")
                 logger.info(f"GO: {go_count}, NO_GO: {no_go_count}")
-        
+
         except Exception as e:
             logger.error(f"Error processing {trigger.symbol}: {e}", exc_info=True)
             error_count += 1
@@ -693,7 +727,7 @@ async def run_historical_backtest(
                 'decision': 'ERROR',
                 'error': str(e),
             })
-    
+
     # Finalize backtest run if saving
     if save_to_db and run_id:
         await finalize_backtest_run(run_id, {
@@ -702,22 +736,6 @@ async def run_historical_backtest(
             'no_go_count': no_go_count,
             'error_count': error_count,
         })
-    
-    # CRITICAL: Clean up live tables polluted by backtest
-    async with get_connection() as conn:
-        # 1. Clean up positions
-        if backtest_position_ids:
-            logger.info(f"\n🧹 Cleaning up {len(backtest_position_ids)} live positions created during backtest...")
-            for pos_id in backtest_position_ids:
-                await conn.execute("DELETE FROM position WHERE position_id = $1", pos_id)
-            logger.info(f"✅ Cleaned up {len(backtest_position_ids)} positions from live table")
-        
-        # 2. Clean up analysis_log entries by ID
-        if backtest_analysis_ids:
-            logger.info(f"🧹 Cleaning up {len(backtest_analysis_ids)} analysis_log entries created during backtest...")
-            for analysis_id in backtest_analysis_ids:
-                await conn.execute("DELETE FROM analysis_log WHERE analysis_id = $1", analysis_id)
-            logger.info(f"✅ Cleaned up {len(backtest_analysis_ids)} analysis_log entries from live table")
     
     # Step 3: Generate report
     logger.info(f"\n\n{'='*80}")

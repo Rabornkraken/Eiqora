@@ -2,6 +2,7 @@ import uuid
 import json
 import asyncio
 import logging
+import os
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from fastapi import FastAPI, BackgroundTasks, HTTPException
@@ -23,16 +24,29 @@ logger = logging.getLogger("eiqora-api")
 app = FastAPI(title="Eiqora API", description="Backend for Eiqora Financial Analysis Agent")
 
 # CORS Configuration
-origins = [
-    "http://localhost:3000",
-    "http://localhost:3001",
-    "http://127.0.0.1:3000",
-]
+origins_env = os.getenv("CORS_ORIGINS")
+if origins_env:
+    try:
+        parsed = json.loads(origins_env)
+        if isinstance(parsed, str):
+            origins = [parsed]
+        else:
+            origins = parsed
+    except json.JSONDecodeError:
+        origins = [o.strip() for o in origins_env.split(",") if o.strip()]
+else:
+    origins = [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3000",
+    ]
+
+allow_credentials = False if "*" in origins else True
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_credentials=True,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -557,7 +571,7 @@ async def get_dashboard_stats():
         
         # Current equity and total return
         account = await conn.fetchrow(
-            "SELECT equity, starting_equity, realized_pnl FROM account_state WHERE account_id = 'main'"
+            "SELECT equity, starting_equity, realized_pnl, unrealized_pnl FROM account_state WHERE account_id = 'main'"
         )
         
         starting_equity = 10000.0
@@ -607,13 +621,37 @@ async def get_dashboard_stats():
                 sharpe = (avg_ret / std_ret) * (252 ** 0.5)
                 sharpe_ratio = f"{sharpe:.2f}"
         
+        # Actual closed positions count
+        closed_count = await conn.fetchval(
+            "SELECT COUNT(*) FROM position WHERE status = 'CLOSED'"
+        ) or 0
+
+        # Active positions count
+        active_positions = await conn.fetchval(
+            "SELECT COUNT(*) FROM position WHERE status = 'ACTIVE'"
+        ) or 0
+
+        # Unrealized P&L from account state
+        unrealized_pnl = 0.0
+        if account and account.get("unrealized_pnl") is not None:
+            unrealized_pnl = float(account["unrealized_pnl"])
+        else:
+            # Fallback: query account_state directly for unrealized_pnl
+            upnl = await conn.fetchval(
+                "SELECT unrealized_pnl FROM account_state WHERE account_id = 'main'"
+            )
+            if upnl is not None:
+                unrealized_pnl = float(upnl)
+
         return {
             "total_analyses": total_analyses,
-            "total_trades": go_count,
+            "total_trades": closed_count,
             "win_rate": win_rate_str,
             "total_return": total_return,
             "current_equity": current_equity_str,
             "sharpe_ratio": sharpe_ratio,
+            "active_positions": active_positions,
+            "unrealized_pnl": round(unrealized_pnl, 2),
             "last_updated": datetime.now().isoformat()
         }
 

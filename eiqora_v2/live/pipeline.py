@@ -38,6 +38,7 @@ EASTERN_TZ = ZoneInfo("America/New_York")
 ACCOUNT_REFRESH_SECONDS = max(0, int(os.getenv("ACCOUNT_REFRESH_SECONDS", "900")))
 INGEST_CHANNEL = os.getenv("EIQORA_INGEST_CHANNEL", "eiqora_ingest")
 TRIGGER_CONCURRENCY = max(1, int(os.getenv("TRIGGER_CONCURRENCY", "3")))
+POLL_INTERVAL_SECONDS = max(60, int(os.getenv("POLL_INTERVAL_SECONDS", "900")))
 
 
 class LiveTradingPipeline:
@@ -225,7 +226,7 @@ class LiveTradingPipeline:
             time_stop_days = rule.get("time_stop_days", 30)
             
             # Entry price from rule or context
-            entry_price = rule.get("entry_level") or context.get("current_price", 0)
+            entry_price = rule.get("entry_level") or context.get("current_price") or 0
 
             hourly_data = market_data.get("hourly_indicators") or {}
             hourly_price = hourly_data.get("current_price")
@@ -234,6 +235,10 @@ class LiveTradingPipeline:
                     entry_price = float(hourly_price)
                 except (TypeError, ValueError):
                     pass
+
+            if not entry_price or entry_price <= 0:
+                _logger.warning("No valid entry price for %s; skipping GO signal", trigger.symbol)
+                return None
             
             # Get exit policy from agent (may have explicit levels)
             exit_policy = final_state.get("exit_policy", {}) or {}
@@ -261,8 +266,10 @@ class LiveTradingPipeline:
             
             # Log the exit policy decision
             sl_rationale = bracket.get("sl_rationale", "ATR-based")
-            tp_rationale = bracket.get("tp_rationale", "ATR-based")
-            _logger.info(f"Exit policy - SL: ${stop_loss:.2f} ({sl_rationale}), TP: ${take_profit:.2f} ({tp_rationale})")
+            tp_rationale = bracket.get("tp_rationale", "decision-based")
+            sl_str = f"${stop_loss:.2f}" if stop_loss is not None else "None"
+            tp_str = f"${take_profit:.2f}" if take_profit is not None else "None (decision-based)"
+            _logger.info(f"Exit policy - SL: {sl_str} ({sl_rationale}), TP: {tp_str} ({tp_rationale})")
             
             # Get conviction from idea generator or decision
             ideas = final_state.get("ideas", {})
@@ -303,10 +310,12 @@ class LiveTradingPipeline:
             if position_size_pct is not None:
                 try:
                     size_val = float(position_size_pct)
-                    if size_val > 1.0:
+                    # Values >= 1.0 are percentages (e.g. 5 → 0.05, 1 → 0.01)
+                    if size_val >= 1.0:
                         size_val = size_val / 100.0
-                    if size_val > 1.0:
-                        size_val = 1.0
+                    # Hard cap: no single position > 25% of equity
+                    if size_val > 0.25:
+                        size_val = 0.25
                     position_size_pct = size_val
                 except (TypeError, ValueError):
                     position_size_pct = None
@@ -331,10 +340,11 @@ class LiveTradingPipeline:
             signal_id = await self.signal_manager.store_signal(signal)
 
             # Open position in database
+            position_opened = False
             try:
                 from eiqora_v2.tools.positions import open_position
 
-                await open_position(
+                pos_id = await open_position(
                     symbol=trigger.symbol,
                     direction=direction,
                     entry_price=entry_price,
@@ -347,12 +357,19 @@ class LiveTradingPipeline:
                     position_size_pct=position_size_pct,
                     signal_id=signal_id,
                 )
+                position_opened = pos_id is not None
             except Exception as exc:
-                _logger.warning("Failed to open position for %s: %s", trigger.symbol, exc)
-            
+                _logger.error("Failed to open position for %s: %s", trigger.symbol, exc, exc_info=True)
+
+            if not position_opened:
+                _logger.warning("GO signal for %s but position was NOT opened (no cash or error)", trigger.symbol)
+                return None
+
+            sl_fmt = f"${signal['stop_loss']:.2f}" if signal['stop_loss'] is not None else "None"
+            tp_fmt = f"${signal['take_profit']:.2f}" if signal['take_profit'] is not None else "None"
             _logger.info(
-                f"✅ GO: {trigger.symbol} @ ${signal['entry_price']:.2f} "
-                f"(SL: ${signal['stop_loss']:.2f}, TP: ${signal['take_profit']:.2f})"
+                f"GO: {trigger.symbol} @ ${signal['entry_price']:.2f} "
+                f"(SL: {sl_fmt}, TP: {tp_fmt})"
             )
             return signal
         else:
@@ -584,25 +601,44 @@ class LiveTradingPipeline:
         idle_log_seconds: int = 900,
         coalesce_seconds: float = 3.0,
     ) -> None:
-        """Listen for ingestion NOTIFY events and trigger scans."""
-        from eiqora_v2.tools.db import get_connection
+        """Listen for ingestion NOTIFY events and trigger scans.
+
+        Uses a dedicated connection (not from the pool) so that pool
+        lifecycle events don't kill the long-lived LISTEN.  Automatically
+        reconnects on connection loss.
+        """
+        import asyncpg
+        from eiqora_v2.tools.db import _get_database_dsn
 
         listen_channel = channel or INGEST_CHANNEL
-        queue: asyncio.Queue[str] = asyncio.Queue()
+        reconnect_delay = 5  # seconds between reconnect attempts
 
-        def _listener(_connection, _pid, _channel, payload):
-            if payload is not None:
-                queue.put_nowait(payload)
-
-        async with get_connection() as conn:
-            await conn.add_listener(listen_channel, _listener)
-            _logger.info(f"Listening for ingest notifications on '{listen_channel}'")
-
+        while True:
+            conn: asyncpg.Connection | None = None
             try:
+                # Dedicated connection — NOT from the pool
+                dsn = _get_database_dsn()
+                conn = await asyncpg.connect(dsn)
+
+                queue: asyncio.Queue[str] = asyncio.Queue()
+
+                def _listener(_connection, _pid, _channel, payload):
+                    if payload is not None:
+                        queue.put_nowait(payload)
+
+                await conn.add_listener(listen_channel, _listener)
+                _logger.info("Listening for ingest notifications on '%s' (dedicated connection)", listen_channel)
+
                 while True:
                     try:
                         payload = await asyncio.wait_for(queue.get(), timeout=idle_log_seconds)
                     except asyncio.TimeoutError:
+                        # Keepalive: run a cheap query to detect dead connections
+                        try:
+                            await conn.execute("SELECT 1")
+                        except Exception:
+                            _logger.warning("LISTEN connection dead (keepalive failed); reconnecting")
+                            break
                         _logger.info("No ingest notifications in the last %s seconds", idle_log_seconds)
                         continue
 
@@ -618,8 +654,59 @@ class LiveTradingPipeline:
                         await self.trigger_dispatcher.dispatch(event)
                     except Exception as exc:
                         _logger.error("Live trigger dispatch failed: %s", exc, exc_info=True)
+
+            except asyncio.CancelledError:
+                _logger.info("LISTEN task cancelled; shutting down")
+                raise
+            except Exception as exc:
+                _logger.error(
+                    "LISTEN connection lost (%s: %s); reconnecting in %ss",
+                    type(exc).__name__, exc, reconnect_delay,
+                )
             finally:
-                await conn.remove_listener(listen_channel, _listener)
+                if conn is not None:
+                    try:
+                        await conn.close()
+                    except Exception:
+                        pass
+
+            await asyncio.sleep(reconnect_delay)
+
+    async def run_polling_loop(
+        self,
+        interval_seconds: int | None = None,
+        skip_initial_delay: bool = False,
+    ) -> None:
+        """Periodically poll for new data as a fallback to notifications.
+
+        Dispatches a full trigger event (all sources) every ``interval_seconds``
+        so that even if DB NOTIFY events are missed, the pipeline still picks up
+        new data.
+        """
+        interval = POLL_INTERVAL_SECONDS if interval_seconds is None else interval_seconds
+        _logger.info("Polling loop every %s seconds", interval)
+        if not skip_initial_delay:
+            # Wait one full interval before the first poll so that the notify
+            # listener has a chance to react first.
+            await asyncio.sleep(interval)
+        from eiqora_v2.live.trigger_dispatcher import is_market_open
+
+        while True:
+            try:
+                now = datetime.now(EASTERN_TZ)
+                if not is_market_open(now):
+                    _logger.debug("Polling skipped — outside market hours (%s)", now.strftime("%a %H:%M %Z"))
+                else:
+                    _logger.info("Polling fallback: dispatching full scan at %s", now.strftime("%H:%M %Z"))
+                    event = TriggerEvent(
+                        sources=set(TRIGGER_SOURCES) | set(WATCHLIST_SOURCES),
+                        scan_time=now,
+                        reason="polling",
+                    )
+                    await self.trigger_dispatcher.dispatch(event)
+            except Exception as exc:
+                _logger.error("Polling dispatch failed: %s", exc, exc_info=True)
+            await asyncio.sleep(interval)
 
     async def run_account_refresh_loop(self, interval_seconds: int | None = None) -> None:
         """Periodically refresh account_state and account_snapshot."""
@@ -663,37 +750,39 @@ async def main():
     _logger.info("Starting Live Pipeline Service")
 
     mode = os.getenv("LIVE_TRIGGER_MODE", "notify").lower()
+
+    # Background tasks that run in every mode
+    background_tasks: list[asyncio.Task] = []
+
+    refresh_task = asyncio.create_task(pipeline.run_account_refresh_loop())
+    background_tasks.append(refresh_task)
+
     if mode == "notify":
-        refresh_task = asyncio.create_task(pipeline.run_account_refresh_loop())
+        # Hybrid: listen for DB notifications + periodic polling fallback
+        poll_task = asyncio.create_task(pipeline.run_polling_loop())
+        background_tasks.append(poll_task)
+        _logger.info("Mode: notify + polling fallback (every %ss)", POLL_INTERVAL_SECONDS)
         try:
             await pipeline.run_on_ingest_notifications()
         finally:
-            refresh_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await refresh_task
+            for t in background_tasks:
+                t.cancel()
+            await asyncio.gather(*background_tasks, return_exceptions=True)
         return
 
-    # Run continuously (polling mode)
-    while True:
-        try:
-            now = datetime.now(EASTERN_TZ)
-
-            event = TriggerEvent(
-                sources=set(TRIGGER_SOURCES) | set(WATCHLIST_SOURCES),
-                scan_time=now,
-                reason="polling",
-            )
-            await pipeline.trigger_dispatcher.dispatch(event)
-
-            _logger.info("Sleeping for 15 minutes...")
-            await asyncio.sleep(900)
-
-        except KeyboardInterrupt:
-            _logger.info("Service stopped by user")
-            break
-        except Exception as e:
-            _logger.error(f"Pipeline loop error: {e}", exc_info=True)
-            await asyncio.sleep(60)  # Retry after 1 min on error
+    # Polling-only mode
+    _logger.info("Mode: polling only (every %ss)", POLL_INTERVAL_SECONDS)
+    poll_task = asyncio.create_task(pipeline.run_polling_loop(skip_initial_delay=True))
+    background_tasks.append(poll_task)
+    try:
+        # Block until a background task fails (shouldn't happen)
+        await asyncio.gather(*background_tasks)
+    except KeyboardInterrupt:
+        _logger.info("Service stopped by user")
+    finally:
+        for t in background_tasks:
+            t.cancel()
+        await asyncio.gather(*background_tasks, return_exceptions=True)
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -32,7 +32,7 @@ class LiveScheduler:
         self.timezone_str = timezone
         
         self.scanner = LiveScanner(symbols_file=symbols_file, db_url=self.db_url)
-        self.signal_manager = SignalManager(db_url=self.db_url)
+        self.signal_manager = SignalManager()  # Uses get_connection() from tools.db
         
         self.scheduler = AsyncIOScheduler(timezone=timezone)
     

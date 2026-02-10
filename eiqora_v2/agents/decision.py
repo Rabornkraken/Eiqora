@@ -205,16 +205,15 @@ Return ONLY valid JSON."""
         """Build state update with decision."""
         decision_dict = result.model_dump()
         red_team = state.get("red_team", {}) or {}
-        short_perspective = state.get("short_perspective", {}) or {}
 
-        # Check Short Perspective first (contrarian rebuttal)
-        if isinstance(short_perspective, dict) and short_perspective.get("recommend_reject_long"):
-            short_case = short_perspective.get("short_case_strength", "NONE")
-            reasoning = short_perspective.get("reasoning", "Compelling short case")
-            
+        # Check Short Perspective (now embedded in red_team output)
+        if isinstance(red_team, dict) and red_team.get("recommend_reject_long"):
+            short_case = red_team.get("short_case_strength", "NONE")
+            short_score = red_team.get("short_score", 0.0)
+
             # Only reject on STRONG short case
             if short_case == "STRONG":
-                reason_prefix = f"Short Perspective REJECT: {reasoning}"
+                reason_prefix = f"Short Perspective REJECT: strong short case (score={short_score:.1f})"
                 merged_reason = f"{reason_prefix} {decision_dict.get('reason', '')}".strip()
                 if len(merged_reason) > 1000:
                     merged_reason = merged_reason[:1000]
@@ -229,7 +228,7 @@ Return ONLY valid JSON."""
                     gates_failed.append("short_perspective")
                 decision_dict["gates_failed"] = gates_failed
 
-        # Check Red Team (if not already rejected by Short Perspective)
+        # Check Red Team critical (if not already rejected by Short Perspective)
         if decision_dict.get("decision") != "NO_GO" and isinstance(red_team, dict) and red_team.get("critical"):
             reason_prefix = f"RedTeam BLOCK: {red_team.get('summary', 'Critical risk flagged')}"
             merged_reason = f"{reason_prefix} {decision_dict.get('reason', '')}".strip()

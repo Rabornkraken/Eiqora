@@ -43,8 +43,15 @@ function Header() {
                     {!loading && stats && (
                         <div className="stats-grid">
                             <div className="stat-item">
-                                <div className="stat-label">Total Trades</div>
-                                <div className="stat-value">{stats.total_trades || 0}</div>
+                                <div className="stat-label">Active Positions</div>
+                                <div className="stat-value">{stats.active_positions || 0}</div>
+                            </div>
+
+                            <div className="stat-item">
+                                <div className="stat-label">Unrealized P&L</div>
+                                <div className="stat-value" style={{ color: stats.unrealized_pnl >= 0 ? 'var(--color-go)' : 'var(--color-no-go)' }}>
+                                    {stats.unrealized_pnl !== undefined ? `$${stats.unrealized_pnl.toFixed(2)}` : 'N/A'}
+                                </div>
                             </div>
 
                             <div className="stat-item">
@@ -54,17 +61,14 @@ function Header() {
 
                             <div className="stat-item">
                                 <div className="stat-label">Total Return</div>
-                                <div className="stat-value status-go">{stats.total_return || 'N/A'}</div>
+                                <div className={`stat-value ${stats.total_return && stats.total_return.startsWith('-') ? 'status-no-go' : 'status-go'}`}>
+                                    {stats.total_return || 'N/A'}
+                                </div>
                             </div>
 
                             <div className="stat-item">
-                                <div className="stat-label">Current Equity</div>
-                                <div className="stat-value">{stats.current_equity || 'N/A'}</div>
-                            </div>
-
-                            <div className="stat-item">
-                                <div className="stat-label">Sharpe Ratio</div>
-                                <div className="stat-value">{stats.sharpe_ratio || 'N/A'}</div>
+                                <div className="stat-label">Closed Trades</div>
+                                <div className="stat-value">{stats.total_trades || 0}</div>
                             </div>
                         </div>
                     )}

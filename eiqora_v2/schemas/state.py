@@ -42,7 +42,6 @@ class SwingTradeState(TypedDict, total=False):
     rules: list[dict[str, Any]] | None
     exit_policy: dict[str, Any] | None
     red_team: dict[str, Any] | None
-    short_perspective: dict[str, Any] | None
     decision: dict[str, Any] | None
     position_manager: dict[str, Any] | None
     veto: dict[str, Any] | None

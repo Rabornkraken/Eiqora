@@ -45,39 +45,81 @@ class FundamentalAgent(BaseAgent[FundamentalOutput]):
     output_schema = FundamentalOutput
     
     async def run(self, state: SwingTradeState) -> dict[str, Any]:
-        """Read fundamental data from database (no collection)."""
+        """Read fundamental data from database (no collection).
+
+        Uses the cached profile as baseline and only fetches **new data
+        since ``profile.last_updated``**.  If no profile exists in state,
+        one is created via ``ProfileGenerator`` so the delta path is
+        always used.
+        """
         symbol = state["symbol"]
         asof_time = state["asof_time"]
-        
+
         # Get profile for baseline context (updated weekly)
-        profile = state.get("profile", {})
+        profile = state.get("profile") or {}
+
+        self.logger.info(f"Running {self.name} for {symbol}")
+
+        # Ensure a profile exists — create one if missing
+        if not profile or profile.get("last_updated") is None:
+            self.logger.info(f"  No profile in state — generating profile for {symbol}")
+            try:
+                from eiqora_v2.services.profile_generator import ProfileGenerator
+                generator = ProfileGenerator()
+                fresh_profile = await generator.get_profile(symbol)
+                profile = fresh_profile.model_dump()
+            except Exception as e:
+                self.logger.warning(f"  Profile generation failed: {e} — using empty baseline")
+                profile = {}
+
         baseline_risks = profile.get("risks", [])
         baseline_catalysts = profile.get("catalysts", [])
-        
-        self.logger.info(f"Running {self.name} for {symbol}")
-        if profile:
-            self.logger.info(f"  Using profile baseline: {len(baseline_risks)} known risks, {len(baseline_catalysts)} catalysts")
-        
+
+        # Determine query windows based on profile freshness
+        last_updated = profile.get("last_updated")
+        if last_updated is not None:
+            delta_seconds = (asof_time - last_updated).total_seconds()
+            delta_hours = max(1.0, delta_seconds / 3600)
+            delta_days = max(1, int(delta_seconds / 86400))
+            self.logger.info(
+                f"  Delta mode: profile {delta_hours:.1f}h old "
+                f"({len(baseline_risks)} risks, {len(baseline_catalysts)} catalysts)"
+            )
+        else:
+            # Profile generation failed — use default full windows as safety net
+            delta_hours = 72.0   # 3 days
+            delta_days = 30
+            self.logger.info("  Full query mode (profile generation failed)")
+
         try:
             # Step 1: Check what data is available (READ-ONLY)
             doc_counts = await count_recent_documents(symbol, 168, asof_time)  # 7 days
             news_count = sum(doc_counts.values())
-            
-            # Step 2: Get recent news for sentiment
-            news_docs = await get_documents(symbol, 72, asof_time, limit=20)  # 3 days
-            
-            # Step 3: Get SEC filings
-            sec_filings = await get_sec_filings(symbol, 30, asof_time)
+
+            # Step 2: Get recent news for sentiment (delta-aware)
+            news_docs = await get_documents(symbol, delta_hours, asof_time, limit=20)
+
+            # Step 3: Get SEC filings (delta-aware)
+            sec_filings = await get_sec_filings(symbol, delta_days, asof_time)
 
             # Step 3b: Get latest earnings snapshot
-            earnings_snapshot = await self._get_latest_earnings(symbol, asof_time)
+            # Skip if profile already has earnings for the same quarter
+            earnings_snapshot = None
+            profile_earnings = profile.get("earnings") if isinstance(profile, dict) else None
+            profile_fq = profile_earnings.get("fiscal_quarter") if isinstance(profile_earnings, dict) else None
 
-            # Step 3c: Get insider summary
-            insider_summary = await self._get_insider_summary(symbol, asof_time)
-            
-            # Step 3d: Get influential statements
-            influential_statements = await self._get_influential_statements(symbol, asof_time)
-            
+            latest_earnings = await self._get_latest_earnings(symbol, asof_time)
+            if latest_earnings is not None:
+                if profile_fq is None or latest_earnings.fiscal_quarter != profile_fq:
+                    earnings_snapshot = latest_earnings
+                else:
+                    # Same quarter as profile — still use the DB result
+                    earnings_snapshot = latest_earnings
+
+            # Step 3c: Get insider summary (delta-aware window)
+            insider_window = delta_days if last_updated is not None else 90
+            insider_summary = await self._get_insider_summary(symbol, asof_time, window_days=insider_window)
+
             # Step 4: Analyze sentiment from news headlines
             sentiment_overall, pos_count, neg_count, neutral_count = await self._analyze_sentiment(news_docs)
             
@@ -126,10 +168,9 @@ class FundamentalAgent(BaseAgent[FundamentalOutput]):
                 error=None,
             )
             
-            self.logger.info(f"{self.name} completed successfully (news={news_count}, sec={len(sec_filings)}, statements={len(influential_statements)})")
+            self.logger.info(f"{self.name} completed successfully (news={news_count}, sec={len(sec_filings)})")
             return {
                 "fundamental": output.model_dump(),
-                "influential_statements": influential_statements,  # Add to state for other agents
             }
             
         except Exception as e:
@@ -324,50 +365,3 @@ class FundamentalAgent(BaseAgent[FundamentalOutput]):
         """Build state update."""
         return {"fundamental": result.model_dump()}
 
-    async def _get_influential_statements(
-        self,
-        symbol: str,
-        asof_time: datetime,
-        window_days: int = 7
-    ) -> list[dict]:
-        """Get recent statements from influential figures mentioning this symbol."""
-        try:
-            async with get_connection() as conn:
-                rows = await conn.fetch("""
-                    SELECT 
-                        f.name,
-                        f.category,
-                        f.organization,
-                        f.influence_score,
-                        s.statement_text,
-                        s.statement_source,
-                        s.sentiment,
-                        s.statement_date
-                    FROM influential_statements s
-                    JOIN influential_figures f ON s.figure_id = f.figure_id
-                    WHERE $1 = ANY(s.mentioned_symbols)
-                      AND s.statement_date >= $2::timestamp - make_interval(days => $3)
-                    ORDER BY f.influence_score DESC, s.statement_date DESC
-                    LIMIT 5
-                """, symbol, asof_time, window_days)
-                
-                if not rows:
-                    return []
-                
-                return [
-                    {
-                        "figure": r['name'],
-                        "category": r['category'],
-                        "organization": r['organization'],
-                        "influence": float(r['influence_score']),
-                        "statement": r['statement_text'],
-                        "source": r['statement_source'],
-                        "sentiment": r['sentiment'],
-                        "date": r['statement_date'].isoformat() if r['statement_date'] else None,
-                    }
-                    for r in rows
-                ]
-        
-        except Exception as e:
-            self.logger.warning(f"{symbol}: Influential statements fetch failed - {e}")
-            return []

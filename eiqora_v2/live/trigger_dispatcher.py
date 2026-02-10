@@ -7,7 +7,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, time
 from typing import Iterable, Any
 from zoneinfo import ZoneInfo
 
@@ -15,9 +15,22 @@ from eiqora_v2.tools.positions import refresh_account_state
 
 logger = logging.getLogger(__name__)
 
+EASTERN_TZ = ZoneInfo("America/New_York")
+MARKET_OPEN = time(9, 30)
+MARKET_CLOSE = time(16, 0)
+
 WATCHLIST_SOURCES = {"market_bar_daily"}
 TRIGGER_SOURCES = {"market_bar_hourly", "yfinance_news", "earnings_event", "sec_filing"}
 ACCOUNT_REFRESH_SOURCES = {"market_bar_hourly"}
+
+
+def is_market_open(dt: datetime) -> bool:
+    """Check if a datetime falls within US equity market hours (Mon-Fri 9:30-16:00 ET)."""
+    et = dt.astimezone(EASTERN_TZ)
+    # Monday=0 ... Friday=4; Saturday=5, Sunday=6
+    if et.weekday() >= 5:
+        return False
+    return MARKET_OPEN <= et.time() < MARKET_CLOSE
 
 
 @dataclass(frozen=True)
@@ -101,11 +114,17 @@ class TriggerDispatcher:
                 logger.warning("Failed to refresh account state: %s", exc)
 
         if sources & TRIGGER_SOURCES:
-            logger.info(
-                "Trigger event received (%s); running scans",
-                ", ".join(sorted(sources)),
-            )
-            await self.pipeline.monitor_positions(scan_time)
-            await self.pipeline.run_trigger_scan(scan_time)
+            if not is_market_open(scan_time):
+                logger.info(
+                    "Skipping trigger scan — outside market hours (%s ET)",
+                    scan_time.astimezone(EASTERN_TZ).strftime("%a %H:%M"),
+                )
+            else:
+                logger.info(
+                    "Trigger event received (%s); running scans",
+                    ", ".join(sorted(sources)),
+                )
+                await self.pipeline.monitor_positions(scan_time)
+                await self.pipeline.run_trigger_scan(scan_time)
         elif not (sources & WATCHLIST_SOURCES):
             logger.debug("Ignoring trigger sources: %s", sorted(sources))

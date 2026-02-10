@@ -15,6 +15,7 @@ Usage:
 
 import argparse
 import logging
+import os
 from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
@@ -23,6 +24,9 @@ import sys
 sys.path.insert(0, '/Users/pan/Documents/Github/Eiqora')
 
 from data_collection.db.connection import get_connection
+from data_collection.common.db import notify_ingest
+
+NOTIFY_CHANNEL = os.getenv("EIQORA_INGEST_CHANNEL", "eiqora_ingest")
 
 logging.basicConfig(
     level=logging.INFO,
@@ -146,6 +150,99 @@ def calculate_ad_line(df: pd.DataFrame) -> pd.Series:
     return ad_line
 
 
+def calculate_stochastic(df: pd.DataFrame, period=14, smooth_k=3) -> dict:
+    """Calculate Stochastic Oscillator (%K and %D)."""
+    low_min = df['low'].rolling(window=period).min()
+    high_max = df['high'].rolling(window=period).max()
+    
+    k_percent = 100 * ((df['close'] - low_min) / (high_max - low_min).replace(0, 1e-10))
+    d_percent = k_percent.rolling(window=smooth_k).mean()
+    
+    return {
+        'k': k_percent,
+        'd': d_percent
+    }
+
+
+def calculate_support_resistance(df: pd.DataFrame, period=20) -> dict:
+    """Calculate dynamic Support and Resistance levels (Donchian Channel style)."""
+    # Use rolling min/max shifted by 1 to represent "recent" levels entering the day
+    # But for backtesting triggers, we often look at the *current* structure
+    # Let's use simple rolling min/max of the *previous* N candles to define the active range
+    support = df['low'].shift(1).rolling(window=period).min()
+    resistance = df['high'].shift(1).rolling(window=period).max()
+    
+    return {
+        'support': support,
+        'resistance': resistance
+    }
+
+
+def calculate_volume_z_score(df: pd.DataFrame, period=20) -> pd.Series:
+    """Calculate Volume Z-Score."""
+    mean = df['volume'].rolling(window=period).mean()
+    std = df['volume'].rolling(window=period).std()
+    z_score = (df['volume'] - mean) / std.replace(0, 1e-10)
+    return z_score
+
+
+def calculate_ibs(df: pd.DataFrame) -> pd.Series:
+    """Calculate Internal Bar Strength: (close - low) / (high - low)."""
+    hl_range = df['high'] - df['low']
+    return (df['close'] - df['low']) / hl_range.replace(0, 1e-10)
+
+
+def calculate_williams_r(df: pd.DataFrame, period: int = 2) -> pd.Series:
+    """Calculate Williams %R with given lookback period."""
+    hh = df['high'].rolling(window=period).max()
+    ll = df['low'].rolling(window=period).min()
+    return ((hh - df['close']) / (hh - ll).replace(0, 1e-10)) * -100
+
+
+def calculate_rsi_2(df: pd.DataFrame) -> pd.Series:
+    """Calculate RSI with period=2."""
+    return calculate_rsi(df, period=2)
+
+
+def calculate_cumulative_rsi2(df: pd.DataFrame) -> pd.Series:
+    """Calculate cumulative RSI(2): rsi2[today] + rsi2[yesterday]."""
+    rsi2 = calculate_rsi(df, period=2)
+    return rsi2 + rsi2.shift(1)
+
+
+def calculate_close_n_day_extremes(df: pd.DataFrame, period: int = 7) -> dict:
+    """Check if close is at N-day low or high.
+
+    Returns dict with 'low' and 'high' boolean Series.
+    """
+    rolling_min = df['close'].rolling(window=period).min()
+    rolling_max = df['close'].rolling(window=period).max()
+    return {
+        'low': df['close'] <= rolling_min,
+        'high': df['close'] >= rolling_max,
+    }
+
+
+def calculate_td_setup_buy_count(df: pd.DataFrame) -> pd.Series:
+    """Calculate TD Sequential buy setup count.
+
+    Counts consecutive bars where close < close[4 bars ago].
+    Resets to 0 when condition breaks.  Caps at 9.
+    """
+    result = pd.Series(0, index=df.index, dtype='int16')
+    close = df['close'].values
+    count = 0
+    for i in range(4, len(close)):
+        if pd.notna(close[i]) and pd.notna(close[i - 4]) and close[i] < close[i - 4]:
+            count += 1
+            if count > 9:
+                count = 9
+        else:
+            count = 0
+        result.iloc[i] = count
+    return result
+
+
 def calculate_all_indicators_for_symbol(conn, symbol: str, lookback_days: int | None = 365) -> int:
     """Calculate ALL technical indicators for a single symbol."""
     
@@ -179,7 +276,7 @@ def calculate_all_indicators_for_symbol(conn, symbol: str, lookback_days: int | 
         for col in ['open', 'high', 'low', 'close', 'volume']:
             df[col] = pd.to_numeric(df[col], errors='coerce')
         
-        # Calculate all indicators
+        # Calculate existing indicators
         df['rsi_14'] = calculate_rsi(df, 14)
         df['rsi_20'] = calculate_rsi(df, 20)
         
@@ -206,6 +303,29 @@ def calculate_all_indicators_for_symbol(conn, symbol: str, lookback_days: int | 
         df['obv'] = calculate_obv(df)
         df['ad_line'] = calculate_ad_line(df)
         
+        # Calculate NEW indicators
+        stoch_data = calculate_stochastic(df)
+        df['stochastic_k'] = stoch_data['k']
+        df['stochastic_d'] = stoch_data['d']
+        
+        sr_data = calculate_support_resistance(df, 20)
+        df['support_level'] = sr_data['support']
+        df['resistance_level'] = sr_data['resistance']
+        
+        df['volume_z_20'] = calculate_volume_z_score(df, 20)
+
+        # Swing indicators
+        df['ibs'] = calculate_ibs(df)
+        df['williams_r_2'] = calculate_williams_r(df, period=2)
+        df['rsi_2'] = calculate_rsi_2(df)
+        df['cumulative_rsi2'] = calculate_cumulative_rsi2(df)
+
+        extremes = calculate_close_n_day_extremes(df, period=7)
+        df['close_n_day_low_7'] = extremes['low']
+        df['close_n_day_high_7'] = extremes['high']
+
+        df['td_setup_buy_count'] = calculate_td_setup_buy_count(df)
+
         # Update database
         update_query = """
             UPDATE market_bar_daily
@@ -214,7 +334,13 @@ def calculate_all_indicators_for_symbol(conn, symbol: str, lookback_days: int | 
                 bb_upper_20 = %s, bb_middle_20 = %s, bb_lower_20 = %s, bb_width = %s,
                 atr_14 = %s,
                 adx_14 = %s, plus_di = %s, minus_di = %s,
-                mfi_14 = %s, cmf_20 = %s, obv = %s, ad_line = %s
+                mfi_14 = %s, cmf_20 = %s, obv = %s, ad_line = %s,
+                stochastic_k = %s, stochastic_d = %s,
+                support_level = %s, resistance_level = %s,
+                volume_z_20 = %s,
+                ibs = %s, williams_r_2 = %s, rsi_2 = %s,
+                cumulative_rsi2 = %s, close_n_day_low_7 = %s,
+                close_n_day_high_7 = %s, td_setup_buy_count = %s
             WHERE symbol = %s AND date = %s
         """
         
@@ -239,6 +365,20 @@ def calculate_all_indicators_for_symbol(conn, symbol: str, lookback_days: int | 
                     float(row['cmf_20']) if pd.notna(row['cmf_20']) else None,
                     int(row['obv']) if pd.notna(row['obv']) else None,
                     int(row['ad_line']) if pd.notna(row['ad_line']) else None,
+                    # New Columns
+                    float(row['stochastic_k']) if pd.notna(row['stochastic_k']) else None,
+                    float(row['stochastic_d']) if pd.notna(row['stochastic_d']) else None,
+                    float(row['support_level']) if pd.notna(row['support_level']) else None,
+                    float(row['resistance_level']) if pd.notna(row['resistance_level']) else None,
+                    float(row['volume_z_20']) if pd.notna(row['volume_z_20']) else None,
+                    # Swing indicators
+                    float(row['ibs']) if pd.notna(row['ibs']) else None,
+                    float(row['williams_r_2']) if pd.notna(row['williams_r_2']) else None,
+                    float(row['rsi_2']) if pd.notna(row['rsi_2']) else None,
+                    float(row['cumulative_rsi2']) if pd.notna(row['cumulative_rsi2']) else None,
+                    bool(row['close_n_day_low_7']) if pd.notna(row['close_n_day_low_7']) else None,
+                    bool(row['close_n_day_high_7']) if pd.notna(row['close_n_day_high_7']) else None,
+                    int(row['td_setup_buy_count']) if pd.notna(row['td_setup_buy_count']) else None,
                     symbol,
                     row['date']
                 ))
@@ -246,7 +386,6 @@ def calculate_all_indicators_for_symbol(conn, symbol: str, lookback_days: int | 
         if updates:
             cur.executemany(update_query, updates)
             conn.commit()
-            logger.info(f"{symbol}: Updated {len(updates)} rows with all indicators")
             return len(updates)
         
         return 0
@@ -284,7 +423,23 @@ def run(lookback_days: int = 365) -> None:
                 continue
         
         logger.info(f"\n✅ Complete! {total_updated} total rows updated across {len(symbols)} symbols")
-    
+
+        if total_updated:
+            try:
+                notify_ingest(
+                    conn,
+                    NOTIFY_CHANNEL,
+                    {
+                        "source": "market_bar_daily",
+                        "latest_at": datetime.utcnow().isoformat(),
+                        "total_updated": total_updated,
+                    },
+                )
+                conn.commit()
+                logger.info("Sent ingest notification for daily indicators")
+            except Exception as exc:
+                logger.warning(f"Failed to notify ingest channel: {exc}")
+
     finally:
         conn.close()
 

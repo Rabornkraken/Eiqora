@@ -125,14 +125,9 @@ class Orchestrator:
         registry.register("red_team", RedTeamAgent(), depends_on=["idea_generator", "exit_policy"])
         order.append("red_team")
 
-        # 9. Short Perspective - contrarian rebuttal (would I short this?)
-        from eiqora_v2.agents.short_perspective import ShortPerspectiveAgent
-        registry.register("short_perspective", ShortPerspectiveAgent(), depends_on=["red_team"])
-        order.append("short_perspective")
-
-        # 10. Decision - final GO/NO_GO
+        # 9. Decision - final GO/NO_GO
         from eiqora_v2.agents.decision import DecisionAgent
-        registry.register("decision", DecisionAgent(), depends_on=["short_perspective"])
+        registry.register("decision", DecisionAgent(), depends_on=["red_team"])
         order.append("decision")
 
         # 10. Veto - sanity checks

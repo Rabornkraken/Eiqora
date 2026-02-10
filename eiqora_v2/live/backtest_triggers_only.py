@@ -15,8 +15,22 @@ from eiqora_v2.live.trigger_backtest import (
     resolve_outcome,
     build_result_row,
 )
-
 logger = logging.getLogger(__name__)
+
+ETF_SYMBOLS = {
+    "DIA", "IEF", "IWM", "QQQ", "SPY", "SHY", "TLT", "UUP",
+    "XLB", "XLC", "XLE", "XLF", "XLI", "XLK", "XLP", "XLRE",
+    "XLU", "XLV", "XLY",
+}
+
+
+def is_stock(symbol: str) -> bool:
+    """Return True if symbol is a stock (not ETF or index)."""
+    if symbol in ETF_SYMBOLS:
+        return False
+    if symbol.startswith("IDX_"):
+        return False
+    return True
 
 
 def fetch_atr14(symbol: str, asof_date) -> float | None:
@@ -37,6 +51,7 @@ def fetch_atr14(symbol: str, asof_date) -> float | None:
 
 
 def fetch_entry_price(symbol: str, entry_time: datetime, column: str = "close") -> float | None:
+    """Fetch price from the SAME bar as entry_time."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -50,6 +65,31 @@ def fetch_entry_price(symbol: str, entry_time: datetime, column: str = "close") 
             )
             row = cur.fetchone()
             return float(row[0]) if row and row[0] is not None else None
+
+
+def fetch_next_bar_open(symbol: str, after_time: datetime) -> tuple[float, datetime] | None:
+    """
+    Fetch the OPEN price of the next bar AFTER the trigger bar.
+    
+    This eliminates look-ahead bias by entering at a price we could
+    actually get in live trading (after the trigger bar completes).
+    """
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT open, datetime
+                FROM market_bar_hourly
+                WHERE symbol = %s AND datetime > %s
+                ORDER BY datetime ASC
+                LIMIT 1
+                """,
+                (symbol, after_time),
+            )
+            row = cur.fetchone()
+            if row and row[0] is not None:
+                return float(row[0]), row[1]
+            return None
 
 
 def fetch_future_bars(symbol: str, after_time: datetime) -> list[tuple]:
@@ -182,6 +222,8 @@ async def run_trigger_only_backtest(
     end_date: str | None = None,
     sl_mult: float = 1.5,
     tp_mult: float = 3.0,
+    starting_capital: float = 10000.0,
+    risk_per_trade: float = 5.0,  # Risk 5% of capital per trade
 ) -> uuid.UUID:
     run_id = uuid.uuid4()
     started_at = datetime.now(timezone.utc)
@@ -216,7 +258,14 @@ async def run_trigger_only_backtest(
 
     active_positions = {}  # symbol -> datetime (exclusive end time of trade)
 
+    skipped_symbols: set[str] = set()
+
     for symbol, check_time in test_bars:
+        # Skip ETFs and index symbols
+        if not is_stock(symbol):
+            skipped_symbols.add(symbol)
+            continue
+
         # Check if already in a position
         if symbol in active_positions:
             if check_time <= active_positions[symbol]:
@@ -264,22 +313,29 @@ async def run_trigger_only_backtest(
         for trigger in triggers:
             logger.info(format_trigger_log(symbol, trigger.trigger_type, check_time))
             
-            # Determine entry price column
-            # Event triggers use Open price (immediate reaction at bar start)
-            # Technical triggers use Close price (confirmation after bar completes)
-            price_col = "close"
-            if trigger.trigger_type in {
+            # Determine entry price strategy:
+            # - Event triggers: Use SAME bar's OPEN (immediate reaction to known event)
+            # - Technical triggers: Use NEXT bar's OPEN (eliminates look-ahead bias)
+            #   We can only know a bar's indicators AFTER it closes, so entry must be on next bar
+            
+            is_event_trigger = trigger.trigger_type in {
                 "earnings_release", 
                 "sec_8k", 
                 "supply_chain_cascade", 
                 "news_sentiment",
                 "bad_news_no_drop"
-            }:
-                price_col = "open"
-
-            entry_price = trigger.details.get("current_price") if trigger.details else None
-            if not entry_price:
-                entry_price = fetch_entry_price(symbol, check_time, column=price_col)
+            }
+            
+            if is_event_trigger:
+                # Event triggers: enter at same bar's open (immediate reaction)
+                entry_price = trigger.details.get("current_price") if trigger.details else None
+                if not entry_price:
+                    entry_price = fetch_entry_price(symbol, check_time, column="open")
+            else:
+                # Technical triggers: enter at NEXT bar's open (no look-ahead bias)
+                next_bar = fetch_next_bar_open(symbol, check_time)
+                entry_price = next_bar[0] if next_bar else None
+            
             if not entry_price:
                 insert_result(build_result_row(
                     run_id=run_id,
@@ -402,6 +458,9 @@ async def run_trigger_only_backtest(
         if trade_end_time:
             active_positions[symbol] = trade_end_time
 
+    if skipped_symbols:
+        logger.info(f"Skipped {len(skipped_symbols)} ETF/index symbols: {sorted(skipped_symbols)}")
+
     # Calculate metrics and update run record
     with get_connection() as conn:
         with conn.cursor() as cur:
@@ -437,6 +496,72 @@ async def run_trigger_only_backtest(
             total_pnl = stats[3] or 0.0
             avg_pnl = stats[4] or 0.0
             win_rate = (wins / executed_trades * 100) if executed_trades > 0 else 0.0
+            
+            # Calculate capital tracking and max drawdown with position sizing
+            # Fetch all trades chronologically with entry price and stop-loss
+            cur.execute(
+                """
+                SELECT trigger_time, realized_pnl_pct, entry_price, stop_loss
+                FROM trigger_backtest_result
+                WHERE run_id = %s AND outcome IN ('TP_HIT', 'SL_HIT')
+                ORDER BY trigger_time ASC
+                """,
+                (run_id,),
+            )
+            trades = cur.fetchall()
+            
+            # Simulate equity curve with percentage-based position sizing
+            # Each trade uses 5% of current capital
+            POSITION_PCT = 0.05  # 5% of capital per trade
+
+            # Transaction Costs (Conservative Estimates)
+            # Interactive Brokers Pro / Tiered: ~$1.00 min per order
+            COMMISSION_PER_ORDER = 1.00  # $1 to enter, $1 to exit
+            # Slippage: ~0.05% per execution for liquid stocks (5 bps)
+            SLIPPAGE_PCT = 0.05
+
+            current_capital = starting_capital
+            peak_capital = starting_capital
+            max_drawdown_pct = 0.0
+
+            for trade_time, pnl_pct, entry_price, stop_loss in trades:
+                position_size = current_capital * POSITION_PCT
+
+                # Skip trade if position too small to cover costs
+                if position_size < 50.0:
+                    continue
+
+                # Convert PnL percentage to float
+                pnl_pct = float(pnl_pct) if pnl_pct is not None else 0.0
+
+                # Calculate Gross PnL: position_size × PnL%
+                gross_pnl_dollars = position_size * (pnl_pct / 100.0)
+
+                # Calculate Transaction Costs
+                # 1. Commissions (Entry + Exit)
+                total_commissions = COMMISSION_PER_ORDER * 2
+
+                # 2. Slippage (Entry + Exit)
+                entry_slippage = position_size * (SLIPPAGE_PCT / 100.0)
+                exit_slippage = position_size * (SLIPPAGE_PCT / 100.0)
+                total_slippage = entry_slippage + exit_slippage
+
+                # Net PnL
+                net_pnl_dollars = gross_pnl_dollars - total_commissions - total_slippage
+
+                current_capital += net_pnl_dollars
+
+                # Update peak
+                if current_capital > peak_capital:
+                    peak_capital = current_capital
+
+                # Calculate drawdown from peak
+                if peak_capital > 0:
+                    drawdown = ((peak_capital - current_capital) / peak_capital) * 100.0
+                    max_drawdown_pct = max(max_drawdown_pct, drawdown)
+            
+            final_capital = current_capital
+            total_return_pct = ((final_capital - starting_capital) / starting_capital) * 100.0
             
             # 3. Find best/worst triggers
             cur.execute(
@@ -513,7 +638,11 @@ async def run_trigger_only_backtest(
                     avg_pnl_pct = %s,
                     best_trigger_type = %s,
                     worst_trigger_type = %s,
-                    trigger_details = %s
+                    trigger_details = %s,
+                    starting_capital = %s,
+                    final_capital = %s,
+                    total_return_pct = %s,
+                    max_drawdown_pct = %s
                 WHERE run_id = %s
                 """,
                 (
@@ -526,6 +655,10 @@ async def run_trigger_only_backtest(
                     best_trigger,
                     worst_trigger,
                     Json(details_list),
+                    starting_capital,
+                    final_capital,
+                    total_return_pct,
+                    max_drawdown_pct,
                     run_id,
                 ),
             )

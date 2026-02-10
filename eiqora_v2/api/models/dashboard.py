@@ -64,8 +64,10 @@ class MarketRegime(BaseModel):
 class SystemStats(BaseModel):
     """System statistics"""
 
-    total_analyses: int = Field(..., description="Total analyses run")
-    active_positions: int = Field(..., description="Number of active positions")
-    win_rate: float = Field(..., description="Overall win rate (0-1)")
-    avg_return: float = Field(..., description="Average return per trade")
+    total_trades: int = Field(0, description="Total closed trades")
+    active_positions: int = Field(0, description="Number of active positions")
+    win_rate: Optional[str] = Field(None, description="Win rate as formatted string")
+    total_return: Optional[str] = Field(None, description="Total return as formatted string")
+    current_equity: Optional[str] = Field(None, description="Current equity as formatted string")
+    sharpe_ratio: Optional[str] = Field(None, description="Sharpe ratio as formatted string")
     last_updated: datetime = Field(..., description="Last update timestamp")

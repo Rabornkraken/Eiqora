@@ -45,8 +45,22 @@ class AnalysisDetail(AnalysisResponse):
     agent_outputs: Optional[Dict[str, Any]] = Field(
         None, description="All agent outputs keyed by agent name"
     )
-    decision: Optional[Dict[str, Any]] = Field(None, description="Final decision output")
+    decision: Optional[Any] = Field(None, description="Final decision output")
     steps: Optional[List[str]] = Field(None, description="Analysis steps completed")
+
+    # Raw fields from database for frontend compatibility
+    final_decision: Optional[str] = Field(None, description="Final decision (GO/NO_GO/REVIEW)")
+    decision_reason: Optional[str] = Field(None, description="Decision reasoning")
+    trigger_detail: Optional[Dict[str, Any]] = Field(None, description="Trigger details")
+    topdown_output: Optional[Dict[str, Any]] = Field(None, description="Top-down analysis output")
+    context_output: Optional[Dict[str, Any]] = Field(None, description="Context analysis output")
+    chart_output: Optional[Dict[str, Any]] = Field(None, description="Chart analysis output")
+    idea_generator_output: Optional[Dict[str, Any]] = Field(None, description="Idea generator output")
+    exit_policy_output: Optional[Dict[str, Any]] = Field(None, description="Exit policy output")
+    red_team_output: Optional[Dict[str, Any]] = Field(None, description="Red team review output")
+    decision_output: Optional[Dict[str, Any]] = Field(None, description="Decision agent output")
+    position_manager_output: Optional[Dict[str, Any]] = Field(None, description="Position manager output")
+    risk_model_output: Optional[Dict[str, Any]] = Field(None, description="Risk model output")
 
 
 class AnalysisListResponse(BaseModel):

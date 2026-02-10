@@ -19,6 +19,8 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "http://localhost:3001",
         "http://127.0.0.1:3000",
+        "https://eiqorafrontend.z23.web.core.windows.net",
+        "*",  # Allow all origins for Azure deployment
     ]
 
     # Database (inherited from eiqora_v2 settings)

@@ -5,6 +5,7 @@ requests>=2.31.0
 httpx>=0.26.0
 pydantic>=2.5.0
 pydantic-settings>=2.0.0
+pyyaml>=6.0.0
 
 # Database
 asyncpg>=0.29.0
@@ -17,6 +18,11 @@ feedparser>=6.0.0
 
 # Financial Data
 yfinance>=0.2.36
+
+# Core numerical + LLM
+numpy>=2.2.0
+pandas>=2.3.0
+openai>=2.16.0
 
 # Playwright (optional, for corporate actions)
 playwright>=1.40.0

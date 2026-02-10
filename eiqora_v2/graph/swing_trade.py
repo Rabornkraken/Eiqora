@@ -20,7 +20,6 @@ from eiqora_v2.agents.chart import ChartAgent
 from eiqora_v2.agents.idea_generator import IdeaGeneratorAgent
 from eiqora_v2.agents.exit_policy import ExitPolicyAgent
 from eiqora_v2.agents.red_team import RedTeamAgent
-from eiqora_v2.agents.short_perspective import ShortPerspectiveAgent
 from eiqora_v2.agents.decision import DecisionAgent
 from eiqora_v2.agents.veto import VetoAgent
 from eiqora_v2.agents.narrative import NarrativeAgent
@@ -37,7 +36,6 @@ chart_agent = ChartAgent()
 idea_generator_agent = IdeaGeneratorAgent()
 exit_policy_agent = ExitPolicyAgent()
 red_team_agent = RedTeamAgent()
-short_perspective_agent = ShortPerspectiveAgent()
 decision_agent = DecisionAgent()
 veto_agent = VetoAgent()
 narrative_agent = NarrativeAgent()
@@ -81,10 +79,6 @@ async def exit_policy_node(state: SwingTradeState) -> dict[str, Any]:
 
 async def red_team_node(state: SwingTradeState) -> dict[str, Any]:
     return await red_team_agent.run(state)
-
-
-async def short_perspective_node(state: SwingTradeState) -> dict[str, Any]:
-    return await short_perspective_agent.run(state)
 
 
 async def decision_node(state: SwingTradeState) -> dict[str, Any]:
@@ -202,7 +196,6 @@ def create_swing_trade_graph(config: OrchestratorConfig | None = None):
     graph.add_node("idea_generator", idea_generator_node)
     graph.add_node("exit_policy", exit_policy_node)
     graph.add_node("red_team", red_team_node)
-    graph.add_node("short_perspective", short_perspective_node)
     graph.add_node("decision", decision_node)
     graph.add_node("veto", veto_node)
     graph.add_node("narrative", narrative_node)
@@ -247,15 +240,14 @@ def create_swing_trade_graph(config: OrchestratorConfig | None = None):
         {"continue": "idea_generator", "end": END},
     )
 
-    # Idea -> Exit Policy -> Red Team -> Short Perspective -> Decision
+    # Idea -> Exit Policy -> Red Team -> Decision
     graph.add_conditional_edges(
         "idea_generator",
         has_ideas,
         {"has_ideas": "exit_policy", "no_ideas": END},
     )
     graph.add_edge("exit_policy", "red_team")
-    graph.add_edge("red_team", "short_perspective")
-    graph.add_edge("short_perspective", "decision")
+    graph.add_edge("red_team", "decision")
 
     if cfg.enable_position_manager:
         graph.add_conditional_edges(
@@ -336,7 +328,6 @@ def create_initial_state(
         rules=None,
         exit_policy=None,
         red_team=None,
-        short_perspective=None,
         decision=None,
         position_manager=None,
         veto=None,

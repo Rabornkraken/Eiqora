@@ -80,25 +80,32 @@ function DecisionsTable() {
                         </tr>
                     </thead>
                     <tbody>
-                        {decisions.map((decision) => (
-                            <tr
-                                key={decision.analysis_id}
-                                onClick={() => setSelectedDecision(decision)}
-                            >
-                                <td className="text-xs">{formatDate(decision.analysis_time)}</td>
-                                <td className="font-bold">{decision.symbol}</td>
-                                <td className="text-sm">{decision.trigger_type || 'N/A'}</td>
-                                <td>
-                                    <span className={decision.final_decision === 'GO' ? 'status-go' : 'status-no-go'}>
-                                        {decision.final_decision}
-                                    </span>
-                                </td>
-                                <td className="text-sm text-secondary">
-                                    {truncateText(decision.decision_reason)}
-                                </td>
-                                <td className="text-xs text-muted">View →</td>
-                            </tr>
-                        ))}
+                        {decisions.map((decision) => {
+                            // Handle both old and new API response formats
+                            const finalDecision = decision.final_decision || decision.result?.decision || 'N/A';
+                            const decisionReason = decision.decision_reason || decision.result?.reasoning || '';
+                            const analysisTime = decision.analysis_time || decision.created_at;
+
+                            return (
+                                <tr
+                                    key={decision.analysis_id}
+                                    onClick={() => setSelectedDecision(decision)}
+                                >
+                                    <td className="text-xs">{formatDate(analysisTime)}</td>
+                                    <td className="font-bold">{decision.symbol}</td>
+                                    <td className="text-sm">{decision.trigger_type || 'N/A'}</td>
+                                    <td>
+                                        <span className={finalDecision === 'GO' ? 'status-go' : 'status-no-go'}>
+                                            {finalDecision}
+                                        </span>
+                                    </td>
+                                    <td className="text-sm text-secondary">
+                                        {truncateText(decisionReason)}
+                                    </td>
+                                    <td className="text-xs text-muted">View →</td>
+                                </tr>
+                            );
+                        })}
                     </tbody>
                 </table>
             </div>

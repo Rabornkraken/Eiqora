@@ -12,39 +12,27 @@ from urllib.parse import urlparse
 _pool: asyncpg.Pool | None = None
 
 
-def _parse_database_url() -> dict:
-    """Parse DATABASE_URL into asyncpg connection args."""
+def _get_database_dsn() -> str:
+    """Get DATABASE_URL, cleaning up any driver prefixes."""
     url = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/finance")
-    
+
     # Remove driver prefix if present (e.g., postgresql+psycopg://)
     if "+psycopg" in url:
         url = url.replace("+psycopg", "")
     if "+asyncpg" in url:
         url = url.replace("+asyncpg", "")
-    
-    parsed = urlparse(url)
-    
-    config = {
-        "host": parsed.hostname or "localhost",
-        "port": parsed.port or 5432,
-        "user": parsed.username or "postgres",
-        "password": parsed.password or "postgres",
-        "database": parsed.path.lstrip("/") or "finance",
-    }
-    return config
+
+    return url
 
 
 async def get_pool() -> asyncpg.Pool:
     """Get or create the database connection pool."""
     global _pool
     if _pool is None:
-        db_config = _parse_database_url()
+        dsn = _get_database_dsn()
+        # asyncpg handles DSN parsing including sslmode
         _pool = await asyncpg.create_pool(
-            host=db_config["host"],
-            port=db_config["port"],
-            user=db_config["user"],
-            password=db_config["password"],
-            database=db_config["database"],
+            dsn=dsn,
             min_size=2,
             max_size=20,
         )
@@ -65,4 +53,3 @@ async def get_connection() -> AsyncGenerator[asyncpg.Connection, None]:
     pool = await get_pool()
     async with pool.acquire() as conn:
         yield conn
-
