@@ -12,10 +12,35 @@ import pandas as pd
 import yfinance as yf
 
 from data_collection.common.db import notify_ingest
+from data_collection.common.settings import load_config
 from data_collection.db.connection import get_connection
 
 logger = logging.getLogger(__name__)
 NOTIFY_CHANNEL = os.getenv("EIQORA_INGEST_CHANNEL", "eiqora_ingest")
+
+_YF_SYMBOL_MAP: dict[str, str] | None = None
+
+
+def _load_symbol_map() -> dict[str, str]:
+    global _YF_SYMBOL_MAP
+    if _YF_SYMBOL_MAP is not None:
+        return _YF_SYMBOL_MAP
+    try:
+        config = load_config()
+        mapping = config.get("yfinance", {}).get("symbol_map", {})
+        _YF_SYMBOL_MAP = {k.upper(): v for k, v in mapping.items()}
+    except Exception:
+        _YF_SYMBOL_MAP = {}
+    return _YF_SYMBOL_MAP
+
+
+def _yfinance_symbol(symbol: str) -> str:
+    """Convert internal symbol to yfinance format (e.g. BRK.B -> BRK-B)."""
+    mapping = _load_symbol_map()
+    mapped = mapping.get(symbol.upper())
+    if mapped:
+        return mapped
+    return symbol.replace(".", "-")
 
 
 def get_active_symbols(conn, limit: int | None = None) -> list[str]:
@@ -53,9 +78,13 @@ def _parse_row(symbol: str, date_idx: datetime, row: pd.Series) -> dict | None:
         pt_action = str(row.get('priceTargetAction', '')).strip()
         if pt_action == 'nan': pt_action = None
         
-        # Parse Price Target
+        # Parse Price Target (filter out zero/negative — yfinance returns 0 when no target set)
         current_pt = row.get('currentPriceTarget')
-        price_target = float(current_pt) if pd.notnull(current_pt) else None
+        price_target = None
+        if pd.notnull(current_pt):
+            pt_val = float(current_pt)
+            if pt_val > 0:
+                price_target = pt_val
         
         return {
             'symbol': symbol,
@@ -76,7 +105,8 @@ def _parse_row(symbol: str, date_idx: datetime, row: pd.Series) -> dict | None:
 def fetch_ratings(symbol: str, lookback_days: int = 7) -> list[dict]:
     """Fetch recent ratings for a symbol."""
     try:
-        ticker = yf.Ticker(symbol)
+        yf_sym = _yfinance_symbol(symbol)
+        ticker = yf.Ticker(yf_sym)
         upgrades = ticker.upgrades_downgrades
         
         if upgrades is None or upgrades.empty:

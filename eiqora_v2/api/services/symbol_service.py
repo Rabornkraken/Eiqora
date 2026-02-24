@@ -339,7 +339,7 @@ class SymbolService:
                     action = (r["action"] or "").lower().strip()
                     pt = r["price_target"]
 
-                    if pt is not None:
+                    if pt is not None and float(pt) > 0:
                         price_targets.append(float(pt))
 
                     if grade in BUY_GRADES:

@@ -9,95 +9,41 @@ from datetime import datetime
 import yfinance as yf
 
 from data_collection.common.db import notify_ingest
+from data_collection.common.settings import load_config
 from data_collection.db.connection import get_connection
 
 logger = logging.getLogger(__name__)
+
+_YF_SYMBOL_MAP: dict[str, str] | None = None
+
+
+def _load_symbol_map() -> dict[str, str]:
+    global _YF_SYMBOL_MAP
+    if _YF_SYMBOL_MAP is not None:
+        return _YF_SYMBOL_MAP
+    try:
+        config = load_config()
+        mapping = config.get("yfinance", {}).get("symbol_map", {})
+        _YF_SYMBOL_MAP = {k.upper(): v for k, v in mapping.items()}
+    except Exception:
+        _YF_SYMBOL_MAP = {}
+    return _YF_SYMBOL_MAP
+
+
+def _yfinance_symbol(symbol: str) -> str:
+    """Convert internal symbol to yfinance format (e.g. BRK.B -> BRK-B)."""
+    mapping = _load_symbol_map()
+    mapped = mapping.get(symbol.upper())
+    if mapped:
+        return mapped
+    return symbol.replace(".", "-")
 
 
 def collect_options_for_symbol(symbol: str) -> dict | None:
     """Collect options summary for one symbol via YFinance."""
     try:
-        ticker = yf.Ticker(symbol)
-        
-        # Get available expirations
-        expirations = ticker.options
-        if not expirations:
-            logger.debug(f"{symbol}: No options available")
-            return None
-        
-        # Find next monthly expiration (7-45 days out)
-        target_exp = None
-        for exp_str in expirations:
-            exp_date = datetime.strptime(exp_str, '%Y-%m-%d').date()
-            days_to_exp = (exp_date - datetime.now().date()).days
-            if 7 <= days_to_exp <= 45:
-                target_exp = exp_str
-                break
-        
-        if not target_exp:
-            target_exp = expirations[0]  # Fallback to nearest
-        
-        # Get option chain
-        chain = ticker.option_chain(target_exp)
-        calls = chain.calls
-        puts = chain.puts
-        
-        if calls.empty or puts.empty:
-            logger.debug(f"{symbol}: Empty option chain")
-            return None
-        
-        # Get current price
-        hist = ticker.history(period='1d')
-        if hist.empty:
-            logger.debug(f"{symbol}: No price history")
-            return None
-        spot_price = float(hist['Close'].iloc[-1])
-        
-        # Calculate metrics
-        total_call_vol = int(calls['volume'].sum())
-        total_put_vol = int(puts['volume'].sum())
-        total_call_oi = int(calls['openInterest'].sum())
-        total_put_oi = int(puts['openInterest'].sum())
-        
-        pcr_vol = total_put_vol / total_call_vol if total_call_vol > 0 else None
-        pcr_oi = total_put_oi / total_call_oi if total_call_oi > 0 else None
-        
-        # ATM IV (find strike closest to spot)
-        calls_copy = calls.copy()
-        calls_copy['strike_diff'] = abs(calls_copy['strike'] - spot_price)
-        atm_call = calls_copy.loc[calls_copy['strike_diff'].idxmin()]
-        atm_iv = float(atm_call['impliedVolatility']) if 'impliedVolatility' in atm_call else None
-        
-        # Max pain calculation
-        max_pain = calculate_max_pain(calls, puts)
-        
-        # Highest OI strikes
-        max_call_strike = float(calls.loc[calls['openInterest'].idxmax()]['strike']) if not calls.empty else None
-        max_put_strike = float(puts.loc[puts['openInterest'].idxmax()]['strike']) if not puts.empty else None
-        
-        return {
-            'symbol': symbol,
-            'put_call_ratio_volume': pcr_vol,
-            'put_call_ratio_oi': pcr_oi,
-            'total_call_volume': total_call_vol,
-            'total_put_volume': total_put_vol,
-            'total_call_oi': total_call_oi,
-            'total_put_oi': total_put_oi,
-            'atm_iv': atm_iv,
-            'max_pain_strike': max_pain,
-            'highest_oi_call_strike': max_call_strike,
-            'highest_oi_put_strike': max_put_strike,
-            'spot_price': spot_price,
-            'expiration_date': datetime.strptime(target_exp, '%Y-%m-%d').date(),
-        }
-    
-    except Exception as e:
-        logger.warning(f"Failed to collect options for {symbol}: {e}")
-        return None
-
-    """Collect options summary for one symbol via YFinance."""
-    try:
-        ticker = yf.Ticker(symbol)
+        yf_sym = _yfinance_symbol(symbol)
+        ticker = yf.Ticker(yf_sym)
         
         # Get available expirations
         expirations = ticker.options
