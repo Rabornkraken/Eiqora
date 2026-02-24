@@ -36,11 +36,18 @@ logger = logging.getLogger(__name__)
 
 
 def calculate_rsi(df: pd.DataFrame, period: int = 14) -> pd.Series:
-    """Calculate Relative Strength Index."""
+    """Calculate Relative Strength Index using Wilder's smoothing (RMA).
+
+    Matches TradingView/Investing.com methodology.
+    RMA = (prev_avg * (period-1) + current) / period
+    This is equivalent to EWM with alpha=1/period.
+    """
     delta = df['close'].diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-    loss = (-delta.where(delta <0, 0)).rolling(window=period).mean()
-    rs = gain / loss.replace(0, 1e-10)
+    gain = delta.where(delta > 0, 0)
+    loss = (-delta.where(delta < 0, 0))
+    avg_gain = gain.ewm(alpha=1/period, min_periods=period, adjust=False).mean()
+    avg_loss = loss.ewm(alpha=1/period, min_periods=period, adjust=False).mean()
+    rs = avg_gain / avg_loss.replace(0, 1e-10)
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
@@ -75,35 +82,40 @@ def calculate_bollinger_bands(df: pd.DataFrame, period=20, std_dev=2) -> dict:
 
 
 def calculate_atr(df: pd.DataFrame, period=14) -> pd.Series:
-    """Calculate Average True Range."""
+    """Calculate Average True Range using Wilder's smoothing (RMA).
+
+    Matches TradingView methodology.
+    """
     high_low = df['high'] - df['low']
     high_close = abs(df['high'] - df['close'].shift())
     low_close = abs(df['low'] - df['close'].shift())
     true_range = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
-    atr = true_range.rolling(window=period).mean()
+    atr = true_range.ewm(alpha=1/period, min_periods=period, adjust=False).mean()
     return atr
 
 
 def calculate_adx(df: pd.DataFrame, period=14) -> dict:
-    """Calculate ADX (Average Directional Index)."""
-    # Calculate directional movement
+    """Calculate ADX (Average Directional Index) using Wilder's smoothing.
+
+    Matches TradingView methodology: all smoothing uses RMA (alpha=1/period).
+    """
     high_diff = df['high'].diff()
     low_diff = -df['low'].diff()
-    
+
     plus_dm = high_diff.where((high_diff > low_diff) & (high_diff > 0), 0)
     minus_dm = low_diff.where((low_diff > high_diff) & (low_diff > 0), 0)
-    
-    # Calculate ATR for normalization
+
+    # Wilder's smoothing for DM and ATR
     atr = calculate_atr(df, period)
-    
-    # Calculate directional indicators
-    plus_di = 100 * (plus_dm.rolling(window=period).mean() / atr)
-    minus_di = 100 * (minus_dm.rolling(window=period).mean() / atr)
-    
-    # Calculate DX and ADX
+    smoothed_plus_dm = plus_dm.ewm(alpha=1/period, min_periods=period, adjust=False).mean()
+    smoothed_minus_dm = minus_dm.ewm(alpha=1/period, min_periods=period, adjust=False).mean()
+
+    plus_di = 100 * (smoothed_plus_dm / atr)
+    minus_di = 100 * (smoothed_minus_dm / atr)
+
     dx = 100 * abs(plus_di - minus_di) / (plus_di + minus_di).replace(0, 1e-10)
-    adx = dx.rolling(window=period).mean()
-    
+    adx = dx.ewm(alpha=1/period, min_periods=period, adjust=False).mean()
+
     return {
         'adx': adx,
         'plus_di': plus_di,
@@ -150,14 +162,18 @@ def calculate_ad_line(df: pd.DataFrame) -> pd.Series:
     return ad_line
 
 
-def calculate_stochastic(df: pd.DataFrame, period=14, smooth_k=3) -> dict:
-    """Calculate Stochastic Oscillator (%K and %D)."""
+def calculate_stochastic(df: pd.DataFrame, period=14, smooth_k=3, smooth_d=3) -> dict:
+    """Calculate Stochastic Oscillator (%K and %D).
+
+    TradingView default: %K = SMA(3) of raw stochastic, %D = SMA(3) of %K.
+    """
     low_min = df['low'].rolling(window=period).min()
     high_max = df['high'].rolling(window=period).max()
-    
-    k_percent = 100 * ((df['close'] - low_min) / (high_max - low_min).replace(0, 1e-10))
-    d_percent = k_percent.rolling(window=smooth_k).mean()
-    
+
+    raw_k = 100 * ((df['close'] - low_min) / (high_max - low_min).replace(0, 1e-10))
+    k_percent = raw_k.rolling(window=smooth_k).mean()
+    d_percent = k_percent.rolling(window=smooth_d).mean()
+
     return {
         'k': k_percent,
         'd': d_percent
