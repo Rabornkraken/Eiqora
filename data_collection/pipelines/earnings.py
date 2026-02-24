@@ -228,6 +228,9 @@ def _parse_float(value: object) -> float | None:
     if value is None:
         return None
     if isinstance(value, (int, float)):
+        import math
+        if math.isnan(value) or math.isinf(value):
+            return None
         return float(value)
     text = str(value).strip()
     if text == "":
