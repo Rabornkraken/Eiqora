@@ -228,14 +228,13 @@ class SymbolService:
                     for r in earnings_rows
                 ]
 
-                # 5. Analyst ratings (10 most recent)
+                # 5. Analyst ratings (90-day window — same as consensus calc)
                 rating_rows = await conn.fetch(
                     """
                     SELECT firm, rating_date, action, to_grade, from_grade, price_target
                     FROM analyst_rating
-                    WHERE symbol = $1
+                    WHERE symbol = $1 AND rating_date >= NOW() - INTERVAL '90 days'
                     ORDER BY rating_date DESC
-                    LIMIT 10
                     """,
                     symbol,
                 )
