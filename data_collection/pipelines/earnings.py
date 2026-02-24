@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import random
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta
@@ -30,14 +31,31 @@ from data_collection.common.config import HttpSettings, load_common_settings
 _logger = logging.getLogger(__name__)
 NOTIFY_CHANNEL = os.getenv("EIQORA_INGEST_CHANNEL", "eiqora_ingest")
 NASDAQ_REFERRER = "https://www.nasdaq.com/market-activity/earnings"
+SEC_ITEM_202_RE = re.compile(r"item\s*2\.02", re.IGNORECASE)
 
-def _parse_float(value: object) -> float | None:
-    if pd.isna(value) or value is None:
-        return None
+_YF_SYMBOL_MAP: dict[str, str] | None = None
+
+
+def _load_symbol_map() -> dict[str, str]:
+    global _YF_SYMBOL_MAP
+    if _YF_SYMBOL_MAP is not None:
+        return _YF_SYMBOL_MAP
     try:
-        return float(value)
-    except (ValueError, TypeError):
-        return None
+        config = load_config()
+        mapping = config.get("yfinance", {}).get("symbol_map", {})
+        _YF_SYMBOL_MAP = {k.upper(): v for k, v in mapping.items()}
+    except Exception:
+        _YF_SYMBOL_MAP = {}
+    return _YF_SYMBOL_MAP
+
+
+def _yfinance_symbol(symbol: str) -> str:
+    """Convert internal symbol to yfinance format (e.g. BRK.B -> BRK-B)."""
+    mapping = _load_symbol_map()
+    mapped = mapping.get(symbol.upper())
+    if mapped:
+        return mapped
+    return symbol.replace(".", "-")
 
 def _fetch_yfinance_earnings(symbols: list[str]) -> list[dict[str, object]]:
     """Fetch earnings data using YFinance (historical + estimates)."""
@@ -48,7 +66,8 @@ def _fetch_yfinance_earnings(symbols: list[str]) -> list[dict[str, object]]:
             if i % 10 == 0:
                 _logger.info(f"Processing {i}/{len(symbols)}: {symbol}")
                 
-            ticker = yf.Ticker(symbol)
+            yf_sym = _yfinance_symbol(symbol)
+            ticker = yf.Ticker(yf_sym)
             
             # 1. Historical Data (from Income Statement)
             # This gives us actual Revenue and EPS for past quarters
@@ -126,63 +145,6 @@ def _fetch_yfinance_earnings(symbols: list[str]) -> list[dict[str, object]]:
             
     return rows
 
-def _get_earnings_columns(conn) -> set[str]:
-    with conn.cursor() as cursor:
-        cursor.execute(
-            """
-            SELECT column_name
-            FROM information_schema.columns
-            WHERE table_name = 'earnings_event'
-            """
-        )
-        return {row[0] for row in cursor.fetchall()}
-
-def _upsert_events(conn, rows: list[dict[str, object]]) -> None:
-    if not rows:
-        return
-    table_columns = _get_earnings_columns(conn)
-    base_order = [
-        "symbol", "earnings_date", "time_of_day", "eps_est", "eps_actual",
-        "revenue_est", "revenue_actual", "source", "fiscal_quarter",
-        "revenue_growth_yoy", "guidance"
-    ]
-    # Filter for compatible columns
-    insert_columns = [col for col in base_order if col in table_columns]
-    
-    # We want to enable UPSERT, but carefully.
-    # If source is yfinance_hist (actuals), we overwrite actuals.
-    # If source is yfinance_cal (estimates), we overwrite estimates.
-    
-    # Simplified logic: Just upsert non-nulls.
-    has_updated_at = "updated_at" in table_columns
-    insert_cols_sql = ", ".join(insert_columns + (["updated_at"] if has_updated_at else []))
-    placeholders = ", ".join(["%s"] * len(insert_columns) + (["now()"] if has_updated_at else []))
-
-    # For conflict update, we update fields if they are not null in the new row
-    update_parts = []
-    for col in insert_columns:
-        if col in ("symbol", "earnings_date"): continue
-        # Only update if excluded value is not null (COALESCE logic equivalent)
-        # Qualify with table name to avoid ambiguity
-        update_parts.append(f"{col} = COALESCE(EXCLUDED.{col}, earnings_event.{col})")
-        
-    if has_updated_at:
-        update_parts.append("updated_at = now()")
-        
-    update_sql = ", ".join(update_parts)
-
-    values = [tuple(row.get(col) for col in insert_columns) for row in rows]
-    
-    with conn.cursor() as cursor:
-        cursor.executemany(
-            f"""
-            INSERT INTO earnings_event ({insert_cols_sql})
-            VALUES ({placeholders})
-            ON CONFLICT (symbol, earnings_date)
-            DO UPDATE SET {update_sql}
-            """,
-            values,
-        )
 
 def run_yfinance(limit_symbols: int | None = None) -> None:
     config = load_config()
@@ -260,9 +222,6 @@ USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/121.0",
 ]
-
-# _upsert_events moved to end of file
-
 
 
 def _parse_float(value: object) -> float | None:
@@ -400,6 +359,95 @@ def _parse_nasdaq_items(items: list[dict], source: str, symbols_config: set[str]
             }
         )
     return rows
+
+
+def _backfill_actuals_from_yfinance(conn, symbols: list[str]) -> int:
+    """Backfill missing eps_actual/revenue_actual using yfinance quarterly financials.
+
+    NASDAQ often returns NULL for eps/revenue actuals, especially for recent
+    earnings. YFinance quarterly_financials has the actual reported numbers
+    keyed by fiscal quarter end date. We match each fiscal quarter to the
+    nearest earnings_event row (report date is typically 15-60 days after
+    fiscal quarter end) and fill in the missing actuals.
+    """
+    with conn.cursor() as cursor:
+        cursor.execute("""
+            SELECT DISTINCT symbol
+            FROM earnings_event
+            WHERE eps_actual IS NULL
+              AND earnings_date < CURRENT_DATE
+              AND earnings_date > CURRENT_DATE - interval '180 days'
+        """)
+        missing_symbols = {row[0] for row in cursor.fetchall()}
+
+    target = missing_symbols & set(symbols) if symbols else missing_symbols
+    if not target:
+        _logger.info("backfill: no symbols need eps_actual backfill")
+        return 0
+
+    _logger.info(f"backfill: attempting yfinance actuals for {len(target)} symbols")
+    updated = 0
+
+    for symbol in sorted(target):
+        try:
+            yf_sym = _yfinance_symbol(symbol)
+            ticker = yf.Ticker(yf_sym)
+
+            q_stmt = ticker.quarterly_income_stmt
+            q_financials = ticker.quarterly_financials
+            if q_stmt is None or q_stmt.empty or q_financials is None or q_financials.empty:
+                continue
+
+            q_stmt_t = q_stmt.T
+            q_financials_t = q_financials.T
+            common_dates = q_stmt_t.index.intersection(q_financials_t.index)
+
+            for d in common_dates:
+                if not isinstance(d, (date, datetime, pd.Timestamp)):
+                    continue
+                fiscal_end = d.date() if isinstance(d, (datetime, pd.Timestamp)) else d
+
+                eps = _parse_float(q_financials_t.loc[d].get("Basic EPS"))
+                revenue = _parse_float(q_stmt_t.loc[d].get("Total Revenue"))
+
+                if eps is None and revenue is None:
+                    continue
+
+                # Match to earnings_event: report date is typically 15-60 days
+                # after fiscal quarter end. Search window: fiscal_end to +65 days.
+                with conn.cursor() as cursor:
+                    set_parts = []
+                    params = []
+                    if eps is not None:
+                        set_parts.append("eps_actual = %s")
+                        params.append(eps)
+                    if revenue is not None:
+                        set_parts.append("revenue_actual = %s")
+                        params.append(revenue)
+                    set_parts.append("updated_at = now()")
+
+                    params.extend([symbol, fiscal_end, fiscal_end])
+
+                    cursor.execute(f"""
+                        UPDATE earnings_event
+                        SET {', '.join(set_parts)}
+                        WHERE symbol = %s
+                          AND eps_actual IS NULL
+                          AND earnings_date BETWEEN %s AND %s + interval '65 days'
+                          AND earnings_date < CURRENT_DATE
+                    """, params)
+
+                    if cursor.rowcount > 0:
+                        updated += cursor.rowcount
+                        _logger.info(f"backfill: {symbol} updated {cursor.rowcount} rows "
+                                     f"from fiscal quarter ending {fiscal_end}")
+
+        except Exception as e:
+            _logger.debug(f"backfill: failed for {symbol}: {e}")
+
+    conn.commit()
+    _logger.info(f"backfill: updated {updated} earnings events with actuals from yfinance")
+    return updated
 
 
 def run(
@@ -570,6 +618,10 @@ def run(
                 },
             )
         
+        # Backfill missing eps_actual/revenue_actual from yfinance
+        _logger.info("Running yfinance actuals backfill...")
+        _backfill_actuals_from_yfinance(conn, symbols_list)
+
         # Post-process: Calculate YoY Growth
         # Only for rows we just updated/inserted
         with conn.cursor() as cursor:
@@ -587,7 +639,7 @@ def run(
                   AND e.revenue_growth_yoy IS NULL
                   AND e.updated_at >= now() - interval '5 minutes'
             """)
-        
+
         conn.commit()
 
 
@@ -729,7 +781,8 @@ def _upsert_events(conn, rows: list[dict[str, object]]) -> None:
     placeholders = ", ".join(["%s"] * len(insert_columns) + (["now()"] if has_updated_at else []))
 
     update_columns = [col for col in insert_columns if col not in {"symbol", "earnings_date"}]
-    update_assignments = [f"{col} = EXCLUDED.{col}" for col in update_columns]
+    # Use COALESCE to never overwrite existing non-null values with NULL
+    update_assignments = [f"{col} = COALESCE(EXCLUDED.{col}, earnings_event.{col})" for col in update_columns]
     if has_updated_at:
         update_assignments.append("updated_at = now()")
     if update_assignments:
