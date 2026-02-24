@@ -7,14 +7,28 @@ Provides helpers to open/close positions and query active positions.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, time, timedelta, timezone
 import os
 from typing import Any
+
+from zoneinfo import ZoneInfo
 
 from eiqora_v2.tools.db import get_connection
 from eiqora_v2.tools.prices import get_indicators
 
 logger = logging.getLogger(__name__)
+
+_EASTERN_TZ = ZoneInfo("America/New_York")
+_MARKET_OPEN = time(9, 30)
+_MARKET_CLOSE = time(16, 0)
+
+
+def _is_market_open(dt: datetime) -> bool:
+    et = dt.astimezone(_EASTERN_TZ)
+    if et.weekday() >= 5:
+        return False
+    return _MARKET_OPEN <= et.time() < _MARKET_CLOSE
+
 
 DEFAULT_ACCOUNT_ID = os.getenv("EIQORA_ACCOUNT_ID", "main")
 DEFAULT_BASE_CURRENCY = os.getenv("ACCOUNT_BASE_CURRENCY", "USD")
@@ -301,11 +315,48 @@ async def _get_latest_hourly_price(symbol: str, asof_time: datetime | None) -> f
     return None
 
 
+async def _get_latest_minute_price(symbol: str, asof_time: datetime | None) -> float | None:
+    """Get latest 1-minute bar close price."""
+    asof_time = asof_time or datetime.now(timezone.utc)
+    if asof_time.tzinfo is None:
+        asof_ts = asof_time.replace(tzinfo=timezone.utc)
+    else:
+        asof_ts = asof_time.astimezone(timezone.utc)
+    async with get_connection() as conn:
+        try:
+            row = await conn.fetchrow(
+                """
+                SELECT close
+                FROM market_bar_1min
+                WHERE symbol = $1
+                  AND datetime <= $2
+                ORDER BY datetime DESC
+                LIMIT 1
+                """,
+                symbol,
+                asof_ts,
+            )
+        except Exception as exc:
+            logger.debug("Failed to fetch minute price for %s: %s", symbol, exc)
+            return None
+    if row and row["close"] is not None:
+        return float(row["close"])
+    return None
+
+
 async def _get_latest_price(symbol: str, asof_time: datetime | None) -> float | None:
     try:
+        # 1. Try 1-minute bar (freshest, updated every minute during market hours)
+        minute_price = await _get_latest_minute_price(symbol, asof_time)
+        if minute_price is not None:
+            return minute_price
+
+        # 2. Fall back to hourly bar close
         hourly_price = await _get_latest_hourly_price(symbol, asof_time)
         if hourly_price is not None:
             return hourly_price
+
+        # 3. Fall back to daily indicators
         indicators = await get_indicators(symbol, 30, asof_time)
         if not indicators or indicators.get("error"):
             return None
@@ -850,6 +901,14 @@ async def refresh_account_state(
 
         if time_stop_date and asof_time_db and asof_time_db >= time_stop_date:
             auto_exits.append((symbol, "TIME_STOP", "time_stop_hit", current_price))
+
+    if auto_exits and not _is_market_open(asof_time):
+        logger.info(
+            "Skipping %d auto-exit(s) — market closed (%s ET)",
+            len(auto_exits),
+            asof_time.astimezone(_EASTERN_TZ).strftime("%a %H:%M"),
+        )
+        auto_exits = []
 
     if auto_exits:
         for symbol, exit_type, reason, exit_price in auto_exits:

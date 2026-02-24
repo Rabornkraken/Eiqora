@@ -277,17 +277,8 @@ def create_scheduler() -> BlockingScheduler:
         minute=0,
     )
 
-    # Ticker Profile Refresh - Weekly on Monday at 2:30 AM
-    scheduler.add_job(
-        run_pipeline,
-        'cron',
-        args=['data_collection.pipelines.profile_refresh'],
-        id='profile_refresh',
-        day_of_week='mon',
-        hour=2,
-        minute=30,
-    )
-    
+    # Ticker Profile Refresh — moved to live scheduler (has eiqora_v2 deps)
+
     # ═══════════════════════════════════════════════════════════════════
     # INTRADAY DATA - Critical for live trading
     # ═══════════════════════════════════════════════════════════════════
@@ -300,6 +291,18 @@ def create_scheduler() -> BlockingScheduler:
         id='hourly_bars',
         minute=5,  # Run at :05 past the hour
         hour='10-16',  # 10 AM - 4 PM ET (after first hour settles)
+        day_of_week='mon-fri',
+    )
+
+    # 1-Minute OHLCV Bars - Every minute during market hours
+    # Uses yf.download() batch mode (~2-5s for all symbols)
+    scheduler.add_job(
+        run_pipeline,
+        'cron',
+        args=['data_collection.pipelines.minute_bars_auto'],
+        id='minute_bars',
+        minute='*/1',
+        hour='9-16',
         day_of_week='mon-fri',
     )
     
@@ -350,6 +353,7 @@ def run_startup_pipelines():
         ('data_collection.pipelines.options_summary', None, {}),  # Populate options data for profiles
         ('data_collection.pipelines.sec_rss', 'run', {}),
         ('data_collection.pipelines.hourly_bars_auto', None, {}),
+        ('data_collection.pipelines.minute_bars_auto', None, {}),
         # Seed reference data
         ('data_collection.pipelines.seed_stock_relationships', None, {}),
         ('data_collection.pipelines.seed_influential_figures', None, {}),
