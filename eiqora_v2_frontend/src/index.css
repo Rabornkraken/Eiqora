@@ -1658,6 +1658,8 @@ button.primary:hover {
 .ratings-list {
   display: flex;
   flex-direction: column;
+  max-height: 400px;
+  overflow-y: auto;
 }
 
 .rating-row {
