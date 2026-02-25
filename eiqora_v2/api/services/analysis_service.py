@@ -218,6 +218,7 @@ class AnalysisService:
                         trigger_detail=parse_json_field(row["trigger_detail"]),
                         topdown_output=parse_json_field(row["topdown_output"]),
                         context_output=parse_json_field(row["context_output"]),
+                        fundamental_output=parse_json_field(row["fundamental_output"]),
                         chart_output=parse_json_field(row["chart_output"]),
                         idea_generator_output=parse_json_field(row["idea_generator_output"]),
                         exit_policy_output=parse_json_field(row["exit_policy_output"]),

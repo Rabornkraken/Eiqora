@@ -54,6 +54,7 @@ class AnalysisDetail(AnalysisResponse):
     trigger_detail: Optional[Dict[str, Any]] = Field(None, description="Trigger details")
     topdown_output: Optional[Dict[str, Any]] = Field(None, description="Top-down analysis output")
     context_output: Optional[Dict[str, Any]] = Field(None, description="Context analysis output")
+    fundamental_output: Optional[Dict[str, Any]] = Field(None, description="Fundamental analysis output")
     chart_output: Optional[Dict[str, Any]] = Field(None, description="Chart analysis output")
     idea_generator_output: Optional[Dict[str, Any]] = Field(None, description="Idea generator output")
     exit_policy_output: Optional[Dict[str, Any]] = Field(None, description="Exit policy output")
