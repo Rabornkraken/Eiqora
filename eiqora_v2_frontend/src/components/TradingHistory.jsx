@@ -1,10 +1,36 @@
 import React, { useState, useEffect } from 'react';
 import { getTradingHistory } from '../services/api';
 
+function formatSGT(dateValue) {
+    if (!dateValue) return '-';
+    const d = new Date(dateValue);
+    if (isNaN(d.getTime())) return '-';
+    return d.toLocaleString('en-SG', { timeZone: 'Asia/Singapore', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+function SortHeader({ label, sortKey, sortConfig, onSort }) {
+    const isActive = sortConfig.key === sortKey;
+    const arrow = isActive ? (sortConfig.dir === 'asc' ? ' ▲' : ' ▼') : '';
+    return (
+        <th onClick={() => onSort(sortKey)} style={{ cursor: 'pointer', userSelect: 'none' }}>
+            {label}{arrow}
+        </th>
+    );
+}
+
 function TradingHistory() {
     const [trades, setTrades] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [sortConfig, setSortConfig] = useState({ key: null, dir: 'desc' });
+
+    const handleSort = (key) => {
+        setSortConfig(prev => {
+            if (prev.key !== key) return { key, dir: 'desc' };
+            if (prev.dir === 'desc') return { key, dir: 'asc' };
+            return { key: null, dir: 'desc' };
+        });
+    };
 
     useEffect(() => {
         const fetchHistory = async () => {
@@ -35,6 +61,33 @@ function TradingHistory() {
         return <div className="loading">No trading history available</div>;
     }
 
+    const sortedTrades = [...trades].sort((a, b) => {
+        if (!sortConfig.key) return 0;
+        const key = sortConfig.key;
+        let aVal, bVal;
+        if (key === 'pnl') {
+            aVal = a.realized_pnl ?? a.pnl ?? 0;
+            bVal = b.realized_pnl ?? b.pnl ?? 0;
+        } else if (key === 'pnl_pct') {
+            aVal = a.realized_pnl_pct ?? a.pnl_pct ?? 0;
+            bVal = b.realized_pnl_pct ?? b.pnl_pct ?? 0;
+        } else if (key === 'entry_date' || key === 'exit_date') {
+            aVal = new Date(a[key]).getTime();
+            bVal = new Date(b[key]).getTime();
+        } else if (key === 'hold_days') {
+            aVal = new Date(a.exit_date) - new Date(a.entry_date);
+            bVal = new Date(b.exit_date) - new Date(b.entry_date);
+        } else {
+            aVal = a[key] ?? 0;
+            bVal = b[key] ?? 0;
+        }
+        if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+        if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+        if (aVal < bVal) return sortConfig.dir === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortConfig.dir === 'asc' ? 1 : -1;
+        return 0;
+    });
+
     return (
         <div className="border-box" style={{ marginTop: '24px' }}>
             <div className="chart-title" style={{ padding: '24px', borderBottom: '1px solid var(--border-light)' }}>
@@ -44,20 +97,20 @@ function TradingHistory() {
                 <table>
                     <thead>
                         <tr>
-                            <th>Company</th>
+                            <SortHeader label="Company" sortKey="symbol" sortConfig={sortConfig} onSort={handleSort} />
                             <th>Action</th>
-                            <th>Size</th>
-                            <th>Entry Price</th>
-                            <th>Exit Price</th>
-                            <th>P&L</th>
-                            <th>P&L %</th>
-                            <th>Entry Date</th>
-                            <th>Exit Date</th>
-                            <th>Hold Period</th>
+                            <SortHeader label="Shares" sortKey="shares" sortConfig={sortConfig} onSort={handleSort} />
+                            <SortHeader label="Entry Price" sortKey="entry_price" sortConfig={sortConfig} onSort={handleSort} />
+                            <SortHeader label="Exit Price" sortKey="exit_price" sortConfig={sortConfig} onSort={handleSort} />
+                            <SortHeader label="P&L" sortKey="pnl" sortConfig={sortConfig} onSort={handleSort} />
+                            <SortHeader label="P&L %" sortKey="pnl_pct" sortConfig={sortConfig} onSort={handleSort} />
+                            <SortHeader label="Entry Date" sortKey="entry_date" sortConfig={sortConfig} onSort={handleSort} />
+                            <SortHeader label="Exit Date" sortKey="exit_date" sortConfig={sortConfig} onSort={handleSort} />
+                            <SortHeader label="Hold Period" sortKey="hold_days" sortConfig={sortConfig} onSort={handleSort} />
                         </tr>
                     </thead>
                     <tbody>
-                        {trades.map((trade, index) => {
+                        {sortedTrades.map((trade, index) => {
                             // Use realized_pnl from API (v1) or pnl (legacy)
                             const pnl = trade.realized_pnl ?? trade.pnl ?? 0;
                             const pnlPercent = trade.realized_pnl_pct ?? trade.pnl_pct ?? 0;
@@ -69,8 +122,7 @@ function TradingHistory() {
                                 : (trade.action || 'BUY');
                             const isLong = trade.direction ? trade.direction === 'LONG' : action === 'BUY';
 
-                            // Calculate position size display (10% = 10)
-                            const positionSize = trade.position_size_pct ? `${(trade.position_size_pct * 100).toFixed(0)}%` : '-';
+                            const sharesDisplay = trade.shares ? trade.shares.toFixed(2) : '-';
 
                             const entryDate = new Date(trade.entry_date);
                             const exitDate = new Date(trade.exit_date);
@@ -99,7 +151,7 @@ function TradingHistory() {
                                     <td className={isLong ? 'status-go' : 'status-no-go'}>
                                         {action}
                                     </td>
-                                    <td>{positionSize}</td>
+                                    <td>{sharesDisplay}</td>
                                     <td>${trade.entry_price.toFixed(2)}</td>
                                     <td>${trade.exit_price.toFixed(2)}</td>
                                     <td className={isProfitable ? 'status-go' : 'status-no-go'}>
@@ -109,10 +161,10 @@ function TradingHistory() {
                                         {pnlPercent >= 0 ? '+' : ''}{pnlPercent.toFixed(2)}%
                                     </td>
                                     <td className="text-muted text-sm">
-                                        {entryDate.toLocaleDateString()}
+                                        {formatSGT(trade.entry_date)}
                                     </td>
                                     <td className="text-muted text-sm">
-                                        {exitDate.toLocaleDateString()}
+                                        {formatSGT(trade.exit_date)}
                                     </td>
                                     <td className="text-muted">{holdDays} days</td>
                                 </tr>

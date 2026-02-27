@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { getDecisions } from '../services/api';
 import DecisionDetails from './DecisionDetails';
 
@@ -7,11 +7,22 @@ function DecisionsTable() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [selectedDecision, setSelectedDecision] = useState(null);
+    const [filterSymbol, setFilterSymbol] = useState('');
+    const [filterDecision, setFilterDecision] = useState('');
+
+    // Date range: default 7 days ago to today
+    const today = new Date().toISOString().split('T')[0];
+    const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
+    const [startDate, setStartDate] = useState(sevenDaysAgo);
+    const [endDate, setEndDate] = useState(today);
 
     useEffect(() => {
         const fetchDecisions = async () => {
             try {
-                const data = await getDecisions({ limit: 100 });
+                const params = { limit: 500 };
+                if (startDate) params.start_date = startDate;
+                if (endDate) params.end_date = endDate;
+                const data = await getDecisions(params);
                 setDecisions(data);
                 setError(null);
             } catch (err) {
@@ -23,10 +34,20 @@ function DecisionsTable() {
         };
 
         fetchDecisions();
-        // Refresh every 30 seconds
         const interval = setInterval(fetchDecisions, 30000);
         return () => clearInterval(interval);
-    }, []);
+    }, [startDate, endDate]);
+
+    const filteredDecisions = useMemo(() => {
+        return decisions.filter(d => {
+            if (filterSymbol && !d.symbol?.toUpperCase().includes(filterSymbol.toUpperCase())) return false;
+            if (filterDecision) {
+                const fd = d.final_decision || d.result?.decision || '';
+                if (fd.toUpperCase() !== filterDecision) return false;
+            }
+            return true;
+        });
+    }, [decisions, filterSymbol, filterDecision]);
 
     const formatDate = (dateString) => {
         const date = new Date(dateString);
@@ -59,14 +80,67 @@ function DecisionsTable() {
 
     if (decisions.length === 0) {
         return (
-            <div className="table-container">
-                <div className="loading">No decisions recorded yet</div>
-            </div>
+            <>
+                <div className="decisions-filters">
+                    <input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        className="decisions-filter-date"
+                    />
+                    <span className="decisions-date-separator">to</span>
+                    <input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        className="decisions-filter-date"
+                    />
+                </div>
+                <div className="table-container">
+                    <div className="loading">No decisions in selected range</div>
+                </div>
+            </>
         );
     }
 
     return (
         <>
+            {/* Filters */}
+            <div className="decisions-filters">
+                <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="decisions-filter-date"
+                />
+                <span className="decisions-date-separator">to</span>
+                <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="decisions-filter-date"
+                />
+                <input
+                    type="text"
+                    placeholder="Filter symbol..."
+                    value={filterSymbol}
+                    onChange={(e) => setFilterSymbol(e.target.value.toUpperCase())}
+                    className="decisions-filter-input"
+                />
+                <select
+                    value={filterDecision}
+                    onChange={(e) => setFilterDecision(e.target.value)}
+                    className="decisions-filter-select"
+                >
+                    <option value="">All Decisions</option>
+                    <option value="GO">GO</option>
+                    <option value="NO_GO">NO_GO</option>
+                </select>
+                <span className="decisions-filter-count">
+                    {filteredDecisions.length} of {decisions.length}
+                </span>
+            </div>
+
             <div className="table-container">
                 <table>
                     <thead>
@@ -80,8 +154,7 @@ function DecisionsTable() {
                         </tr>
                     </thead>
                     <tbody>
-                        {decisions.map((decision) => {
-                            // Handle both old and new API response formats
+                        {filteredDecisions.map((decision) => {
                             const finalDecision = decision.final_decision || decision.result?.decision || 'N/A';
                             const decisionReason = decision.decision_reason || decision.result?.reasoning || '';
                             const analysisTime = decision.analysis_time || decision.created_at;
@@ -92,7 +165,17 @@ function DecisionsTable() {
                                     onClick={() => setSelectedDecision(decision)}
                                 >
                                     <td className="text-xs">{formatDate(analysisTime)}</td>
-                                    <td className="font-bold">{decision.symbol}</td>
+                                    <td>
+                                        <div className="symbol-with-logo">
+                                            <img
+                                                src={`https://img.logokit.com/ticker/${decision.symbol}?token=pk_fr4a8c50224be943a466c9`}
+                                                alt=""
+                                                className="company-logo-small"
+                                                onError={(e) => { e.target.style.display = 'none'; }}
+                                            />
+                                            <span className="font-bold">{decision.symbol}</span>
+                                        </div>
+                                    </td>
                                     <td className="text-sm">{decision.trigger_type || 'N/A'}</td>
                                     <td>
                                         <span className={finalDecision === 'GO' ? 'status-go' : 'status-no-go'}>

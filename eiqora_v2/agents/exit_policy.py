@@ -341,7 +341,7 @@ class ExitPolicyAgent(BaseAgent[ExitPolicyOutput]):
         if sl_rationale and len(sl_rationale) > 120:
             sl_rationale = sl_rationale[:120]
 
-        default_time_stop = {"SWING_SHORT": 10, "SWING_MEDIUM": 20, "SWING_LONG": 30}.get(
+        default_time_stop = {"SWING_SHORT": 8, "SWING_MEDIUM": 20, "SWING_LONG": 40}.get(
             time_horizon, 20
         )
         if time_stop_days is None or time_stop_days < 5 or time_stop_days > 60:
@@ -580,9 +580,9 @@ SETUP-SPECIFIC SWING STOPS:
 - TP: structure or ATR target
 
 TIME STOPS:
-- SWING_SHORT: 10 days
-- SWING_MEDIUM: 15 days
-- SWING_LONG: 20 days
+- SWING_SHORT: 8 days (mean reversion edge dies after day 8)
+- SWING_MEDIUM: 20 days (~4 weeks, breakout continuation window)
+- SWING_LONG: 40 days (~8 weeks, full stage 2 breakout development)
 
 OUTPUT SCHEMA:
 {
@@ -592,7 +592,7 @@ OUTPUT SCHEMA:
     "tp_level": <chart level> or null,
     "sl_mult": 2.5,
     "sl_level": <chart level> or null,
-    "time_stop_days": 15,
+    "time_stop_days": 20,
     "sl_rationale": "Below 20d swing low",
     "tp_rationale": "Structure target"
   },

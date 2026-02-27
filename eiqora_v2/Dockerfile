@@ -9,13 +9,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for layer caching
-COPY pyproject.toml ./
+# Copy and install API requirements only (no PyTorch/ML deps)
 COPY eiqora_v2/api/requirements.txt ./api-requirements.txt
-
-# Install Python dependencies
-RUN pip install --no-cache-dir -e . && \
-    pip install --no-cache-dir -r api-requirements.txt
+RUN pip install --no-cache-dir -r api-requirements.txt
 
 # Copy application code
 COPY eiqora_v2/ ./eiqora_v2/
@@ -23,6 +19,7 @@ COPY data_collection/ ./data_collection/
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
 ENV TZ=America/New_York
 
 # Expose API port

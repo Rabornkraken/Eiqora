@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     OPENROUTER_BASE_URL: str = Field(default="https://openrouter.ai/api/v1")
     OPENROUTER_MODEL: str = Field(default="openai/gpt-4o-2024-11-20")
     
+    # Finnhub Real-Time Quotes
+    FINNHUB_API_KEY: str = Field(default="")
+
     # Alpaca Trading API
     ALPACA_API_KEY: str = Field(default="")
     ALPACA_API_SECRET: str = Field(default="")

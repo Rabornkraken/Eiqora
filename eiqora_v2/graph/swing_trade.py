@@ -147,7 +147,7 @@ def should_continue_after_filter(state: SwingTradeState) -> Literal["continue", 
 
 
 def has_ideas(state: SwingTradeState) -> Literal["has_ideas", "no_ideas"]:
-    ideas = state.get("ideas", {})
+    ideas = state.get("ideas") or {}
     ideas_list = ideas.get("ideas", [])
     return "has_ideas" if ideas_list else "no_ideas"
 
@@ -324,6 +324,8 @@ def create_initial_state(
         context=None,
         topdown=None,
         chart=None,
+        fundamental=None,
+        supply_chain=None,
         ideas=None,
         rules=None,
         exit_policy=None,

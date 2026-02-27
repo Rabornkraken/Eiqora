@@ -33,6 +33,7 @@ ALPACA_KEY=$(az keyvault secret show --vault-name $KEYVAULT_NAME --name "ALPACA-
 ALPACA_SECRET=$(az keyvault secret show --vault-name $KEYVAULT_NAME --name "ALPACA-API-SECRET" --query "value" -o tsv 2>/dev/null || echo "")
 FRED_KEY=$(az keyvault secret show --vault-name $KEYVAULT_NAME --name "FRED-API-KEY" --query "value" -o tsv 2>/dev/null || echo "")
 ALPHAVANTAGE_KEY=$(az keyvault secret show --vault-name $KEYVAULT_NAME --name "ALPHAVANTAGE-API-KEY" --query "value" -o tsv 2>/dev/null || echo "")
+FINNHUB_KEY=$(az keyvault secret show --vault-name $KEYVAULT_NAME --name "FINNHUB-API-KEY" --query "value" -o tsv 2>/dev/null || echo "")
 
 echo -e "${GREEN}✓ Secrets retrieved${NC}"
 echo ""
@@ -51,7 +52,7 @@ az containerapp create \
     --ingress external \
     --cpu 0.5 \
     --memory 1Gi \
-    --min-replicas 0 \
+    --min-replicas 1 \
     --max-replicas 2 \
     --env-vars \
         "DATABASE_URL=$DATABASE_URL" \
@@ -103,8 +104,8 @@ az containerapp create \
     --registry-server $ACR_NAME.azurecr.io \
     --registry-username $ACR_USERNAME \
     --registry-password "$ACR_PASSWORD" \
-    --cpu 0.25 \
-    --memory 0.5Gi \
+    --cpu 0.5 \
+    --memory 1Gi \
     --min-replicas 1 \
     --max-replicas 1 \
     --env-vars \
@@ -112,6 +113,7 @@ az containerapp create \
         "OPENROUTER_API_KEY=$OPENROUTER_KEY" \
         "ALPACA_API_KEY=$ALPACA_KEY" \
         "ALPACA_API_SECRET=$ALPACA_SECRET" \
+        "FINNHUB_API_KEY=$FINNHUB_KEY" \
         "TZ=America/New_York" \
     --output none
 

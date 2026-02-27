@@ -27,20 +27,31 @@ class DashboardService:
         Get watchlist for a specific date
 
         Args:
-            date: Date for watchlist (defaults to today)
+            date: Date for watchlist (defaults to most recent available)
 
         Returns:
             WatchlistResponse with watchlist data
         """
-        # Default to today if date not provided
-        if date is None:
-            date = datetime.utcnow()
-
         try:
             # Import database connection
             from eiqora_v2.tools.db import get_connection
 
             async with get_connection() as conn:
+                # If no date provided, find the most recent scan date
+                if date is None:
+                    latest = await conn.fetchval(
+                        "SELECT MAX(scan_date) FROM daily_watchlist"
+                    )
+                    if latest is None:
+                        return WatchlistResponse(
+                            date=datetime.utcnow(),
+                            watchlist=[],
+                            total_candidates=0,
+                        )
+                    query_date = latest
+                else:
+                    query_date = date.date()
+
                 # Query watchlist from database
                 rows = await conn.fetch(
                     """
@@ -49,13 +60,13 @@ class DashboardService:
                         technical_score,
                         profile_score,
                         total_score,
-                        updated_at
+                        created_at
                     FROM daily_watchlist
                     WHERE scan_date = $1::date
                     ORDER BY total_score DESC
                     LIMIT 20
                     """,
-                    date.date(),
+                    query_date,
                 )
 
                 # Convert to WatchlistItem objects
@@ -65,13 +76,13 @@ class DashboardService:
                         technical_score=float(row["technical_score"]),
                         profile_score=float(row["profile_score"]),
                         total_score=float(row["total_score"]),
-                        last_updated=row["updated_at"],
+                        last_updated=row["created_at"],
                     )
                     for row in rows
                 ]
 
                 return WatchlistResponse(
-                    date=date,
+                    date=datetime.combine(query_date, datetime.min.time()) if not isinstance(query_date, datetime) else query_date,
                     watchlist=watchlist,
                     total_candidates=len(watchlist),
                 )
@@ -80,7 +91,7 @@ class DashboardService:
             # If database query fails, return empty watchlist
             print(f"Error fetching watchlist: {e}")
             return WatchlistResponse(
-                date=date,
+                date=date or datetime.utcnow(),
                 watchlist=[],
                 total_candidates=0,
             )
@@ -343,6 +354,7 @@ class DashboardService:
                         exit_date,
                         entry_price,
                         exit_price,
+                        shares,
                         position_size_pct,
                         realized_pnl,
                         realized_pnl_pct,
@@ -365,6 +377,7 @@ class DashboardService:
                         "exit_date": row["exit_date"].isoformat() if row["exit_date"] else None,
                         "entry_price": float(row["entry_price"] or 0),
                         "exit_price": float(row["exit_price"] or 0),
+                        "shares": float(row["shares"]) if row["shares"] else None,
                         "position_size_pct": float(row["position_size_pct"] or 0),
                         "realized_pnl": float(row["realized_pnl"] or 0),
                         "realized_pnl_pct": float(row["realized_pnl_pct"] or 0),

@@ -31,11 +31,11 @@ az acr login --name $ACR_NAME
 echo -e "${GREEN}✓ Logged in to $ACR_NAME${NC}"
 echo ""
 
-# Build and push API image (legacy api.py) for linux/amd64
-echo -e "${YELLOW}Building & pushing API image (legacy api.py, linux/amd64)...${NC}"
+# Build and push API image (v2 API) for linux/amd64
+echo -e "${YELLOW}Building & pushing API image (v2 API, linux/amd64)...${NC}"
 docker buildx build --platform linux/amd64 \
   -t $ACR_NAME.azurecr.io/eiqora-api:latest \
-  -f Dockerfile.legacy-api \
+  -f eiqora_v2/Dockerfile \
   --push .
 echo -e "${GREEN}✓ API image built & pushed${NC}"
 echo ""

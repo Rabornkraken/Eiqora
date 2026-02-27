@@ -74,6 +74,10 @@ class IdeaGeneratorAgent(BaseAgent[IdeaGeneratorOutput]):
         sec_filings = fundamental.get("sec_filings", {}) if isinstance(fundamental, dict) else {}
         insider = fundamental.get("insider", {}) if isinstance(fundamental, dict) else {}
         data_status = fundamental.get("data_status", {}) if isinstance(fundamental, dict) else {}
+        analyst = fundamental.get("analyst", {}) if isinstance(fundamental, dict) else {}
+        earnings_traj = fundamental.get("earnings_trajectory", {}) if isinstance(fundamental, dict) else {}
+        dividend = fundamental.get("dividend", {}) if isinstance(fundamental, dict) else {}
+        profile_fund = fundamental.get("profile_fundamentals", {}) if isinstance(fundamental, dict) else {}
         
         def _fmt_headlines(items: list[str]) -> str:
             return ", ".join([h for h in items if h]) if items else "None"
@@ -236,6 +240,40 @@ Data Freshness:
 
 RECENT NEWS SNIPPETS:
 {_fmt_news(news_docs)}
+"""
+
+        # Add analyst consensus if available
+        if analyst:
+            prompt += f"""
+Analyst Consensus:
+- Consensus: {analyst.get('consensus', 'N/A')} ({analyst.get('buy_count', 0)} Buy / {analyst.get('hold_count', 0)} Hold / {analyst.get('sell_count', 0)} Sell)
+- Avg Price Target: ${analyst.get('avg_price_target', 'N/A')} (Upside: {analyst.get('upside_pct', 'N/A')}%)
+- Last 30d: {analyst.get('upgrade_count_30d', 0)} upgrades, {analyst.get('downgrade_count_30d', 0)} downgrades
+"""
+
+        # Add earnings trajectory if available
+        if earnings_traj and earnings_traj.get("quarters_available", 0) >= 2:
+            prompt += f"""
+Earnings Trajectory (Last {earnings_traj.get('quarters_available', 0)} Quarters):
+- Beat Rate: {earnings_traj.get('beat_rate', 'N/A')}%
+- Consecutive Beats: {earnings_traj.get('consecutive_beats', 0)}
+- EPS Trend: {earnings_traj.get('eps_trend', 'N/A')}
+- Revenue Trend: {earnings_traj.get('revenue_trend', 'N/A')}
+"""
+
+        # Add dividend if available
+        if dividend and dividend.get("has_dividend"):
+            prompt += f"""
+Dividend: Yield {dividend.get('yield_pct', 'N/A')}%, Annual ${dividend.get('annual_dividend', 'N/A')}
+"""
+
+        # Add profile fundamentals if available
+        if profile_fund:
+            rev_growth = profile_fund.get("revenue_growth_3y")
+            prof_trend = profile_fund.get("profitability_trend")
+            if rev_growth is not None or prof_trend:
+                prompt += f"""
+Profile Fundamentals: Revenue Growth 3Y: {f'{rev_growth}%' if rev_growth is not None else 'N/A'}, Profitability: {prof_trend or 'N/A'}
 """
         
         prompt += """

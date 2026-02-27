@@ -1,6 +1,6 @@
 """
-Chart Agent implementation.
-Classifies chart setups and identifies entry/invalidation levels.
+Chart Agent implementation (Setup Refiner).
+Validates triggered chart setups, scores quality, and sets entry/invalidation levels.
 """
 
 from typing import Any
@@ -10,18 +10,43 @@ from eiqora_v2.schemas.chart import ChartOutput
 from eiqora_v2.schemas.state import SwingTradeState
 from eiqora_v2.tools.prices import get_prices, get_indicators, get_price_levels, get_hourly_indicators
 
+# Deterministic mapping from trigger_type → candidate setup_type.
+# None means no hypothesis — LLM classifies freely (fundamental triggers).
+TRIGGER_SETUP_MAP: dict[str, str | None] = {
+    # Hourly technical
+    "hourly_breakout": "BREAKOUT_20D",
+    "resistance_breakout": "BREAKOUT_20D",
+    "volume_surge": "BREAKOUT_20D",
+    "vwap_reclaim": "PULLBACK_MA20",
+    "hourly_rsi_divergence": "REVERSAL_AFTER_SELL_OFF",
+    "stochastic_oversold_bounce": "REVERSAL_AFTER_SELL_OFF",
+    "rsi_oversold": "REVERSAL_AFTER_SELL_OFF",
+    "macd_bullish_cross": "BREAKOUT_20D",
+    "hourly_money_flow_surge": "BREAKOUT_20D",
+    # ICT patterns
+    "hourly_ict_fvg_fill": "PULLBACK_MA20",
+    "hourly_liquidity_sweep_reversal": "REVERSAL_AFTER_SELL_OFF",
+    "hourly_order_block_retest": "RANGE_FADE_LOW",
+    "daily_ict_fvg_fill": "PULLBACK_MA50",
+    "daily_liquidity_sweep_reversal": "REVERSAL_AFTER_SELL_OFF",
+    "daily_order_block_retest": "RANGE_FADE_LOW",
+    # Second-order
+    "bad_news_no_drop": "BASE_BREAKOUT",
+    "sector_laggard": "REVERSAL_AFTER_SELL_OFF",
+    "volatility_compression": "BASE_BREAKOUT",
+    "supply_chain_cascade": "BREAKOUT_20D",
+    # Fundamental (no chart hypothesis — LLM classifies freely)
+    "earnings_release": None,
+    "sec_8k": None,
+}
+
 
 class ChartAgent(BaseAgent[ChartOutput]):
     """
-    Chart Agent: classifies setup type and identifies key levels.
-    
-    Uses a finite taxonomy of setup types:
-    - BREAKOUT_20D, BREAKOUT_60D
-    - PULLBACK_MA20, PULLBACK_MA50
-    - BASE_BREAKOUT
-    - REVERSAL_AFTER_SELL_OFF
-    - RANGE_FADE_HIGH, RANGE_FADE_LOW
-    - NO_SETUP
+    Setup Refiner: validates triggered setups, scores quality, sets entry/invalidation.
+
+    The trigger system detects patterns; this agent confirms/overrides the classification,
+    scores quality, and sets precise entry and invalidation levels.
     """
     
     name = "chart"
@@ -65,70 +90,91 @@ class ChartAgent(BaseAgent[ChartOutput]):
             "full_bar_count": len(prices),
         }
     
+    def _format_trigger_context(self, state: SwingTradeState) -> str:
+        """Extract key metrics from trigger_detail for the Setup Refiner prompt."""
+        trigger_type = state.get("trigger_type", "unknown")
+        detail = state.get("trigger_detail") or {}
+        candidate = TRIGGER_SETUP_MAP.get(trigger_type)
+
+        lines = [
+            f"TRIGGER DETECTED: {trigger_type}",
+            f"Signal Quality: {detail.get('quality_score', 'N/A')}/1.0 ({detail.get('quality_level', 'N/A')})",
+            f"Quality Flags: {', '.join(detail.get('quality_flags', []))}",
+        ]
+
+        if candidate:
+            lines.append(f"Candidate Setup Type: {candidate}")
+            lines.append("→ Confirm, override, or downgrade to NO_SETUP based on chart evidence.")
+        else:
+            lines.append("No candidate setup type — classify freely from the chart data.")
+
+        # Add trigger-specific key metrics
+        key_metrics = []
+        if "volume_ratio" in detail:
+            key_metrics.append(f"Volume Ratio: {detail['volume_ratio']:.2f}x")
+        if "price_change_pct" in detail:
+            key_metrics.append(f"Price Change: {detail['price_change_pct']:+.2f}%")
+        if "vwap_distance_pct" in detail:
+            key_metrics.append(f"VWAP Distance: {detail['vwap_distance_pct']:+.2f}%")
+        if "rsi14" in detail:
+            key_metrics.append(f"RSI(14): {detail['rsi14']:.1f}")
+        if "macd_histogram" in detail:
+            key_metrics.append(f"MACD Histogram: {detail['macd_histogram']:.4f}")
+        if key_metrics:
+            lines.append(f"Trigger Metrics: {', '.join(key_metrics)}")
+
+        return "\n".join(lines)
+
     def _build_prompt(self, state: SwingTradeState, data: dict[str, Any]) -> str:
-        """Build prompt with multi-timeframe analysis."""
+        """Build prompt with trigger context and multi-timeframe data."""
         symbol = state["symbol"]
         asof_time = state["asof_time"]
         context = state.get("context", {}) or {}
         rel_strength = context.get("relative_strength", {})
-        
-        # Format recent bars
+
+        trigger_section = self._format_trigger_context(state)
         bars_text = self._format_bars(data.get("prices", []))
-        
         indicators = data.get("indicators", {})
         hourly = data.get("hourly", {})
         levels = data.get("levels", {})
         yesterday = levels.get("yesterday", {})
-        
-        # Build hourly section if available
+
         hourly_section = ""
         if not hourly.get("error"):
             vwap_dist = hourly.get('vwap_distance_pct', 0)
             vwap_status = "above" if vwap_dist > 0 else "below"
             hourly_section = f"""
-
-HOURLY TIMING (Entry Precision):
-- VWAP: ${hourly.get('vwap', 0):.2f} (price {vwap_status} by {abs(vwap_dist):.2f}%)
+HOURLY TIMING:
+- VWAP: ${hourly.get('vwap', 0):.2f} ({vwap_status} {abs(vwap_dist):.2f}%)
 - Hourly RSI: {hourly.get('rsi_hourly', 50):.1f}
 - Intraday Trend: {hourly.get('intraday_trend', 'NEUTRAL')}
-- Position in Range: {hourly.get('position_in_range', 0.5):.1%} (0%=LOD, 100%=HOD)
-- Today High/Low: ${hourly.get('today_high', 0):.2f} / ${hourly.get('today_low', 0):.2f}
-- Hourly Tags: {', '.join(hourly.get('state_tags', []))}
-"""
-        
-        return f"""
-Analyze the chart for {symbol} as of {asof_time}.
+- Position in Range: {hourly.get('position_in_range', 0.5):.1%}
+- Today High/Low: ${hourly.get('today_high', 0):.2f} / ${hourly.get('today_low', 0):.2f}"""
 
-RECENT PRICE BARS (last 20 days):
+        return f"""
+{trigger_section}
+
+RECENT PRICE BARS:
 {bars_text}
 
 KEY LEVELS:
-- Yesterday Close: ${yesterday.get('close', 0):.2f}
-- Yesterday High: ${yesterday.get('high', 0):.2f}
-- Yesterday Low: ${yesterday.get('low', 0):.2f}
-- 20-Day High: ${levels.get('high_20d', 0):.2f}
-- 20-Day Low: ${levels.get('low_20d', 0):.2f}
-- 60-Day High: ${levels.get('high_60d', 0):.2f}
-- 60-Day Low: ${levels.get('low_60d', 0):.2f}
-- 20-Day Range: {levels.get('range_20d_pct', 0):.1%}
+- Yesterday: O=${yesterday.get('open', 0):.2f} H=${yesterday.get('high', 0):.2f} L=${yesterday.get('low', 0):.2f} C=${yesterday.get('close', 0):.2f}
+- 20D High/Low: ${levels.get('high_20d', 0):.2f} / ${levels.get('low_20d', 0):.2f}
+- 60D High/Low: ${levels.get('high_60d', 0):.2f} / ${levels.get('low_60d', 0):.2f}
+- Range: {levels.get('range_20d_pct', 0):.1%}
 
-DAILY INDICATORS (Setup Identification):
-- Current Price: ${indicators.get('current_price', 0):.2f}
-- MA20: ${indicators.get('ma20', 0):.2f} | MA50: ${indicators.get('ma50', 'N/A')}
+DAILY CONTEXT:
+- Price: ${indicators.get('current_price', 0):.2f} | MA20: ${indicators.get('ma20', 0):.2f} | MA50: ${indicators.get('ma50', 'N/A')}
 - Trend: {indicators.get('trend', {})}
-- RSI(14): {indicators.get('rsi14', 50):.1f}
-- MACD: {indicators.get('macd', {}).get('histogram', 0):.2f}
-- ADX(14): {indicators.get('adx14', 25):.1f}
-- Bollinger: {indicators.get('bollinger', {}).get('price_position', 'N/A')}
+- RSI(14): {indicators.get('rsi14', 50):.1f} | MACD: {indicators.get('macd', {}).get('histogram', 0):.2f}
 - State Tags: {', '.join(indicators.get('state_tags', []))}
 
-RELATIVE STRENGTH (20d/60d vs benchmarks):
+RELATIVE STRENGTH:
 - vs SPY: {rel_strength.get('vs_spy', {})}
-- vs Sector ETF: {rel_strength.get('vs_sector', {})}
+- vs Sector: {rel_strength.get('vs_sector', {})}
 - vs QQQ: {rel_strength.get('vs_qqq', {})}{hourly_section}
 
-Classify the setup type using daily timeframe. Use hourly data to assess entry timing quality.
-If no clear setup exists, use setup_type="NO_SETUP" and direction="NEUTRAL".
+Validate the triggered setup. Set entry and invalidation levels using key levels above.
 """
     
     def _format_bars(self, bars: list[dict]) -> str:
@@ -139,7 +185,7 @@ If no clear setup exists, use setup_type="NO_SETUP" and direction="NEUTRAL".
         lines = ["Date       | Open    | High    | Low     | Close   | Volume"]
         lines.append("-" * 65)
         
-        for bar in bars[-10:]:  # Show last 10 in prompt
+        for bar in bars[-5:]:  # Show last 5 — trigger already identified the pattern
             date = bar.get("date", "N/A")
             if hasattr(date, "strftime"):
                 date = date.strftime("%Y-%m-%d")
@@ -151,7 +197,14 @@ If no clear setup exists, use setup_type="NO_SETUP" and direction="NEUTRAL".
         return "\n".join(lines)
     
     def _get_system_prompt(self) -> str:
-        return """You are a Chart Agent that classifies technical setups for swing trading.
+        return """You are a Setup Refiner that validates and scores triggered chart setups for swing trading.
+
+The trigger system has already detected a potential pattern. Your job:
+1. CONFIRM the candidate setup type if chart evidence supports it
+2. OVERRIDE with a different setup type if the chart tells a different story
+3. DOWNGRADE to NO_SETUP if the pattern is weak, incomplete, or invalid
+4. SCORE the setup quality (0.0-1.0)
+5. SET precise entry and invalidation levels
 
 ALLOWED SETUP TYPES (must use exactly one):
 - BREAKOUT_20D: Breaking above 20-day high
@@ -163,6 +216,11 @@ ALLOWED SETUP TYPES (must use exactly one):
 - RANGE_FADE_HIGH: Fading resistance in range-bound market
 - RANGE_FADE_LOW: Buying support in range-bound market
 - NO_SETUP: No actionable setup identified
+
+QUALITY SCORING:
+- volume_confirm: Is volume above average on the trigger bar? (true/false)
+- compression: Is price in a tight range before the trigger? (true/false)
+- score: Overall 0.0-1.0 combining volume, trend alignment, level clarity, pattern maturity, relative strength
 
 OUTPUT SCHEMA:
 {
@@ -176,7 +234,7 @@ OUTPUT SCHEMA:
 }
 
 For NO_SETUP, set direction="NEUTRAL", entry_trigger=null, invalidation=null.
-Return ONLY valid JSON. No explanation."""""
+Return ONLY valid JSON. No explanation."""
     
     def _build_state_update(self, state: SwingTradeState, result: ChartOutput) -> dict[str, Any]:
         """Build state update with chart output."""

@@ -61,8 +61,9 @@ class PositionsService:
             )
 
         except Exception as e:
-            # If database query fails, return empty positions
+            import traceback
             print(f"Error fetching positions: {e}")
+            traceback.print_exc()
             return PositionsResponse(
                 positions=[],
                 total=0,

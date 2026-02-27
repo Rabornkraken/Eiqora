@@ -66,7 +66,7 @@ echo -e "${YELLOW}Installing dependencies...${NC}"
 npm install
 
 echo -e "${YELLOW}Building frontend...${NC}"
-VITE_API_URL="$API_URL" VITE_API_VERSION=local npm run build
+VITE_API_URL="$API_URL" VITE_API_VERSION=v1 npm run build
 echo -e "${GREEN}✓ Build complete${NC}"
 echo ""
 

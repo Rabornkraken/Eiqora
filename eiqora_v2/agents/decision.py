@@ -107,6 +107,15 @@ INSIDER ACTIVITY (last 90 days):
 - CFO net: {insider.get('cfo_net_value') if isinstance(insider, dict) else 'N/A'}
 - Director net: {insider.get('director_net_value') if isinstance(insider, dict) else 'N/A'}
 
+ANALYST CONSENSUS:
+- Consensus: {(fundamental.get('analyst') or {}).get('consensus', 'N/A')}
+- Avg PT: ${(fundamental.get('analyst') or {}).get('avg_price_target', 'N/A')} (Upside: {(fundamental.get('analyst') or {}).get('upside_pct', 'N/A')}%)
+- 30d: {(fundamental.get('analyst') or {}).get('upgrade_count_30d', 0)} up / {(fundamental.get('analyst') or {}).get('downgrade_count_30d', 0)} down
+
+EARNINGS TREND:
+- Beat Rate: {(fundamental.get('earnings_trajectory') or {}).get('beat_rate', 'N/A')}%
+- EPS: {(fundamental.get('earnings_trajectory') or {}).get('eps_trend', 'N/A')}, Revenue: {(fundamental.get('earnings_trajectory') or {}).get('revenue_trend', 'N/A')}
+
 SIGNAL QUALITY (Trigger Assessment):
 - Quality Score: {state.get('trigger_detail', {}).get('quality_score', 'N/A')} / 1.0
 - Quality Level: {state.get('trigger_detail', {}).get('quality_level', 'Unknown')}

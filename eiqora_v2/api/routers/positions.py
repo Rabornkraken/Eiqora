@@ -10,6 +10,11 @@ from ..models.positions import (
     ExitResponse,
 )
 from ..services.positions_service import positions_service
+from eiqora_v2.tools.broker import (
+    get_alpaca_account,
+    get_alpaca_positions,
+    _is_alpaca_configured,
+)
 
 router = APIRouter()
 
@@ -30,6 +35,28 @@ async def get_open_positions():
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch positions: {str(e)}")
+
+
+@router.get("/broker/account")
+async def get_broker_account():
+    """Return Alpaca paper trading account info."""
+    if not _is_alpaca_configured():
+        return {"configured": False}
+    account = await get_alpaca_account()
+    if account is None:
+        raise HTTPException(status_code=502, detail="Failed to fetch Alpaca account")
+    return {"configured": True, **account}
+
+
+@router.get("/broker/positions")
+async def get_broker_positions():
+    """Return all positions held on Alpaca."""
+    if not _is_alpaca_configured():
+        return {"configured": False, "positions": []}
+    positions = await get_alpaca_positions()
+    if positions is None:
+        raise HTTPException(status_code=502, detail="Failed to fetch Alpaca positions")
+    return {"configured": True, "positions": positions}
 
 
 @router.get("/{position_id}", response_model=PositionDetail)

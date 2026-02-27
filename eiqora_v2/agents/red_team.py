@@ -79,6 +79,8 @@ class RedTeamAgent(BaseAgent[RedTeamOutput]):
         sentiment = fundamental.get("sentiment", {}) if isinstance(fundamental, dict) else {}
         earnings = fundamental.get("earnings") if isinstance(fundamental, dict) else None
         insider = fundamental.get("insider") if isinstance(fundamental, dict) else None
+        analyst = fundamental.get("analyst") if isinstance(fundamental, dict) else None
+        earnings_traj = fundamental.get("earnings_trajectory") if isinstance(fundamental, dict) else None
         options = context.get("options", {}) if isinstance(context, dict) else {}
 
         event_sentiment = facts.get("sentiment") if isinstance(facts, dict) else None
@@ -106,6 +108,8 @@ class RedTeamAgent(BaseAgent[RedTeamOutput]):
             "sentiment": sentiment,
             "earnings": earnings,
             "insider": insider,
+            "analyst": analyst,
+            "earnings_trajectory": earnings_traj,
             "options": options,
             "event_sentiment": event_sentiment,
             "event_materiality": event_materiality,
@@ -229,6 +233,33 @@ class RedTeamAgent(BaseAgent[RedTeamOutput]):
         if metrics.get("event_sentiment") in ("NEGATIVE", "MIXED") and metrics.get("event_materiality") in ("HIGH", "MEDIUM"):
             scores["sentiment"] += 1.0
             add_flag("negative_event_catalyst")
+
+        # Analyst consensus signals
+        analyst = metrics.get("analyst")
+        if isinstance(analyst, dict):
+            downgrade_30d = int(analyst.get("downgrade_count_30d") or 0)
+            upside_pct = self._coerce_float(analyst.get("upside_pct"))
+
+            if downgrade_30d >= 3:
+                scores["fundamental"] += 1.0
+                add_flag("analyst_downgrades")
+            if upside_pct is not None and upside_pct < -10:
+                scores["fundamental"] += 1.0
+                add_flag("negative_analyst_upside")
+
+        # Earnings trajectory signals
+        etraj = metrics.get("earnings_trajectory")
+        if isinstance(etraj, dict):
+            if etraj.get("eps_trend") == "DECELERATING":
+                scores["fundamental"] += 0.5
+                add_flag("eps_decelerating")
+            if etraj.get("revenue_trend") == "DECELERATING":
+                scores["fundamental"] += 0.5
+                add_flag("revenue_decelerating")
+            consec = int(etraj.get("consecutive_beats") or 0)
+            if consec < -2:
+                scores["fundamental"] += 0.5
+                add_flag("consecutive_misses")
 
         total = sum(scores.values())
         total = max(0.0, min(10.0, total))
@@ -413,6 +444,14 @@ FUNDAMENTAL:
 - News Sentiment: {sentiment.get('overall', 'NEUTRAL')}
 - News Count: {sentiment.get('news_count', 0)}
 - Data Freshness: news={data_status.get('news_fresh', False)}, sec={data_status.get('sec_fresh', False)}, earnings={data_status.get('earnings_fresh', False)}
+
+ANALYST CONSENSUS:
+- Consensus: {(fundamental.get('analyst') or {}).get('consensus', 'N/A')}, Avg PT Upside: {(fundamental.get('analyst') or {}).get('upside_pct', 'N/A')}%
+- 30d Downgrades: {(fundamental.get('analyst') or {}).get('downgrade_count_30d', 0)}, 30d Upgrades: {(fundamental.get('analyst') or {}).get('upgrade_count_30d', 0)}
+
+EARNINGS TRAJECTORY:
+- Beat Rate: {(fundamental.get('earnings_trajectory') or {}).get('beat_rate', 'N/A')}%, EPS Trend: {(fundamental.get('earnings_trajectory') or {}).get('eps_trend', 'N/A')}
+- Revenue Trend: {(fundamental.get('earnings_trajectory') or {}).get('revenue_trend', 'N/A')}, Consecutive Beats: {(fundamental.get('earnings_trajectory') or {}).get('consecutive_beats', 'N/A')}
 
 UPCOMING EVENTS (Next 7 Days):
 {event_warning}

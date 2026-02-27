@@ -120,6 +120,19 @@ class IntradayBar(BaseModel):
     volume: Optional[int] = None
 
 
+class SymbolSummary(BaseModel):
+    symbol: str
+    company_name: Optional[str] = None
+    last_close: Optional[float] = None
+    change_pct: Optional[float] = None
+    volume: Optional[int] = None
+
+
+class SymbolListResponse(BaseModel):
+    symbols: List[SymbolSummary]
+    total: int
+
+
 class SymbolDetailResponse(BaseModel):
     quote: SymbolQuote
     price_history: List[PriceBar]

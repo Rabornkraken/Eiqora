@@ -89,6 +89,22 @@ def fetch_minute_bars(tickers: list[str], period: str = "1d") -> list[dict]:
         logger.warning("yf.download returned empty dataframe")
         return []
 
+    import math
+
+    def _safe_float(val, default=0.0):
+        try:
+            v = float(val)
+            return default if math.isnan(v) else v
+        except (TypeError, ValueError):
+            return default
+
+    def _safe_int(val, default=0):
+        try:
+            v = float(val)
+            return default if math.isnan(v) else int(v)
+        except (TypeError, ValueError):
+            return default
+
     all_bars: list[dict] = []
 
     # Single ticker: columns are flat (Open, High, Low, Close, Volume)
@@ -110,11 +126,11 @@ def fetch_minute_bars(tickers: list[str], period: str = "1d") -> list[dict]:
             all_bars.append({
                 "symbol": orig,
                 "datetime": dt,
-                "open": float(row.get("Open", 0) or 0),
-                "high": float(row.get("High", 0) or 0),
-                "low": float(row.get("Low", 0) or 0),
+                "open": _safe_float(row.get("Open")),
+                "high": _safe_float(row.get("High")),
+                "low": _safe_float(row.get("Low")),
                 "close": close_f,
-                "volume": int(row.get("Volume", 0) or 0),
+                "volume": _safe_int(row.get("Volume")),
             })
     else:
         for sym in yf_symbols:
@@ -134,16 +150,16 @@ def fetch_minute_bars(tickers: list[str], period: str = "1d") -> list[dict]:
                     close_f = float(close_val)
                 except (TypeError, ValueError):
                     continue
-                if close_f <= 0:
+                if close_f <= 0 or math.isnan(close_f):
                     continue
                 all_bars.append({
                     "symbol": orig,
                     "datetime": dt,
-                    "open": float(row.get("Open", 0) or 0),
-                    "high": float(row.get("High", 0) or 0),
-                    "low": float(row.get("Low", 0) or 0),
+                    "open": _safe_float(row.get("Open")),
+                    "high": _safe_float(row.get("High")),
+                    "low": _safe_float(row.get("Low")),
                     "close": close_f,
-                    "volume": int(row.get("Volume", 0) or 0),
+                    "volume": _safe_int(row.get("Volume")),
                 })
 
     logger.info(f"Fetched {len(all_bars)} 1-min bars for {len(tickers)} symbols")

@@ -1816,3 +1816,124 @@ button.primary:hover {
   white-space: nowrap;
   flex-shrink: 0;
 }
+
+/* ============================================= */
+/* Decisions Date Filter                         */
+/* ============================================= */
+
+.decisions-filter-date {
+  padding: var(--space-xs) var(--space-sm);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  border: 1px solid var(--border-light);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  outline: none;
+  border-radius: 4px;
+  width: 130px;
+}
+
+.decisions-filter-date:focus {
+  border-color: var(--chart-line);
+}
+
+.decisions-date-separator {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+/* ============================================= */
+/* Tickers List Page                             */
+/* ============================================= */
+
+.tickers-container {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  padding: var(--space-lg);
+}
+
+.tickers-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-md);
+}
+
+.tickers-header h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.tickers-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.tickers-search {
+  margin-bottom: var(--space-md);
+}
+
+.tickers-search-input {
+  width: 100%;
+  max-width: 320px;
+  padding: var(--space-sm) var(--space-md);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  outline: none;
+  border-radius: 4px;
+}
+
+.tickers-search-input:focus {
+  border-color: var(--chart-line);
+}
+
+.tickers-table-wrapper {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 70vh;
+}
+
+.tickers-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.tickers-table th {
+  text-align: left;
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--border-primary);
+  color: var(--text-muted);
+  font-weight: 500;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background-color: var(--bg-surface);
+}
+
+.tickers-table td {
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--border-light);
+  color: var(--text-primary);
+}
+
+.tickers-table tr:hover {
+  background-color: var(--bg-primary);
+  cursor: pointer;
+}
+
+.tickers-company-cell {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

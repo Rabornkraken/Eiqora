@@ -69,6 +69,7 @@ function DecisionDetails({ decision, onClose }) {
 
                             {renderAgentOutput('Top-Down Analysis', details.topdown_output)}
                             {renderAgentOutput('Context Analysis', details.context_output)}
+                            {renderAgentOutput('Fundamental Analysis', details.fundamental_output)}
                             {renderAgentOutput('Chart Analysis', details.chart_output)}
                             {renderAgentOutput('Idea Generator', details.idea_generator_output)}
                             {renderAgentOutput('Exit Policy', details.exit_policy_output)}

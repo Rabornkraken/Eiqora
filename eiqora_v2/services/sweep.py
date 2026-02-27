@@ -1,5 +1,5 @@
 """
-Batch Sweep Orchestrator - Runs analysis on all MEGA50 tickers.
+Batch Sweep Orchestrator - Runs analysis on all Eiqora universe tickers.
 
 Orchestrates:
 1. TopDown Agent (runs once, cached)
@@ -12,7 +12,7 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from eiqora_v2.config.universe import MEGA50_TICKERS, get_ticker_clusters
+from eiqora_v2.config.universe import UNIVERSE_TICKERS, get_ticker_clusters
 from eiqora_v2.graph.swing_trade import run_analysis, create_initial_state
 from eiqora_v2.config.orchestrator import OrchestratorConfig
 from eiqora_v2.agents.topdown import TopDownAgent
@@ -40,7 +40,7 @@ async def run_sweep(
     Run full sweep on all tickers.
     
     Args:
-        symbols: Tickers to analyze (defaults to MEGA50)
+        symbols: Tickers to analyze (defaults to UNIVERSE_TICKERS)
         asof_time: Point-in-time (defaults to now)
         max_concurrent: Max parallel ticker analyses
         constraints: Portfolio constraints
@@ -52,7 +52,7 @@ async def run_sweep(
         - go_signals: All GO decisions (pre-coordination)
         - portfolio: Final coordinated portfolio
     """
-    symbols = symbols or MEGA50_TICKERS
+    symbols = symbols or UNIVERSE_TICKERS
     asof_time = asof_time or datetime.utcnow()
     
     logger.info(f"Starting sweep for {len(symbols)} symbols as of {asof_time}")
@@ -185,8 +185,8 @@ async def run_sweep_cli():
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
     
-    parser = argparse.ArgumentParser(description="Run MEGA50 sweep")
-    parser.add_argument("--symbols", help="Comma-separated symbols (default: MEGA50)")
+    parser = argparse.ArgumentParser(description="Run Eiqora universe sweep")
+    parser.add_argument("--symbols", help="Comma-separated symbols (default: full universe)")
     parser.add_argument("--date", help="Date YYYY-MM-DD (default: now)")
     parser.add_argument("--max-concurrent", type=int, default=10)
     

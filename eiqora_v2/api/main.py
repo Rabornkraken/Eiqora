@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 # Router imports
-from .routers import analysis, dashboard, positions, websocket
+from .routers import analysis, calendar, dashboard, news, positions, symbol, websocket
 
 
 @asynccontextmanager
@@ -123,8 +123,11 @@ async def root():
 
 # Include routers
 app.include_router(analysis.router, prefix="/api/v1/analysis", tags=["analysis"])
+app.include_router(calendar.router, prefix="/api/v1/calendar", tags=["calendar"])
 app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
+app.include_router(news.router, prefix="/api/v1/news", tags=["news"])
 app.include_router(positions.router, prefix="/api/v1/positions", tags=["positions"])
+app.include_router(symbol.router, prefix="/api/v1/symbol", tags=["symbol"])
 app.include_router(websocket.router, prefix="/api/v1/ws", tags=["websocket"])
 
 

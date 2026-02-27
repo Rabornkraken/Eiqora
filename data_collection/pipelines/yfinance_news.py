@@ -63,11 +63,12 @@ def _extract_text(html: str) -> str:
 
 
 def _get_active_symbols(conn, limit: int | None = None) -> list[str]:
-    """Get active symbols from watchlist."""
+    """Get active symbols from universe (all active members)."""
     with conn.cursor() as cursor:
         cursor.execute("""
-            SELECT DISTINCT symbol 
-            FROM daily_watchlist 
+            SELECT symbol
+            FROM universe_member
+            WHERE active = true
             ORDER BY symbol
         """)
         symbols = [row[0] for row in cursor.fetchall()]

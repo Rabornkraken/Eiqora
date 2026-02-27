@@ -51,7 +51,11 @@ export const getDashboardStats = async () => {
 export const getEquityHistory = async (days = 30) => {
     if (isV1API) {
         const response = await api.get('/api/v1/dashboard/equity-history', { params: { days } });
-        return response.data.history || [];
+        // Map timestamp -> date for chart XAxis compatibility
+        return (response.data.history || []).map(item => ({
+            ...item,
+            date: item.timestamp,
+        }));
     }
     const response = await api.get('/api/equity-history');
     return response.data;
@@ -139,6 +143,52 @@ export const getSignals = async (limit = 10) => {
         return response.data;
     }
     return { signals: [] };
+};
+
+// Economic calendar
+export const getEconomicCalendar = async (days = 14) => {
+    const response = await api.get('/api/v1/calendar/upcoming', { params: { days } });
+    return response.data;
+};
+
+// Distinct tickers that have news
+export const getNewsTickers = async () => {
+    const response = await api.get('/api/v1/news/tickers');
+    return response.data;
+};
+
+// News feed with optional symbol filter and pagination
+export const getNews = async ({ symbol = null, page = 1, page_size = 25 } = {}) => {
+    const params = { page, page_size };
+    if (symbol) params.symbol = symbol;
+    const response = await api.get('/api/v1/news/', { params });
+    return response.data;
+};
+
+// All universe symbols with latest price data
+export const getSymbolsList = async (search = null) => {
+    const params = {};
+    if (search) params.search = search;
+    const response = await api.get('/api/v1/symbol/', { params });
+    return response.data;
+};
+
+// Symbol detail (price, indicators, news, earnings, ratings, options)
+export const getSymbolDetail = async (symbol, days = 90) => {
+    const response = await api.get(`/api/v1/symbol/${symbol}`, { params: { days } });
+    return response.data;
+};
+
+// Alpaca broker account
+export const getBrokerAccount = async () => {
+    const response = await api.get('/api/v1/positions/broker/account');
+    return response.data;
+};
+
+// Alpaca broker positions
+export const getBrokerPositions = async () => {
+    const response = await api.get('/api/v1/positions/broker/positions');
+    return response.data;
 };
 
 export default api;

@@ -38,6 +38,8 @@ class SwingTradeState(TypedDict, total=False):
     context: dict[str, Any] | None
     topdown: dict[str, Any] | None
     chart: dict[str, Any] | None
+    fundamental: dict[str, Any] | None
+    supply_chain: dict[str, Any] | None
     ideas: dict[str, Any] | None
     rules: list[dict[str, Any]] | None
     exit_policy: dict[str, Any] | None

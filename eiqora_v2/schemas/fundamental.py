@@ -7,6 +7,49 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
+class AnalystConsensus(BaseModel):
+    """Aggregated analyst rating consensus."""
+    total_ratings_90d: int = Field(default=0, description="Ratings in last 90 days")
+    avg_price_target: float | None = Field(default=None, description="Average price target")
+    upside_pct: float | None = Field(default=None, description="(avg_pt - price) / price * 100")
+    upgrade_count_30d: int = Field(default=0, description="Upgrades in last 30 days")
+    downgrade_count_30d: int = Field(default=0, description="Downgrades in last 30 days")
+    buy_count: int = Field(default=0, description="Buy-equivalent ratings")
+    hold_count: int = Field(default=0, description="Hold-equivalent ratings")
+    sell_count: int = Field(default=0, description="Sell-equivalent ratings")
+    consensus: str = Field(default="MIXED", description="BUY | HOLD | SELL | MIXED")
+    recent_actions: list[dict] = Field(default_factory=list, description="Last 5 actions")
+
+
+class EarningsTrajectory(BaseModel):
+    """Multi-quarter earnings trajectory."""
+    quarters: list[dict] = Field(default_factory=list, description="Last 8 quarters of data")
+    beat_rate: float | None = Field(default=None, description="% of quarters with EPS beat")
+    consecutive_beats: int = Field(default=0, description="Current streak (negative = misses)")
+    eps_trend: str = Field(default="INSUFFICIENT_DATA", description="ACCELERATING | DECELERATING | STABLE | INSUFFICIENT_DATA")
+    revenue_trend: str = Field(default="INSUFFICIENT_DATA", description="ACCELERATING | DECELERATING | STABLE | INSUFFICIENT_DATA")
+    quarters_available: int = Field(default=0)
+
+
+class DividendSummary(BaseModel):
+    """Dividend information from corporate actions."""
+    has_dividend: bool = Field(default=False)
+    annual_dividend: float | None = Field(default=None, description="Sum of last 4 quarterly dividends")
+    yield_pct: float | None = Field(default=None, description="annual_div / current_price * 100")
+    most_recent_amount: float | None = Field(default=None)
+    most_recent_ex_date: str | None = Field(default=None)
+    next_ex_date: str | None = Field(default=None, description="Future ex_date if exists")
+    payment_count_1y: int = Field(default=0, description="Dividends in last 12 months")
+
+
+class ProfileFundamentals(BaseModel):
+    """Structured fundamentals from ticker_profile."""
+    revenue_growth_3y: float | None = Field(default=None)
+    profitability_trend: str | None = Field(default=None)
+    valuation_summary: str | None = Field(default=None)
+    earnings_trajectory: str | None = Field(default=None, description="Narrative from profile")
+
+
 class SentimentSummary(BaseModel):
     """Aggregated sentiment from recent news."""
     overall: Literal["POSITIVE", "NEGATIVE", "NEUTRAL", "MIXED"] = Field(
@@ -81,7 +124,15 @@ class FundamentalOutput(BaseModel):
     sec_filings: SECFilingSummary | None = Field(default=None, description="SEC filing summary")
 
     insider: InsiderSummary | None = Field(default=None, description="Insider transaction summary")
-    
+
+    analyst: AnalystConsensus | None = Field(default=None, description="Analyst rating consensus")
+
+    earnings_trajectory: EarningsTrajectory | None = Field(default=None, description="Multi-quarter earnings trajectory")
+
+    dividend: DividendSummary | None = Field(default=None, description="Dividend summary")
+
+    profile_fundamentals: ProfileFundamentals | None = Field(default=None, description="Profile-based fundamentals")
+
     data_status: DataStatus = Field(description="Data freshness status")
     
     analysis_timestamp: datetime = Field(description="When analysis was performed")

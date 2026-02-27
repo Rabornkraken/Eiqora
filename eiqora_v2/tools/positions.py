@@ -15,6 +15,13 @@ from zoneinfo import ZoneInfo
 
 from eiqora_v2.tools.db import get_connection
 from eiqora_v2.tools.prices import get_indicators
+from eiqora_v2.tools.broker import (
+    submit_market_order,
+    wait_for_fill,
+    close_alpaca_position,
+    sync_account_from_alpaca,
+    _is_alpaca_configured,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -152,6 +159,22 @@ async def _refresh_account_state(
         cash_balance = state.get("starting_equity", DEFAULT_STARTING_EQUITY)
 
     base_equity = state.get("starting_equity") or DEFAULT_STARTING_EQUITY
+
+    # Alpaca sync: if configured and ALL active positions are broker-managed,
+    # override cash_balance with Alpaca's actual cash.
+    if _is_alpaca_configured():
+        legacy_count = await conn.fetchval(
+            "SELECT COUNT(*) FROM position WHERE status = 'ACTIVE' AND alpaca_order_id IS NULL"
+        )
+        if legacy_count == 0:
+            synced = await sync_account_from_alpaca(conn, account_id)
+            if synced:
+                refreshed = await conn.fetchrow(
+                    "SELECT cash_balance FROM account_state WHERE account_id = $1",
+                    account_id,
+                )
+                if refreshed:
+                    cash_balance = float(refreshed["cash_balance"])
 
     rows = await conn.fetch(
         """
@@ -390,9 +413,27 @@ async def open_position(
     time_stop_date = entry_time + timedelta(days=time_stop_days)
     time_stop_date_db = _to_naive_utc(time_stop_date)
 
+    # When Alpaca is configured, use broker equity/cash for sizing
+    from eiqora_v2.tools.broker import get_alpaca_account as _get_alpaca_acct
+
+    alpaca_equity = None
+    alpaca_cash = None
+    if _is_alpaca_configured():
+        try:
+            _acct = await _get_alpaca_acct()
+            if _acct:
+                alpaca_equity = float(_acct.get("equity", 0))
+                alpaca_cash = float(_acct.get("cash", 0))
+                logger.info(
+                    "Using Alpaca account for sizing: equity=$%.2f, cash=$%.2f",
+                    alpaca_equity, alpaca_cash,
+                )
+        except Exception as exc:
+            logger.warning("Alpaca account fetch failed, falling back to DB: %s", exc)
+
     async with get_connection() as conn:
         account_state = await _ensure_account_state(conn)
-        base_equity = account_state.get("equity") or account_state.get("starting_equity") or DEFAULT_STARTING_EQUITY
+        base_equity = alpaca_equity or account_state.get("equity") or account_state.get("starting_equity") or DEFAULT_STARTING_EQUITY
         notional_value = None
         shares = None
         position_size_pct = _normalize_position_pct(position_size_pct)
@@ -420,7 +461,7 @@ async def open_position(
 
         # --- Cash check BEFORE inserting position row ---
         if notional_value is not None:
-            cash_balance = account_state.get("cash_balance")
+            cash_balance = alpaca_cash if alpaca_cash is not None else account_state.get("cash_balance")
             if cash_balance is None:
                 cash_balance = base_equity
             cash_balance = float(cash_balance)
@@ -491,6 +532,40 @@ async def open_position(
                 cash_balance,
             )
             await _refresh_account_state(conn, asof_time=entry_time)
+
+        # --- Alpaca paper trade ---
+        if position_id and shares and _is_alpaca_configured():
+            side = "SELL" if direction == "SHORT" else "BUY"
+            # Round shares to int for whole-share orders
+            order_qty = int(shares)
+            if order_qty > 0:
+                order = await submit_market_order(symbol, order_qty, side)
+                if order and order.get("order_id"):
+                    fill = await wait_for_fill(order["order_id"])
+                    alpaca_order_id = order["order_id"]
+                    fill_price = None
+                    if fill and fill.get("filled_avg_price"):
+                        fill_price = fill["filled_avg_price"]
+                    await conn.execute(
+                        """
+                        UPDATE position
+                        SET alpaca_order_id = $2,
+                            entry_price = COALESCE($3, entry_price),
+                            current_price = COALESCE($3, current_price),
+                            last_updated = NOW()
+                        WHERE position_id = $1
+                        """,
+                        position_id,
+                        alpaca_order_id,
+                        fill_price,
+                    )
+                    logger.info(
+                        "Alpaca order %s for %s: fill_price=%s",
+                        alpaca_order_id, symbol, fill_price,
+                    )
+                else:
+                    logger.warning("Alpaca order submission failed for %s; DB position kept", symbol)
+
         logger.info("Opened position %s for %s", position_id, symbol)
         return str(position_id) if position_id else None
 
@@ -640,6 +715,15 @@ async def close_position(
                 realized_total,
             )
             await _refresh_account_state(conn, asof_time=exit_time)
+
+        # --- Alpaca: close position on broker (only for broker-managed positions) ---
+        alpaca_order_id = row.get("alpaca_order_id") if isinstance(row, dict) else getattr(row, "alpaca_order_id", None)
+        if alpaca_order_id and _is_alpaca_configured():
+            close_result = await close_alpaca_position(row["symbol"])
+            if close_result:
+                logger.info("Alpaca position closed for %s: %s", row["symbol"], close_result)
+            else:
+                logger.warning("Alpaca close failed for %s; DB close stands", row["symbol"])
 
         return {
             "position_id": str(row["position_id"]),

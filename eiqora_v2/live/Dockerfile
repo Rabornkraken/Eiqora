@@ -23,5 +23,5 @@ COPY data_collection/ ./data_collection/
 ENV PYTHONUNBUFFERED=1
 ENV TZ=America/New_York
 
-# Run live scheduler
-CMD ["python", "-m", "eiqora_v2.live.scheduler"]
+# Run live pipeline (trigger dispatcher + polling + account refresh)
+CMD ["python", "-m", "eiqora_v2.live.pipeline"]

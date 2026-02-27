@@ -1,6 +1,7 @@
 """
 Analysis Router - REST endpoints for stock analysis
 """
+from datetime import date
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
 
@@ -71,23 +72,29 @@ async def get_analysis(analysis_id: str):
 
 @router.get("/", response_model=AnalysisListResponse)
 async def list_analyses(
-    limit: int = Query(20, ge=1, le=100, description="Maximum number of analyses to return"),
+    limit: int = Query(100, ge=1, le=500, description="Maximum number of analyses to return"),
     status: Optional[str] = Query(None, description="Filter by status (running, completed, failed)"),
+    start_date: Optional[date] = Query(None, description="Filter from date (inclusive)"),
+    end_date: Optional[date] = Query(None, description="Filter to date (inclusive)"),
 ):
     """
     List recent analyses
 
-    Retrieve a list of recent analyses, optionally filtered by status.
+    Retrieve a list of recent analyses, optionally filtered by status and date range.
 
     Args:
-        limit: Maximum number of analyses to return (1-100)
+        limit: Maximum number of analyses to return (1-500)
         status: Filter by status (optional)
+        start_date: Filter from date inclusive (optional)
+        end_date: Filter to date inclusive (optional)
 
     Returns:
         AnalysisListResponse with list of analyses
     """
     try:
-        analyses = await analysis_service.list_analyses(limit=limit, status=status)
+        analyses = await analysis_service.list_analyses(
+            limit=limit, status=status, start_date=start_date, end_date=end_date
+        )
 
         return AnalysisListResponse(
             analyses=analyses,

@@ -5,7 +5,7 @@ Integrates with eiqora_v2 orchestrators
 import uuid
 import json
 from uuid import UUID
-from datetime import datetime
+from datetime import date, datetime
 from typing import Dict, Any, Optional
 import asyncio
 
@@ -239,13 +239,21 @@ class AnalysisService:
 
         return None
 
-    async def list_analyses(self, limit: int = 20, status: Optional[str] = None) -> list:
+    async def list_analyses(
+        self,
+        limit: int = 20,
+        status: Optional[str] = None,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> list:
         """
         List analyses from database
 
         Args:
             limit: Maximum number of analyses to return
             status: Filter by status (optional)
+            start_date: Filter from date inclusive (optional)
+            end_date: Filter to date inclusive (optional)
 
         Returns:
             List of AnalysisResponse
@@ -254,7 +262,7 @@ class AnalysisService:
             from eiqora_v2.tools.db import get_connection
 
             async with get_connection() as conn:
-                # Query analysis_log from database
+                # Query analysis_log from database with optional date filters
                 rows = await conn.fetch(
                     """
                     SELECT
@@ -266,10 +274,14 @@ class AnalysisService:
                         decision_reason,
                         decision_output
                     FROM analysis_log
+                    WHERE ($2::date IS NULL OR analysis_date >= $2)
+                      AND ($3::date IS NULL OR analysis_date <= $3)
                     ORDER BY analysis_time DESC
                     LIMIT $1
                     """,
                     limit,
+                    start_date,
+                    end_date,
                 )
 
                 return [

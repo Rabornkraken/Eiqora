@@ -38,7 +38,7 @@ function Header() {
         <header className="header">
             <div style={{ width: '100%', padding: '0 32px' }}>
                 <div className="header-content flex items-center">
-                    <div className="logo" style={{ marginRight: '120px' }}>EIQORA</div>
+                    <div className="logo" style={{ marginRight: '120px' }}>GoAI</div>
 
                     {!loading && stats && (
                         <div className="stats-grid">

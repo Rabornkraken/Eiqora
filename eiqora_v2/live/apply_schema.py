@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS position (
     exit_reason TEXT,
     exit_type VARCHAR(20),
     signal_id UUID,
+    alpaca_order_id TEXT,
     created_at TIMESTAMP DEFAULT NOW(),
     last_updated TIMESTAMP DEFAULT NOW()
 );

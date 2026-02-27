@@ -17,6 +17,8 @@ from eiqora_v2.api.models.symbol import (
     OptionsSnapshot,
     FundamentalSummary,
     SymbolDetailResponse,
+    SymbolSummary,
+    SymbolListResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -33,6 +35,88 @@ def _int(val) -> Optional[int]:
 
 
 class SymbolService:
+    async def list_symbols(self, search: Optional[str] = None) -> SymbolListResponse:
+        """List all active universe symbols with latest price data."""
+        try:
+            async with get_connection() as conn:
+                if search:
+                    search_pattern = f"%{search.upper()}%"
+                    rows = await conn.fetch(
+                        """
+                        SELECT
+                            u.symbol,
+                            b.close AS last_close,
+                            CASE WHEN b.close IS NOT NULL AND b_prev.close IS NOT NULL AND b_prev.close > 0
+                                 THEN ROUND(((b.close - b_prev.close) / b_prev.close * 100)::numeric, 2)
+                                 ELSE NULL
+                            END AS change_pct,
+                            b.volume
+                        FROM universe_member u
+                        LEFT JOIN LATERAL (
+                            SELECT date, close, volume
+                            FROM market_bar_daily
+                            WHERE symbol = u.symbol
+                            ORDER BY date DESC
+                            LIMIT 1
+                        ) b ON true
+                        LEFT JOIN LATERAL (
+                            SELECT close
+                            FROM market_bar_daily
+                            WHERE symbol = u.symbol AND date < b.date
+                            ORDER BY date DESC
+                            LIMIT 1
+                        ) b_prev ON true
+                        WHERE u.active = true
+                          AND u.symbol ILIKE $1
+                        ORDER BY u.symbol
+                        """,
+                        search_pattern,
+                    )
+                else:
+                    rows = await conn.fetch(
+                        """
+                        SELECT
+                            u.symbol,
+                            b.close AS last_close,
+                            CASE WHEN b.close IS NOT NULL AND b_prev.close IS NOT NULL AND b_prev.close > 0
+                                 THEN ROUND(((b.close - b_prev.close) / b_prev.close * 100)::numeric, 2)
+                                 ELSE NULL
+                            END AS change_pct,
+                            b.volume
+                        FROM universe_member u
+                        LEFT JOIN LATERAL (
+                            SELECT date, close, volume
+                            FROM market_bar_daily
+                            WHERE symbol = u.symbol
+                            ORDER BY date DESC
+                            LIMIT 1
+                        ) b ON true
+                        LEFT JOIN LATERAL (
+                            SELECT close
+                            FROM market_bar_daily
+                            WHERE symbol = u.symbol AND date < b.date
+                            ORDER BY date DESC
+                            LIMIT 1
+                        ) b_prev ON true
+                        WHERE u.active = true
+                        ORDER BY u.symbol
+                        """
+                    )
+
+                symbols = [
+                    SymbolSummary(
+                        symbol=r["symbol"],
+                        last_close=_float(r["last_close"]),
+                        change_pct=_float(r["change_pct"]),
+                        volume=_int(r["volume"]),
+                    )
+                    for r in rows
+                ]
+                return SymbolListResponse(symbols=symbols, total=len(symbols))
+        except Exception as e:
+            logger.error(f"Failed to list symbols: {e}")
+            return SymbolListResponse(symbols=[], total=0)
+
     async def get_symbol_detail(
         self, symbol: str, days: int = 90
     ) -> Optional[SymbolDetailResponse]:
@@ -86,13 +170,17 @@ class SymbolService:
                     for r in price_rows
                 ]
 
-                # 1b. Intraday 1-minute bars (today)
+                # 1b. Intraday 1-minute bars (latest trading day)
                 intraday_rows = await conn.fetch(
                     """
                     SELECT datetime, open, high, low, close, volume
                     FROM market_bar_1min
                     WHERE symbol = $1
-                      AND datetime::date = CURRENT_DATE
+                      AND datetime::date = (
+                          SELECT MAX(datetime::date)
+                          FROM market_bar_1min
+                          WHERE symbol = $1
+                      )
                     ORDER BY datetime ASC
                     """,
                     symbol,

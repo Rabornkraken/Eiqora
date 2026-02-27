@@ -4,29 +4,55 @@ import EquityChart from './components/EquityChart';
 import DecisionsTable from './components/DecisionsTable';
 import Portfolio from './components/Portfolio';
 import TradingHistory from './components/TradingHistory';
+import TickersList from './components/TickersList';
 import Watchlist from './components/Watchlist';
+import EconomicCalendar from './components/EconomicCalendar';
+import NewsFeed from './components/NewsFeed';
+import SymbolDetail from './components/SymbolDetail';
+import AlpacaPortfolio from './components/AlpacaPortfolio';
 
 function App() {
-  // Initialize state from URL query param or default to 'equity'
-  const getInitialTab = () => {
+  // Initialize state from URL query params
+  const getInitialState = () => {
     const params = new URLSearchParams(window.location.search);
-    return params.get('view') || 'equity';
+    const view = params.get('view') || 'equity';
+    const symbol = params.get('symbol') || null;
+    return { view, symbol };
   };
 
-  const [activeTab, setActiveTabState] = useState(getInitialTab);
+  const [activeTab, setActiveTabState] = useState(() => getInitialState().view);
+  const [selectedSymbol, setSelectedSymbol] = useState(() => getInitialState().symbol);
 
-  // Handle URL updates and conflicting state
-  const setActiveTab = (tab) => {
+  // Handle URL updates
+  const setActiveTab = (tab, symbol = null) => {
     setActiveTabState(tab);
+    setSelectedSymbol(symbol);
     const url = new URL(window.location);
     url.searchParams.set('view', tab);
+    if (symbol) {
+      url.searchParams.set('symbol', symbol);
+    } else {
+      url.searchParams.delete('symbol');
+    }
     window.history.pushState({}, '', url);
+  };
+
+  // Handle symbol click from watchlist
+  const handleSymbolClick = (symbol) => {
+    setActiveTab('symbol', symbol);
+  };
+
+  // Handle back from symbol detail
+  const handleBackFromSymbol = () => {
+    setActiveTab('equity');
   };
 
   // Listen for browser back/forward navigation
   useEffect(() => {
     const handlePopState = () => {
-      setActiveTabState(getInitialTab());
+      const { view, symbol } = getInitialState();
+      setActiveTabState(view);
+      setSelectedSymbol(symbol);
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -63,21 +89,54 @@ function App() {
                 Trading History
               </button>
             </li>
+            <li>
+              <button
+                className={`tab-button ${activeTab === 'tickers' ? 'active' : ''}`}
+                onClick={() => setActiveTab('tickers')}
+              >
+                Tickers
+              </button>
+            </li>
+            <li>
+              <button
+                className={`tab-button ${activeTab === 'alpaca' ? 'active' : ''}`}
+                onClick={() => setActiveTab('alpaca')}
+              >
+                Alpaca
+              </button>
+            </li>
+            <li className="tab-spacer"></li>
+            <li>
+              <button
+                className={`tab-button ${activeTab === 'news' ? 'active' : ''}`}
+                onClick={() => setActiveTab('news')}
+              >
+                News
+              </button>
+            </li>
           </ul>
         </div>
       </nav>
 
       <main className="container">
+        {activeTab === 'symbol' && selectedSymbol && (
+          <div className="tab-content">
+            <SymbolDetail symbol={selectedSymbol} onBack={handleBackFromSymbol} />
+          </div>
+        )}
+
         {activeTab === 'equity' && (
           <div className="tab-content">
             <div className="chart-section">
               <EquityChart />
             </div>
 
+            <EconomicCalendar />
+
             {/* Side-by-side Watchlist and Decisions */}
             <div className="two-column-grid">
               <div className="column-left">
-                <Watchlist />
+                <Watchlist onSymbolClick={handleSymbolClick} />
               </div>
               <div className="column-right">
                 <div className="decisions-section">
@@ -95,9 +154,27 @@ function App() {
           </div>
         )}
 
+        {activeTab === 'news' && (
+          <div className="tab-content">
+            <NewsFeed />
+          </div>
+        )}
+
         {activeTab === 'history' && (
           <div className="tab-content">
             <TradingHistory />
+          </div>
+        )}
+
+        {activeTab === 'tickers' && (
+          <div className="tab-content">
+            <TickersList onSymbolClick={handleSymbolClick} />
+          </div>
+        )}
+
+        {activeTab === 'alpaca' && (
+          <div className="tab-content">
+            <AlpacaPortfolio />
           </div>
         )}
       </main>

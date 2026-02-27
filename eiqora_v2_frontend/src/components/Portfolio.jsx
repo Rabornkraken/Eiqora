@@ -2,11 +2,37 @@ import React, { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { getPositions, getAccount } from '../services/api';
 
+function formatSGT(dateValue) {
+    if (!dateValue) return '-';
+    const d = new Date(dateValue);
+    if (isNaN(d.getTime())) return '-';
+    return d.toLocaleString('en-SG', { timeZone: 'Asia/Singapore', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+function SortHeader({ label, sortKey, sortConfig, onSort }) {
+    const isActive = sortConfig.key === sortKey;
+    const arrow = isActive ? (sortConfig.dir === 'asc' ? ' ▲' : ' ▼') : '';
+    return (
+        <th onClick={() => onSort(sortKey)} style={{ cursor: 'pointer', userSelect: 'none' }}>
+            {label}{arrow}
+        </th>
+    );
+}
+
 function Portfolio() {
     const [positions, setPositions] = useState([]);
     const [account, setAccount] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [sortConfig, setSortConfig] = useState({ key: null, dir: 'desc' });
+
+    const handleSort = (key) => {
+        setSortConfig(prev => {
+            if (prev.key !== key) return { key, dir: 'desc' };
+            if (prev.dir === 'desc') return { key, dir: 'asc' };
+            return { key: null, dir: 'desc' };
+        });
+    };
 
     useEffect(() => {
         const fetchData = async () => {
@@ -48,6 +74,24 @@ function Portfolio() {
         const shares = pos.shares || (priceChange !== 0 ? pos.unrealized_pnl / priceChange : 1);
         const market_value = pos.market_value || (pos.current_price * shares);
         return { ...pos, shares, market_value };
+    });
+
+    const sortedPositions = [...processedPositions].sort((a, b) => {
+        if (!sortConfig.key) return 0;
+        const key = sortConfig.key;
+        let aVal = key === 'pnl' ? (a.unrealized_pnl || 0)
+                 : key === 'pnl_pct' ? (a.unrealized_pnl_pct || 0)
+                 : key === 'entry_date' ? new Date(a.entry_date).getTime()
+                 : (a[key] ?? 0);
+        let bVal = key === 'pnl' ? (b.unrealized_pnl || 0)
+                 : key === 'pnl_pct' ? (b.unrealized_pnl_pct || 0)
+                 : key === 'entry_date' ? new Date(b.entry_date).getTime()
+                 : (b[key] ?? 0);
+        if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+        if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+        if (aVal < bVal) return sortConfig.dir === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortConfig.dir === 'asc' ? 1 : -1;
+        return 0;
     });
 
     const totalPositionsValue = processedPositions.reduce((sum, pos) => sum + (pos.market_value || 0), 0);
@@ -158,18 +202,18 @@ function Portfolio() {
                     <table>
                         <thead>
                             <tr>
-                                <th>Company</th>
-                                <th>Shares</th>
-                                <th>Entry Price</th>
-                                <th>Current Price</th>
-                                <th>Market Value</th>
-                                <th>P&L</th>
-                                <th>P&L %</th>
-                                <th>Entry Date</th>
+                                <SortHeader label="Company" sortKey="symbol" sortConfig={sortConfig} onSort={handleSort} />
+                                <SortHeader label="Shares" sortKey="shares" sortConfig={sortConfig} onSort={handleSort} />
+                                <SortHeader label="Entry Price" sortKey="entry_price" sortConfig={sortConfig} onSort={handleSort} />
+                                <SortHeader label="Current Price" sortKey="current_price" sortConfig={sortConfig} onSort={handleSort} />
+                                <SortHeader label="Market Value" sortKey="market_value" sortConfig={sortConfig} onSort={handleSort} />
+                                <SortHeader label="P&L" sortKey="pnl" sortConfig={sortConfig} onSort={handleSort} />
+                                <SortHeader label="P&L %" sortKey="pnl_pct" sortConfig={sortConfig} onSort={handleSort} />
+                                <SortHeader label="Entry Date" sortKey="entry_date" sortConfig={sortConfig} onSort={handleSort} />
                             </tr>
                         </thead>
                         <tbody>
-                            {processedPositions.map((position) => {
+                            {sortedPositions.map((position) => {
                                 const pnl = position.unrealized_pnl || (position.market_value - (position.entry_price * position.shares));
                                 const pnlPercent = position.unrealized_pnl_pct || ((position.current_price - position.entry_price) / position.entry_price) * 100;
                                 const isProfitable = pnl >= 0;
@@ -205,7 +249,7 @@ function Portfolio() {
                                             {pnlPercent >= 0 ? '+' : ''}{pnlPercent.toFixed(2)}%
                                         </td>
                                         <td className="text-muted text-sm">
-                                            {new Date(position.entry_date).toLocaleDateString()}
+                                            {formatSGT(position.entry_date)}
                                         </td>
                                     </tr>
                                 );

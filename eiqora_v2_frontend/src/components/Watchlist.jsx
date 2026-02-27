@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getWatchlist } from '../services/api';
 
-function Watchlist() {
+function Watchlist({ onSymbolClick }) {
     const [watchlist, setWatchlist] = useState([]);
     const [scanDate, setScanDate] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -75,7 +75,11 @@ function Watchlist() {
                         </thead>
                         <tbody>
                             {watchlist.map((item) => (
-                                <tr key={item.symbol}>
+                                <tr
+                                    key={item.symbol}
+                                    onClick={() => onSymbolClick && onSymbolClick(item.symbol)}
+                                    style={{ cursor: onSymbolClick ? 'pointer' : undefined }}
+                                >
                                     <td className="symbol-cell">
                                         <div className="symbol-with-logo">
                                             <img

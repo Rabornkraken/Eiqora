@@ -13,7 +13,7 @@ from rich.panel import Panel
 from rich.syntax import Syntax
 
 from eiqora_v2.graph.swing_trade import run_analysis
-from eiqora_v2.config.universe import MEGA50_TICKERS, is_mega50_ticker
+from eiqora_v2.config.universe import UNIVERSE_TICKERS, is_universe_ticker
 from eiqora_v2.tools.db import close_pool
 
 console = Console()
@@ -39,8 +39,8 @@ async def run_command(symbol: str, date_str: str | None, verbose: bool):
         asof_time = datetime.utcnow()
     
     # Validate symbol
-    if not is_mega50_ticker(symbol):
-        console.print(f"[yellow]Warning: {symbol} is not in MEGA50 universe[/yellow]")
+    if not is_universe_ticker(symbol):
+        console.print(f"[yellow]Warning: {symbol} is not in Eiqora universe[/yellow]")
     
     console.print(f"\n[bold blue]Running analysis for {symbol}[/bold blue]")
     console.print(f"As of: {asof_time}")
@@ -121,11 +121,11 @@ async def run_command(symbol: str, date_str: str | None, verbose: bool):
 
 
 async def list_tickers_command():
-    """List all MEGA50 tickers."""
-    console.print("\n[bold]MEGA50 Universe[/bold]\n")
-    for i, ticker in enumerate(MEGA50_TICKERS, 1):
+    """List all Eiqora universe tickers."""
+    console.print("\n[bold]Eiqora Universe[/bold]\n")
+    for i, ticker in enumerate(UNIVERSE_TICKERS, 1):
         console.print(f"  {i:2}. {ticker}")
-    console.print(f"\nTotal: {len(MEGA50_TICKERS)} tickers")
+    console.print(f"\nTotal: {len(UNIVERSE_TICKERS)} tickers")
 
 
 def main():
@@ -141,7 +141,7 @@ def main():
     run_parser.add_argument("--verbose", "-v", action="store_true", help="Verbose logging")
     
     # List command
-    subparsers.add_parser("list", help="List MEGA50 tickers")
+    subparsers.add_parser("list", help="List Eiqora universe tickers")
     
     args = parser.parse_args()
     

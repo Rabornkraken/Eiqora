@@ -66,7 +66,16 @@ class CandidateSelector:
             indicators = await get_indicators(symbol, 60, asof_time)
             if indicators.get("error"):
                 return 0.0, {"error": "No data"}
-            
+
+            # ATR% minimum filter — skip low-volatility names
+            atr14 = indicators.get("atr14")
+            current_price = indicators.get("current_price", 0)
+            if atr14 and current_price and current_price > 0:
+                atr_pct = atr14 / current_price * 100
+                if atr_pct < 1.5:
+                    _logger.debug(f"{symbol}: Skipped — ATR%={atr_pct:.2f} < 1.5")
+                    return 0.0, {"skip_reason": "low_volatility", "atr_pct": round(atr_pct, 2)}
+
             scores: dict[str, float] = {}
             total = 0.0
 

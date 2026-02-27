@@ -114,11 +114,65 @@ class LiveTradingPipeline:
             _logger.info(f"⏭️  Skipping already processed trigger: {trigger.symbol} {trigger.trigger_type}")
             return None
 
-        # Skip analysis if we already have an active position
+        # Skip analysis if we already have an active position (DB or Alpaca)
         if await has_open_position(trigger.symbol):
-            _logger.info(f"⏭️  Skipping trigger for {trigger.symbol} (active position)")
+            _logger.info(f"⏭️  Skipping trigger for {trigger.symbol} (active position in DB)")
             return None
-        
+
+        from eiqora_v2.tools.broker import _is_alpaca_configured, get_alpaca_positions, get_alpaca_account
+        if _is_alpaca_configured():
+            try:
+                alpaca_positions = await get_alpaca_positions()
+                if alpaca_positions:
+                    alpaca_symbols = {p["symbol"] for p in alpaca_positions}
+                    if trigger.symbol in alpaca_symbols:
+                        _logger.info(f"⏭️  Skipping trigger for {trigger.symbol} (active position on Alpaca)")
+                        return None
+            except Exception:
+                pass  # Fallback: DB check above is sufficient
+
+        # Skip analysis if no cash available (avoids wasting 10-agent LLM pipeline)
+        # Prefer Alpaca account when configured (real trading capital)
+        cash = 0.0
+        equity = 0.0
+        if _is_alpaca_configured():
+            try:
+                alpaca_acct = await get_alpaca_account()
+                if alpaca_acct:
+                    cash = float(alpaca_acct.get("cash", 0))
+                    equity = float(alpaca_acct.get("equity", 0))
+            except Exception:
+                alpaca_acct = None
+            if not alpaca_acct:
+                from eiqora_v2.tools.db import get_connection
+                async with get_connection() as conn:
+                    acct = await conn.fetchrow("SELECT cash_balance, equity FROM account_state LIMIT 1")
+                if acct:
+                    cash = float(acct["cash_balance"] or 0)
+                    equity = float(acct["equity"] or 0)
+        else:
+            from eiqora_v2.tools.db import get_connection
+            async with get_connection() as conn:
+                acct = await conn.fetchrow("SELECT cash_balance, equity FROM account_state LIMIT 1")
+            if acct:
+                cash = float(acct["cash_balance"] or 0)
+                equity = float(acct["equity"] or 0)
+
+        if equity > 0:
+            min_cash = max(equity * 0.005, 50)  # 0.5% of equity or $50, whichever is larger
+            if cash < min_cash:
+                _logger.info("⏭️  Skipping %s — insufficient cash ($%.0f < $%.0f min)", trigger.symbol, cash, min_cash)
+                await log_suppressed_trigger(
+                    symbol=trigger.symbol,
+                    trigger_type=trigger.trigger_type,
+                    trigger_detail=trigger.details,
+                    detected_at=trigger.detected_at,
+                    suppressed_reason=f"insufficient_cash cash=${cash:.0f}",
+                    technical_score=trigger.details.get("technical_score"),
+                    profile_score=trigger.details.get("profile_score"),
+                )
+                return None
+
         _logger.info(f"Processing trigger: {trigger}")
         start_time = time.time()
         
@@ -225,16 +279,22 @@ class LiveTradingPipeline:
             direction = rule.get("direction", "LONG")
             time_stop_days = rule.get("time_stop_days", 30)
             
-            # Entry price from rule or context
+            # Entry price: prefer real-time Finnhub quote, then hourly bar
             entry_price = rule.get("entry_level") or context.get("current_price") or 0
 
-            hourly_data = market_data.get("hourly_indicators") or {}
-            hourly_price = hourly_data.get("current_price")
-            if hourly_price and not hourly_data.get("error"):
-                try:
-                    entry_price = float(hourly_price)
-                except (TypeError, ValueError):
-                    pass
+            from eiqora_v2.tools.quote import get_finnhub_quote
+
+            quote_price = await get_finnhub_quote(trigger.symbol)
+            if quote_price is not None:
+                entry_price = quote_price
+            else:
+                hourly_data = market_data.get("hourly_indicators") or {}
+                hourly_price = hourly_data.get("current_price")
+                if hourly_price and not hourly_data.get("error"):
+                    try:
+                        entry_price = float(hourly_price)
+                    except (TypeError, ValueError):
+                        pass
 
             if not entry_price or entry_price <= 0:
                 _logger.warning("No valid entry price for %s; skipping GO signal", trigger.symbol)
@@ -708,6 +768,67 @@ class LiveTradingPipeline:
                 _logger.error("Polling dispatch failed: %s", exc, exc_info=True)
             await asyncio.sleep(interval)
 
+    async def run_profile_refresh_loop(
+        self,
+        check_interval_seconds: int = 3600,
+        max_age_days: int = 7,
+        concurrency: int = 5,
+    ) -> None:
+        """Refresh stale ticker profiles (>max_age_days old).
+
+        Checks once per hour; only regenerates profiles that are actually stale.
+        """
+        from eiqora_v2.services.profile_generator import ProfileGenerator
+        from eiqora_v2.tools.db import get_connection
+
+        generator = ProfileGenerator()
+        _logger.info(
+            "Profile refresh loop: check every %ss, max_age=%sd, concurrency=%s",
+            check_interval_seconds, max_age_days, concurrency,
+        )
+
+        while True:
+            try:
+                async with get_connection() as conn:
+                    rows = await conn.fetch(
+                        "SELECT symbol FROM universe_member WHERE active = true ORDER BY symbol"
+                    )
+                symbols = [r["symbol"] for r in rows]
+                if not symbols:
+                    _logger.debug("No active universe symbols; skipping profile refresh")
+                    await asyncio.sleep(check_interval_seconds)
+                    continue
+
+                sem = asyncio.Semaphore(concurrency)
+                refreshed, fresh, failed = 0, 0, 0
+                cutoff = datetime.utcnow() - __import__("datetime").timedelta(days=max_age_days)
+
+                async def _refresh(sym: str) -> None:
+                    nonlocal refreshed, fresh, failed
+                    async with sem:
+                        try:
+                            profile = await generator._load_profile(sym)
+                            if profile and profile.last_updated and profile.last_updated.replace(tzinfo=None) >= cutoff:
+                                fresh += 1
+                                return
+                            age_label = "missing" if profile is None else f"{(datetime.utcnow() - profile.last_updated.replace(tzinfo=None)).days}d"
+                            _logger.info("Refreshing profile: %s (age=%s)", sym, age_label)
+                            await generator.generate_profile(sym)
+                            refreshed += 1
+                        except Exception as exc:
+                            failed += 1
+                            _logger.warning("Profile refresh failed for %s: %s", sym, exc)
+
+                await asyncio.gather(*(_refresh(s) for s in symbols))
+                _logger.info(
+                    "Profile refresh: refreshed=%s fresh=%s failed=%s total=%s",
+                    refreshed, fresh, failed, len(symbols),
+                )
+            except Exception as exc:
+                _logger.warning("Profile refresh loop error: %s", exc)
+
+            await asyncio.sleep(check_interval_seconds)
+
     async def run_account_refresh_loop(self, interval_seconds: int | None = None) -> None:
         """Periodically refresh account_state and account_snapshot."""
         interval = ACCOUNT_REFRESH_SECONDS if interval_seconds is None else interval_seconds
@@ -756,6 +877,9 @@ async def main():
 
     refresh_task = asyncio.create_task(pipeline.run_account_refresh_loop())
     background_tasks.append(refresh_task)
+
+    profile_task = asyncio.create_task(pipeline.run_profile_refresh_loop())
+    background_tasks.append(profile_task)
 
     if mode == "notify":
         # Hybrid: listen for DB notifications + periodic polling fallback

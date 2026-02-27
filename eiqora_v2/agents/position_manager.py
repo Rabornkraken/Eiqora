@@ -120,31 +120,117 @@ class PositionManagerAgent(BaseAgent[PositionManagerOutput]):
             "stop_loss": stop_loss,
         }
         
-        # Get current positions from database
+        # Get current positions — prefer Alpaca when configured, merge with DB legacy
+        from eiqora_v2.tools.db import get_connection
+        from eiqora_v2.tools.broker import get_alpaca_account, get_alpaca_positions, _is_alpaca_configured
+
         positions = []
-        try:
-            open_positions = await get_open_positions()
-            for pos in open_positions:
-                positions.append({
-                    "symbol": pos["symbol"],
-                    "entry_price": float(pos.get("entry_price") or 0),
-                    "current_price": float(pos.get("current_price") or pos.get("entry_price") or 0),
-                    "pnl_pct": float(pos.get("unrealized_pnl_pct") or 0),
-                    "size_pct": float(pos.get("size_pct") or 10.0),
-                    "days_held": int(pos.get("days_held") or 0),
-                })
-        except Exception as e:
-            self._logger.debug(f"No existing positions found: {e}")
-            positions = []
-        
-        # Calculate portfolio metrics
+        if _is_alpaca_configured():
+            # Alpaca positions (real broker state)
+            try:
+                alpaca_positions = await get_alpaca_positions()
+                if alpaca_positions:
+                    for pos in alpaca_positions:
+                        mkt_val = float(pos.get("market_value") or 0)
+                        positions.append({
+                            "symbol": pos["symbol"],
+                            "source": "alpaca",
+                            "entry_price": float(pos.get("avg_entry_price") or 0),
+                            "current_price": float(pos.get("current_price") or 0),
+                            "pnl_pct": float(pos.get("unrealized_plpc") or 0) * 100,
+                            "size_pct": 0,  # calculated below once we have equity
+                            "market_value": mkt_val,
+                            "days_held": 0,
+                        })
+            except Exception as e:
+                self._logger.debug(f"Alpaca positions fetch failed: {e}")
+
+            # DB legacy positions (no alpaca_order_id) — still active during migration
+            try:
+                async with get_connection() as conn:
+                    legacy_rows = await conn.fetch(
+                        "SELECT symbol FROM position WHERE status = 'ACTIVE' AND alpaca_order_id IS NULL"
+                    )
+                alpaca_symbols = {p["symbol"] for p in positions}
+                legacy_positions = await get_open_positions()
+                for pos in legacy_positions:
+                    if pos["symbol"] not in alpaca_symbols:
+                        positions.append({
+                            "symbol": pos["symbol"],
+                            "source": "db_legacy",
+                            "entry_price": float(pos.get("entry_price") or 0),
+                            "current_price": float(pos.get("current_price") or pos.get("entry_price") or 0),
+                            "pnl_pct": float(pos.get("unrealized_pnl_pct") or 0),
+                            "size_pct": float(pos.get("size_pct") or 0.10) * 100,
+                            "market_value": 0,
+                            "days_held": int(pos.get("days_held") or 0),
+                        })
+            except Exception as e:
+                self._logger.debug(f"DB legacy positions fetch failed: {e}")
+        else:
+            try:
+                open_positions = await get_open_positions()
+                for pos in open_positions:
+                    positions.append({
+                        "symbol": pos["symbol"],
+                        "source": "db",
+                        "entry_price": float(pos.get("entry_price") or 0),
+                        "current_price": float(pos.get("current_price") or pos.get("entry_price") or 0),
+                        "pnl_pct": float(pos.get("unrealized_pnl_pct") or 0),
+                        "size_pct": float(pos.get("size_pct") or 0.10) * 100,
+                        "market_value": 0,
+                        "days_held": int(pos.get("days_held") or 0),
+                    })
+            except Exception as e:
+                self._logger.debug(f"No existing positions found: {e}")
+
+        cash_balance = 0.0
+        equity = 10000.0
+        if _is_alpaca_configured():
+            try:
+                alpaca_acct = await get_alpaca_account()
+                if alpaca_acct:
+                    cash_balance = float(alpaca_acct.get("cash", 0))
+                    equity = float(alpaca_acct.get("equity", 0))
+            except Exception as e:
+                self._logger.debug(f"Alpaca account fetch failed, falling back to DB: {e}")
+                alpaca_acct = None
+            if not alpaca_acct:
+                # Fallback to DB if Alpaca call fails
+                try:
+                    async with get_connection() as conn:
+                        acct = await conn.fetchrow("SELECT cash_balance, equity FROM account_state LIMIT 1")
+                    if acct:
+                        cash_balance = float(acct["cash_balance"] or 0)
+                        equity = float(acct["equity"] or 10000)
+                except Exception as e:
+                    self._logger.debug(f"Could not fetch account state: {e}")
+        else:
+            try:
+                async with get_connection() as conn:
+                    acct = await conn.fetchrow("SELECT cash_balance, equity FROM account_state LIMIT 1")
+                if acct:
+                    cash_balance = float(acct["cash_balance"] or 0)
+                    equity = float(acct["equity"] or 10000)
+            except Exception as e:
+                self._logger.debug(f"Could not fetch account state: {e}")
+
+        # Calculate size_pct for Alpaca positions now that we have equity
+        if equity > 0:
+            for p in positions:
+                if p.get("source") == "alpaca" and p.get("market_value"):
+                    p["size_pct"] = (p["market_value"] / equity) * 100
+
         total_exposure = sum(p["size_pct"] for p in positions)
-        
+        available_capital_pct = (cash_balance / equity * 100) if equity > 0 else 0.0
+
         return {
             "proposed_trade": proposed_trade,
             "current_positions": positions,
             "total_exposure_pct": total_exposure,
-            "available_capital_pct": 100 - total_exposure,
+            "available_capital_pct": available_capital_pct,
+            "cash_balance": cash_balance,
+            "equity": equity,
             "topdown": state.get("topdown", {}),
             "risk_model": risk_model_output,
         }
@@ -198,7 +284,7 @@ MARKET CONTEXT:
 CURRENT PORTFOLIO:
 - Open positions: {len(positions)}
 - Total exposure: {exposure:.1f}%
-- Available capital: {available:.1f}%
+- Available capital: {available:.1f}% (${data.get('cash_balance', 0):,.0f} of ${data.get('equity', 0):,.0f})
 
 Positions:
 {positions_text}
