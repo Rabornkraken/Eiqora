@@ -72,6 +72,14 @@ class SignalManager:
 
             actual_id = str(row["id"]) if row else signal_id
 
+            # Notify Telegram bot of GO signals
+            if signal.get("action") == "GO":
+                await conn.execute(
+                    "SELECT pg_notify($1, $2)",
+                    "eiqora_signal",
+                    json.dumps({"signal_id": actual_id, "symbol": signal["symbol"]}),
+                )
+
             _logger.info(
                 f"Stored signal: {signal['symbol']} {signal['trigger_type']} "
                 f"@ ${signal.get('entry_price', 0):.2f}"

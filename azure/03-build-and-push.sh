@@ -58,11 +58,21 @@ docker buildx build --platform linux/amd64 \
 echo -e "${GREEN}✓ Live Scheduler image built & pushed${NC}"
 echo ""
 
+# Build and push Telegram Bot image for linux/amd64
+echo -e "${YELLOW}Building & pushing Telegram Bot image (linux/amd64)...${NC}"
+docker buildx build --platform linux/amd64 \
+  -t $ACR_NAME.azurecr.io/eiqora-telegram-bot:latest \
+  -f eiqora_v2/telegram/Dockerfile \
+  --push .
+echo -e "${GREEN}✓ Telegram Bot image built & pushed${NC}"
+echo ""
+
 echo -e "${GREEN}=== Build & Push Complete ===${NC}"
 echo ""
 echo "Images pushed to $ACR_NAME.azurecr.io:"
 echo "  - eiqora-api:latest"
 echo "  - eiqora-data-scheduler:latest"
 echo "  - eiqora-live-scheduler:latest"
+echo "  - eiqora-telegram-bot:latest"
 echo ""
 echo -e "${YELLOW}Next step:${NC} Run ./04-deploy-apps.sh"

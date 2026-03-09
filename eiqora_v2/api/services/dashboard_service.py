@@ -194,25 +194,17 @@ class DashboardService:
 
     async def get_system_stats(self) -> SystemStats:
         """
-        Get system statistics
+        Get system statistics.
 
-        Returns:
-            SystemStats with system metrics
+        Uses Alpaca broker data (when configured) for live equity/P&L,
+        falls back to DB account_state otherwise.
         """
         try:
             from eiqora_v2.tools.db import get_connection
+            from eiqora_v2.tools.broker import _is_alpaca_configured, get_alpaca_account, get_alpaca_positions
 
             async with get_connection() as conn:
-                # Query active positions count
-                positions_count = await conn.fetchval(
-                    """
-                    SELECT COUNT(*)
-                    FROM position
-                    WHERE status = 'ACTIVE'
-                    """
-                )
-
-                # Query closed trades count and stats
+                # Only count Alpaca-managed closed trades (live system)
                 closed_stats = await conn.fetchrow(
                     """
                     SELECT
@@ -221,12 +213,12 @@ class DashboardService:
                         SUM(realized_pnl) as total_pnl
                     FROM position
                     WHERE status = 'CLOSED'
+                      AND alpaca_order_id IS NOT NULL
                     """
                 )
 
                 total_trades = closed_stats["total_closed"] or 0
                 wins = closed_stats["wins"] or 0
-                total_pnl = float(closed_stats["total_pnl"] or 0)
 
                 # Calculate win rate
                 win_rate_str = None
@@ -234,43 +226,67 @@ class DashboardService:
                     win_rate_pct = (wins / total_trades) * 100
                     win_rate_str = f"{win_rate_pct:.1f}%"
 
-                # Get account state for equity
+                # Get starting_equity from DB
                 account = await conn.fetchrow(
-                    """
-                    SELECT equity, realized_pnl, unrealized_pnl, starting_equity
-                    FROM account_state
-                    LIMIT 1
-                    """
+                    "SELECT starting_equity FROM account_state LIMIT 1"
                 )
+                starting = float(account["starting_equity"] or 100000) if account else 100000
 
-                current_equity_str = None
-                total_return_str = None
-                if account:
-                    equity = float(account["equity"] or 0)
-                    starting = float(account["starting_equity"] or 10000)
-                    realized = float(account["realized_pnl"] or 0)
-                    unrealized = float(account["unrealized_pnl"] or 0)
+            # Prefer Alpaca for live data
+            equity = 0.0
+            unrealized = 0.0
+            positions_count = 0
 
-                    current_equity_str = f"${equity:,.2f}"
+            if _is_alpaca_configured():
+                try:
+                    alpaca_acct = await get_alpaca_account()
+                    if alpaca_acct:
+                        equity = float(alpaca_acct.get("equity", 0))
+                except Exception:
+                    alpaca_acct = None
 
-                    # Total return = (current equity - starting) / starting * 100
-                    if starting > 0:
-                        total_return_pct = ((equity - starting) / starting) * 100
-                        sign = "+" if total_return_pct >= 0 else ""
-                        total_return_str = f"{sign}{total_return_pct:.2f}%"
+                try:
+                    alpaca_positions = await get_alpaca_positions()
+                    if alpaca_positions:
+                        positions_count = len(alpaca_positions)
+                        unrealized = sum(
+                            float(p.get("unrealized_pl", 0)) for p in alpaca_positions
+                        )
+                except Exception:
+                    pass
 
-                return SystemStats(
-                    total_trades=total_trades,
-                    active_positions=positions_count or 0,
-                    win_rate=win_rate_str,
-                    total_return=total_return_str,
-                    current_equity=current_equity_str,
-                    sharpe_ratio=None,  # Would require daily returns calculation
-                    last_updated=datetime.utcnow(),
-                )
+            # Fallback to DB if Alpaca not configured or failed
+            if not equity:
+                async with get_connection() as conn:
+                    db_acct = await conn.fetchrow(
+                        "SELECT equity, unrealized_pnl FROM account_state LIMIT 1"
+                    )
+                    if db_acct:
+                        equity = float(db_acct["equity"] or 0)
+                        unrealized = float(db_acct["unrealized_pnl"] or 0)
+                    positions_count = await conn.fetchval(
+                        "SELECT COUNT(*) FROM position WHERE status = 'ACTIVE'"
+                    ) or 0
+
+            current_equity_str = f"${equity:,.2f}" if equity else None
+            total_return_str = None
+            if starting > 0 and equity:
+                total_return_pct = ((equity - starting) / starting) * 100
+                sign = "+" if total_return_pct >= 0 else ""
+                total_return_str = f"{sign}{total_return_pct:.2f}%"
+
+            return SystemStats(
+                total_trades=total_trades,
+                active_positions=positions_count,
+                win_rate=win_rate_str,
+                total_return=total_return_str,
+                current_equity=current_equity_str,
+                unrealized_pnl=unrealized,
+                sharpe_ratio=None,
+                last_updated=datetime.utcnow(),
+            )
 
         except Exception as e:
-            # If database query fails, return default stats
             print(f"Error fetching system stats: {e}")
             return SystemStats(
                 total_trades=0,
@@ -362,6 +378,7 @@ class DashboardService:
                         exit_type
                     FROM position
                     WHERE status = 'CLOSED'
+                      AND alpaca_order_id IS NULL
                     ORDER BY exit_date DESC
                     LIMIT $1
                     """,
@@ -423,7 +440,7 @@ class DashboardService:
                         "equity": float(row["equity"] or 0),
                         "unrealized_pnl": float(row["unrealized_pnl"] or 0),
                         "realized_pnl": float(row["realized_pnl"] or 0),
-                        "starting_equity": float(row["starting_equity"] or 10000),
+                        "starting_equity": float(row["starting_equity"] or 100000),
                         "positions_count": row["positions_count"] or 0,
                     }
                 else:
@@ -432,7 +449,7 @@ class DashboardService:
                         "equity": 0,
                         "unrealized_pnl": 0,
                         "realized_pnl": 0,
-                        "starting_equity": 10000,
+                        "starting_equity": 100000,
                         "positions_count": 0,
                     }
 
@@ -443,7 +460,7 @@ class DashboardService:
                 "equity": 0,
                 "unrealized_pnl": 0,
                 "realized_pnl": 0,
-                "starting_equity": 10000,
+                "starting_equity": 100000,
                 "positions_count": 0,
             }
 

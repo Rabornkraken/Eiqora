@@ -69,6 +69,7 @@ set_secret "ALPHAVANTAGE-API-KEY" "ALPHAVANTAGE_API_KEY" "false"
 set_secret "TAVILY-API-KEY" "TAVILY_API_KEY" "false"
 set_secret "BENZINGA-API-KEY" "BENZINGA_API_KEY" "false"
 set_secret "FMP-API-KEY" "FinancialModelingPrep_API_KEY" "false"
+set_secret "TELEGRAM-BOT-TOKEN" "TELEGRAM_BOT_TOKEN" "false"
 
 echo ""
 echo -e "${GREEN}=== Secrets Setup Complete ===${NC}"

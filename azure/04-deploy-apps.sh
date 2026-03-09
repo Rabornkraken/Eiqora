@@ -34,6 +34,7 @@ ALPACA_SECRET=$(az keyvault secret show --vault-name $KEYVAULT_NAME --name "ALPA
 FRED_KEY=$(az keyvault secret show --vault-name $KEYVAULT_NAME --name "FRED-API-KEY" --query "value" -o tsv 2>/dev/null || echo "")
 ALPHAVANTAGE_KEY=$(az keyvault secret show --vault-name $KEYVAULT_NAME --name "ALPHAVANTAGE-API-KEY" --query "value" -o tsv 2>/dev/null || echo "")
 FINNHUB_KEY=$(az keyvault secret show --vault-name $KEYVAULT_NAME --name "FINNHUB-API-KEY" --query "value" -o tsv 2>/dev/null || echo "")
+TELEGRAM_TOKEN=$(az keyvault secret show --vault-name $KEYVAULT_NAME --name "TELEGRAM-BOT-TOKEN" --query "value" -o tsv 2>/dev/null || echo "")
 
 echo -e "${GREEN}✓ Secrets retrieved${NC}"
 echo ""
@@ -120,12 +121,40 @@ az containerapp create \
 echo -e "${GREEN}✓ Live Scheduler deployed${NC}"
 echo ""
 
+# 4. Deploy Telegram Bot
+if [ -n "$TELEGRAM_TOKEN" ]; then
+    echo -e "${YELLOW}Deploying Telegram Bot...${NC}"
+    az containerapp create \
+        --resource-group $RESOURCE_GROUP \
+        --name eiqora-telegram-bot \
+        --environment $CONTAINER_ENV \
+        --image $ACR_NAME.azurecr.io/eiqora-telegram-bot:latest \
+        --registry-server $ACR_NAME.azurecr.io \
+        --registry-username $ACR_USERNAME \
+        --registry-password "$ACR_PASSWORD" \
+        --cpu 0.25 \
+        --memory 0.5Gi \
+        --min-replicas 1 \
+        --max-replicas 1 \
+        --env-vars \
+            "DATABASE_URL=$DATABASE_URL" \
+            "TELEGRAM_BOT_TOKEN=$TELEGRAM_TOKEN" \
+            "TZ=America/New_York" \
+        --output none
+
+    echo -e "${GREEN}✓ Telegram Bot deployed${NC}"
+else
+    echo -e "${YELLOW}⚠ Skipping Telegram Bot (no TELEGRAM-BOT-TOKEN in Key Vault)${NC}"
+fi
+echo ""
+
 echo -e "${GREEN}=== Deployment Complete ===${NC}"
 echo ""
 echo "Deployed apps:"
 echo "  - API Server: https://$API_URL"
 echo "  - Data Scheduler: Running (no external ingress)"
 echo "  - Live Scheduler: Running (no external ingress)"
+echo "  - Telegram Bot: Running (no external ingress)"
 echo ""
 echo -e "${YELLOW}Next steps:${NC}"
 echo "1. Run database migrations: ./05-run-migrations.sh"
