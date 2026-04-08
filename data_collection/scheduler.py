@@ -132,12 +132,14 @@ def create_scheduler() -> BlockingScheduler:
         minute=0,
     )
     
-    # Daily OHLCV Bars - After market close at 6 PM ET
+    # Daily OHLCV Bars - After market close at 6 PM ET.
+    # Switched from Stooq to yfinance after Stooq started blocking
+    # unauthenticated requests in early 2026.
     scheduler.add_job(
         run_pipeline,
         'cron',
-        args=['data_collection.pipelines.stooq_daily', 'run'],
-        id='stooq_daily',
+        args=['data_collection.pipelines.yf_daily', 'run'],
+        id='yf_daily',
         hour=18,
         minute=30,
     )
@@ -346,7 +348,7 @@ def run_startup_pipelines():
     # Critical pipelines to run at startup (module, command, env_vars)
     startup_pipelines = [
         ('data_collection.pipelines.universe', 'run', {}),
-        ('data_collection.pipelines.stooq_daily', 'run', {}),  # Update market_bar_daily
+        ('data_collection.pipelines.yf_daily', 'run', {}),  # Update market_bar_daily (yfinance, replaced Stooq)
         ('data_collection.pipelines.vix', 'run', {}),
         ('data_collection.pipelines.earnings', 'run', {}),
         ('data_collection.pipelines.analyst_ratings', 'run', {}),

@@ -23,8 +23,8 @@ echo ""
 
 echo "[2/5] Collecting market data..."
 python -c "
-from data_collection.pipelines.stooq_daily import main
-main()
+from data_collection.pipelines.yf_daily import run as yf_run
+yf_run()
 print('✅ Daily bars updated')
 " 2>&1 | tail -3
 echo ""

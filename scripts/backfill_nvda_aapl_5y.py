@@ -44,10 +44,10 @@ def _patch_config(temp_config_path: Path) -> None:
 
 
 def _backfill_daily_bars(start: date, end: date) -> None:
-    from data_collection.pipelines import stooq_daily
+    from data_collection.pipelines import yf_daily
 
     logging.info("Backfilling daily bars for %s", ", ".join(SYMBOLS))
-    stooq_daily.backfill(start, end, symbols_override=SYMBOLS)
+    yf_daily.backfill(start, end, symbols_override=SYMBOLS)
 
 
 def _backfill_vix(start: date, end: date) -> None:

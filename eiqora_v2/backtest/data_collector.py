@@ -90,16 +90,16 @@ class BacktestDataCollector:
             logger.warning(f"    ⚠️ {name} error: {e}")
     
     def collect_daily_bars(self):
-        """Collect daily OHLCV bars from Stooq."""
-        logger.info("📊 Collecting daily OHLCV bars (Stooq)...")
-        
-        # stooq_daily expects --symbols as comma-separated string
+        """Collect daily OHLCV bars from yfinance."""
+        logger.info("📊 Collecting daily OHLCV bars (yfinance)...")
+
+        # yf_daily expects --symbols as comma-separated string
         symbols_str = ",".join(self.tickers)
-        
+
         self._run_pipeline(
-            "stooq_daily",
+            "yf_daily",
             [
-                sys.executable, "-m", "data_collection.pipelines.stooq_daily",
+                sys.executable, "-m", "data_collection.pipelines.yf_daily",
                 "backfill",
                 "--start", self.start_date.isoformat(),
                 "--end", self.end_date.isoformat(),

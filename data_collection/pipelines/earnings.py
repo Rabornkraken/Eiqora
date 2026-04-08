@@ -807,6 +807,79 @@ def _upsert_events(conn, rows: list[dict[str, object]]) -> None:
             values,
         )
 
+    # ----- Day-shift dedup ---------------------------------------------------
+    # NASDAQ records earnings on the actual filing date (which can be after-
+    # hours on day D). yfinance_cal records the same event on day D+1 (the
+    # next trading session, when the market reacts). Both rows describe the
+    # same earnings report, so we treat NASDAQ as authoritative and drop any
+    # yfinance_cal sibling row that sits within ±1 day for the same symbol.
+    #
+    # We also dedupe nasdaq-vs-nasdaq pairs that land within ±1 day of each
+    # other for the same symbol (this happens when NASDAQ retroactively
+    # updates an estimate on the next-day calendar entry). The row with
+    # `time_of_day` set is more authoritative; we keep it and drop the other.
+    #
+    # This runs every time _upsert_events fires so a fresh ingest cleans up
+    # any stale duplicates left behind from earlier runs.
+    with conn.cursor() as cursor:
+        cursor.execute(
+            """
+            DELETE FROM earnings_event yf
+            USING earnings_event nq
+            WHERE nq.symbol = yf.symbol
+              AND nq.source = 'nasdaq'
+              AND yf.source = 'yfinance_cal'
+              AND yf.earnings_date <> nq.earnings_date
+              AND yf.earnings_date BETWEEN nq.earnings_date - INTERVAL '1 day'
+                                       AND nq.earnings_date + INTERVAL '1 day'
+            """
+        )
+        cross_source_deleted = cursor.rowcount
+
+        # NASDAQ-vs-NASDAQ dedup. Two-stage:
+        #   1. If one row has time_of_day and the other doesn't, keep the one
+        #      with time_of_day (more authoritative).
+        #   2. Otherwise (both have time_of_day, or neither does), keep the
+        #      earlier date — that's typically when NASDAQ first published the
+        #      entry; the next-day row is a re-fetch artifact.
+        cursor.execute(
+            """
+            DELETE FROM earnings_event b
+            USING earnings_event a
+            WHERE a.symbol = b.symbol
+              AND a.source = 'nasdaq'
+              AND b.source = 'nasdaq'
+              AND a.earnings_date <> b.earnings_date
+              AND a.earnings_date BETWEEN b.earnings_date - INTERVAL '1 day'
+                                      AND b.earnings_date + INTERVAL '1 day'
+              AND a.time_of_day IS NOT NULL
+              AND b.time_of_day IS NULL
+            """
+        )
+        nasdaq_time_deleted = cursor.rowcount
+
+        cursor.execute(
+            """
+            DELETE FROM earnings_event b
+            USING earnings_event a
+            WHERE a.symbol = b.symbol
+              AND a.source = 'nasdaq'
+              AND b.source = 'nasdaq'
+              AND a.earnings_date < b.earnings_date
+              AND b.earnings_date = a.earnings_date + INTERVAL '1 day'
+              AND ((a.time_of_day IS NOT NULL AND b.time_of_day IS NOT NULL)
+                   OR (a.time_of_day IS NULL AND b.time_of_day IS NULL))
+            """
+        )
+        nasdaq_earlier_deleted = cursor.rowcount
+
+        total_deleted = cross_source_deleted + nasdaq_time_deleted + nasdaq_earlier_deleted
+        if total_deleted:
+            _logger.info(
+                "earnings dedup: removed %s day-shifted duplicates (%s yfinance_cal, %s nasdaq-time, %s nasdaq-earlier)",
+                total_deleted, cross_source_deleted, nasdaq_time_deleted, nasdaq_earlier_deleted,
+            )
+
 
 def main() -> None:
     if not logging.getLogger().handlers:
