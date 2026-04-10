@@ -24,21 +24,27 @@ BLACKOUT_EVENTS = [
 
 async def check_macro_blackout(asof_time: datetime, hours_ahead: int = 6) -> tuple[bool, str | None]:
     """
-    Check if there's a high-impact macro event in the next N hours.
-    
+    Check if there's a high-impact macro event within a time window.
+
+    The blackout runs from ``hours_ahead`` hours BEFORE the event through
+    2 hours AFTER. Once the post-event window expires, trading resumes.
+    This prevents a pre-market CPI release (8:30 AM) from blanking the
+    entire afternoon.
+
     Returns:
         (is_blackout, event_name)
     """
-    end_time = asof_time + timedelta(hours=hours_ahead)
-    
+    from zoneinfo import ZoneInfo
+
+    EASTERN_TZ = ZoneInfo("America/New_York")
+    POST_EVENT_BUFFER_HOURS = 2
+
     try:
         async with get_connection() as conn:
-            # Check if table has any data
             count = await conn.fetchval("SELECT COUNT(*) FROM economic_event")
             if count == 0:
-                # Table exists but empty - not a blackout
                 return False, None
-            
+
             events = await conn.fetch("""
                 SELECT event_name, event_date, event_time, impact
                 FROM economic_event
@@ -46,21 +52,52 @@ async def check_macro_blackout(asof_time: datetime, hours_ahead: int = 6) -> tup
                   AND impact = 'HIGH'
                 ORDER BY event_date, event_time
             """, asof_time.date())
-            
+
+            now_et = asof_time.astimezone(EASTERN_TZ) if asof_time.tzinfo else asof_time
+
             for event in events:
                 event_name = event['event_name']
-                # Check if this is a blackout event
-                for blackout_trigger in BLACKOUT_EVENTS:
-                    if blackout_trigger.lower() in event_name.lower():
+                is_trigger = any(
+                    bt.lower() in event_name.lower() for bt in BLACKOUT_EVENTS
+                )
+                if not is_trigger:
+                    continue
+
+                event_time = event.get('event_time')
+                if event_time is not None:
+                    event_dt = datetime.combine(
+                        event['event_date'], event_time, tzinfo=EASTERN_TZ
+                    )
+                    blackout_start = event_dt - timedelta(hours=hours_ahead)
+                    blackout_end = event_dt + timedelta(hours=POST_EVENT_BUFFER_HOURS)
+
+                    if blackout_start <= now_et <= blackout_end:
                         logger.warning(
-                            f"MACRO BLACKOUT: {event_name} today (impact={event['impact']})"
+                            "MACRO BLACKOUT: %s at %s ET (window %s-%s, now=%s)",
+                            event_name,
+                            event_time.strftime("%H:%M"),
+                            blackout_start.strftime("%H:%M"),
+                            blackout_end.strftime("%H:%M"),
+                            now_et.strftime("%H:%M"),
                         )
                         return True, event_name
-            
+                    else:
+                        logger.info(
+                            "Macro event %s at %s ET - outside blackout window (now=%s)",
+                            event_name,
+                            event_time.strftime("%H:%M"),
+                            now_et.strftime("%H:%M"),
+                        )
+                else:
+                    logger.warning(
+                        "MACRO BLACKOUT: %s today (no event_time, full-day blackout)",
+                        event_name,
+                    )
+                    return True, event_name
+
             return False, None
-            
+
     except Exception as e:
-        # Table doesn't exist or error - log at debug level and continue
         logger.debug(f"Economic event check skipped: {e}")
         return False, None
 
