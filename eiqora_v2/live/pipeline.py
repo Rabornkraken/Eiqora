@@ -379,7 +379,15 @@ class LiveTradingPipeline:
                     position_size_pct = size_val
                 except (TypeError, ValueError):
                     position_size_pct = None
-            
+
+            # Apply market regime position size adjustment
+            if position_size_pct is not None:
+                regime_multiplier = trigger.details.get("position_size_multiplier", 1.0)
+                if regime_multiplier < 1.0:
+                    original = position_size_pct
+                    position_size_pct = position_size_pct * regime_multiplier
+                    _logger.info(f"Regime adjustment: {original:.4f} * {regime_multiplier:.2f} = {position_size_pct:.4f}")
+
             signal = {
                 "symbol": trigger.symbol,
                 "signal_date": trigger.detected_at.date(),

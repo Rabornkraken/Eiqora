@@ -329,45 +329,25 @@ class CandidateSelector:
         """
         _logger.info(f"Building watchlist at {scan_time}")
         
-        # MACRO SAFEGUARD: Check VIX regime and adjust threshold
+        # MACRO SAFEGUARD: Market regime gating (SPY trend + VIX + RSI)
+        from eiqora_v2.services.market_regime_service import compute_market_regime
+        regime = None
         try:
-            from eiqora_v2.tools.prices import get_indicators
-            vix_symbol = "IDX_VIX"
-            vix_indicators = await get_indicators(vix_symbol, 20, scan_time)
-            if vix_indicators.get("error"):
-                vix_indicators = await get_indicators("VIX", 20, scan_time)
-            vix_level = vix_indicators.get("current_price", 15) if vix_indicators else 15
-            
-            # Dynamic threshold based on VIX
-            if vix_level > 30:
-                adjusted_threshold = 0.70  # High vol: be very selective
-                _logger.warning(f"⚠️  HIGH VOL REGIME: VIX={vix_level:.1f}, threshold ↑ {adjusted_threshold}")
-            elif vix_level > 20:
-                adjusted_threshold = 0.60  # Moderate vol: slightly selective
-                _logger.info(f"MODERATE VOL: VIX={vix_level:.1f}, threshold ↑ {adjusted_threshold}")
-            else:
-                adjusted_threshold = self.threshold  # Normal regime
-                _logger.info(f"NORMAL REGIME: VIX={vix_level:.1f}, threshold = {adjusted_threshold}")
-        except Exception as e:
-            _logger.warning(f"Could not check VIX, using default threshold: {e}")
-            adjusted_threshold = self.threshold
+            regime = await compute_market_regime(scan_time)
+            _logger.info(
+                f"Market regime: {regime.regime} (composite={regime.composite_score:.2f}, "
+                f"SPY={regime.spy_close}, VIX={regime.vix_level}, "
+                f"RSI={regime.spy_rsi:.1f if regime.spy_rsi is not None else 'N/A'})"
+            )
+            if regime.regime == "BEAR":
+                _logger.warning(f"BEAR REGIME: No new longs. {regime.reason}")
+                return []
 
-        # MACRO YIELD REGIME CHECK (IEF/TLT)
-        try:
-            from eiqora_v2.tools.market_regime import get_market_regime
-            regime = await get_market_regime(scan_time)
-            
-            if regime["mode"] == "RISK_OFF":
-                adjusted_threshold = max(adjusted_threshold, 0.80)
-                _logger.warning(f"🛑 RISK OFF REGIME (Yields/Vol): Multiplier={regime['risk_multiplier']}, threshold ↑ {adjusted_threshold}")
-            elif regime["mode"] == "CAUTIOUS":
-                adjusted_threshold = max(adjusted_threshold, 0.65) 
-                _logger.warning(f"⚠️ CAUTIOUS REGIME (Rising Yields): threshold ↑ {adjusted_threshold}")
-            else:
-                _logger.info(f"YIELD REGIME: {regime['mode']}, Trend={regime['yield_trend']}")
-                
+            adjusted_threshold = self.threshold + regime.threshold_adjustment
+            adjusted_threshold = max(0.40, min(0.90, adjusted_threshold))
         except Exception as e:
-            _logger.warning(f"Yield regime check failed: {e}")
+            _logger.warning(f"Market regime check failed, using default threshold: {e}")
+            adjusted_threshold = self.threshold
         
         # Get universe symbols
         universe = self.load_universe()
@@ -431,6 +411,8 @@ class CandidateSelector:
                     "technical_breakdown": tech_breakdown,
                     "profile_breakdown": profile_breakdown,
                     "added_at": scan_time,
+                    "regime": regime.regime if regime else "NEUTRAL",
+                    "position_size_multiplier": regime.position_size_multiplier if regime else 1.0,
                 })
         
         # Bulk save logs
