@@ -114,6 +114,22 @@ class LiveTradingPipeline:
             _logger.info(f"⏭️  Skipping already processed trigger: {trigger.symbol} {trigger.trigger_type}")
             return None
 
+        # Skip analysis if portfolio is at or above max capacity.
+        # This avoids wasting the expensive 10-agent LLM pipeline when
+        # there's no room to open a new position anyway.
+        MAX_POSITIONS = 10  # MEGA_CORE default; multi-portfolio uses portfolio.max_positions
+        from eiqora_v2.tools.db import get_connection as _get_conn
+        async with _get_conn() as _conn:
+            active_count = await _conn.fetchval(
+                "SELECT COUNT(*) FROM position WHERE status = 'ACTIVE'"
+            )
+        if active_count >= MAX_POSITIONS:
+            _logger.info(
+                "⏭️  Skipping %s — portfolio at capacity (%d/%d active positions)",
+                trigger.symbol, active_count, MAX_POSITIONS,
+            )
+            return None
+
         # Skip analysis if we already have an active position (DB or Alpaca)
         if await has_open_position(trigger.symbol):
             _logger.info(f"⏭️  Skipping trigger for {trigger.symbol} (active position in DB)")
