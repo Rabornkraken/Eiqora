@@ -351,37 +351,66 @@ class DashboardService:
             print(f"Error fetching equity history: {e}")
             return []
 
-    async def get_trading_history(self, limit: int = 50) -> List[dict]:
+    async def get_trading_history(self, limit: int = 50, source: str = "alpaca") -> List[dict]:
         """
-        Get trading history (closed positions)
+        Get trading history (closed positions).
 
         Args:
-            limit: Maximum number of trades to return
+            limit: Maximum number of trades to return.
+            source: ``'alpaca'`` for broker-matched buy/sell pairs (live trades),
+                ``'legacy'`` for closed rows in the DB ``position`` table that
+                predate Alpaca integration. Defaults to ``'alpaca'`` so the
+                main Trading History view surfaces real broker activity.
 
         Returns:
-            List of closed trades
+            List of closed trades.
         """
+        if source == "alpaca":
+            try:
+                from eiqora_v2.tools.broker import _is_alpaca_configured, get_alpaca_closed_trades
+
+                if not _is_alpaca_configured():
+                    return []
+
+                trades = await get_alpaca_closed_trades()
+                if not trades:
+                    return []
+
+                # Shape to match legacy response so the frontend renders both
+                # sources identically (pnl, pnl_pct, direction, dates).
+                return [
+                    {
+                        "position_id": t.get("order_id") or f"{t.get('symbol')}-{t.get('exit_date', '')}",
+                        "symbol": t.get("symbol"),
+                        "direction": t.get("direction", "LONG"),
+                        "entry_date": t.get("entry_date"),
+                        "exit_date": t.get("exit_date"),
+                        "entry_price": float(t.get("entry_price") or 0),
+                        "exit_price": float(t.get("exit_price") or 0),
+                        "shares": float(t.get("shares") or 0) or None,
+                        "position_size_pct": 0.0,
+                        "realized_pnl": float(t.get("realized_pnl") or 0),
+                        "realized_pnl_pct": float(t.get("realized_pnl_pct") or 0),
+                        "exit_reason": "alpaca_close",
+                        "exit_type": None,
+                    }
+                    for t in trades[:limit]
+                ]
+            except Exception as e:
+                print(f"Error fetching Alpaca trading history: {e}")
+                return []
+
+        # source == 'legacy': closed DB positions with no alpaca_order_id
         try:
             from eiqora_v2.tools.db import get_connection
 
             async with get_connection() as conn:
-                # Query closed positions
                 rows = await conn.fetch(
                     """
                     SELECT
-                        position_id,
-                        symbol,
-                        direction,
-                        entry_date,
-                        exit_date,
-                        entry_price,
-                        exit_price,
-                        shares,
-                        position_size_pct,
-                        realized_pnl,
-                        realized_pnl_pct,
-                        exit_reason,
-                        exit_type
+                        position_id, symbol, direction, entry_date, exit_date,
+                        entry_price, exit_price, shares, position_size_pct,
+                        realized_pnl, realized_pnl_pct, exit_reason, exit_type
                     FROM position
                     WHERE status = 'CLOSED'
                       AND alpaca_order_id IS NULL

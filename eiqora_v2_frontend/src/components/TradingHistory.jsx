@@ -18,7 +18,7 @@ function SortHeader({ label, sortKey, sortConfig, onSort }) {
     );
 }
 
-function TradingHistory() {
+function TradingHistory({ legacy = false }) {
     const [trades, setTrades] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -35,7 +35,9 @@ function TradingHistory() {
     useEffect(() => {
         const fetchHistory = async () => {
             try {
-                const data = await getTradingHistory();
+                setLoading(true);
+                const source = legacy ? 'legacy' : 'alpaca';
+                const data = await getTradingHistory(50, source);
                 setTrades(data);
                 setError(null);
             } catch (err) {
@@ -47,7 +49,7 @@ function TradingHistory() {
         };
 
         fetchHistory();
-    }, []);
+    }, [legacy]);
 
     if (loading) {
         return <div className="loading">Loading trading history...</div>;

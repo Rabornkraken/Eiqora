@@ -14,36 +14,21 @@ const api = axios.create({
     },
 });
 
-// Dashboard statistics
+// Dashboard statistics. The /stats endpoint is now fully Alpaca-sourced
+// (unrealized_pnl + active_positions + equity), so the header values
+// match what the Portfolio view shows.
 export const getDashboardStats = async () => {
     const endpoint = isV1API ? '/api/v1/dashboard/stats' : '/api/dashboard-stats';
     const response = await api.get(endpoint);
-
-    // Also fetch account state for equity info
-    let accountData = {};
-    if (isV1API) {
-        try {
-            const positionsResp = await api.get('/api/v1/positions/open');
-            accountData = {
-                total_unrealized_pnl: positionsResp.data.total_unrealized_pnl || 0,
-                total_positions: positionsResp.data.total || 0
-            };
-        } catch (e) {
-            console.error('Failed to fetch positions for stats:', e);
-        }
-    }
-
     const data = response.data;
-    // Transform API response to match frontend expectations
-    // API returns pre-formatted strings for win_rate, total_return, etc.
     return {
         total_trades: data.total_trades || data.total_analyses || 0,
         win_rate: data.win_rate || null,
         total_return: data.total_return || null,
         current_equity: data.current_equity || null,
         sharpe_ratio: data.sharpe_ratio || null,
-        active_positions: data.active_positions || accountData.total_positions || 0,
-        unrealized_pnl: data.unrealized_pnl ?? accountData.total_unrealized_pnl ?? 0
+        active_positions: data.active_positions || 0,
+        unrealized_pnl: data.unrealized_pnl ?? 0,
     };
 };
 
@@ -88,10 +73,11 @@ export const getPositions = async () => {
     return response.data;
 };
 
-// Trading history
-export const getTradingHistory = async (limit = 50) => {
+// Trading history. source='alpaca' (default) for broker-matched trades,
+// source='legacy' for DB-only pre-broker rows.
+export const getTradingHistory = async (limit = 50, source = 'alpaca') => {
     if (isV1API) {
-        const response = await api.get('/api/v1/dashboard/trading-history', { params: { limit } });
+        const response = await api.get('/api/v1/dashboard/trading-history', { params: { limit, source } });
         return response.data.trades || [];
     }
     const response = await api.get('/api/trading-history');

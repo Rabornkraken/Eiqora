@@ -69,5 +69,6 @@ class SystemStats(BaseModel):
     win_rate: Optional[str] = Field(None, description="Win rate as formatted string")
     total_return: Optional[str] = Field(None, description="Total return as formatted string")
     current_equity: Optional[str] = Field(None, description="Current equity as formatted string")
+    unrealized_pnl: float = Field(0.0, description="Unrealized P&L from broker (live)")
     sharpe_ratio: Optional[str] = Field(None, description="Sharpe ratio as formatted string")
     last_updated: datetime = Field(..., description="Last update timestamp")

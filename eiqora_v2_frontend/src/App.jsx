@@ -91,6 +91,14 @@ function App() {
             </li>
             <li>
               <button
+                className={`tab-button ${activeTab === 'legacy-history' ? 'active' : ''}`}
+                onClick={() => setActiveTab('legacy-history')}
+              >
+                Legacy History
+              </button>
+            </li>
+            <li>
+              <button
                 className={`tab-button ${activeTab === 'tickers' ? 'active' : ''}`}
                 onClick={() => setActiveTab('tickers')}
               >
@@ -163,6 +171,12 @@ function App() {
         {activeTab === 'history' && (
           <div className="tab-content">
             <TradingHistory />
+          </div>
+        )}
+
+        {activeTab === 'legacy-history' && (
+          <div className="tab-content">
+            <TradingHistory legacy />
           </div>
         )}
 

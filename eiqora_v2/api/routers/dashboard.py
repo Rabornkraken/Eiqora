@@ -129,22 +129,26 @@ async def get_equity_history(
 
 @router.get("/trading-history")
 async def get_trading_history(
-    limit: int = Query(50, ge=1, le=200, description="Maximum number of trades to return")
+    limit: int = Query(50, ge=1, le=200, description="Maximum number of trades to return"),
+    source: str = Query(
+        "alpaca",
+        description="'alpaca' for broker-matched trades (default), 'legacy' for DB-only pre-broker rows",
+    ),
 ):
     """
-    Get trading history (closed positions)
-
-    Retrieve list of closed trades with P&L.
+    Get trading history (closed positions).
 
     Args:
-        limit: Maximum number of trades to return (1-200)
+        limit: Maximum number of trades to return (1-200).
+        source: 'alpaca' for real broker buy/sell-matched trades,
+            'legacy' for closed DB position rows that predate Alpaca.
 
     Returns:
-        List of closed trades with entry/exit prices and realized P&L
+        List of closed trades with entry/exit prices and realized P&L.
     """
     try:
-        trades = await dashboard_service.get_trading_history(limit=limit)
-        return {"trades": trades, "total": len(trades)}
+        trades = await dashboard_service.get_trading_history(limit=limit, source=source)
+        return {"trades": trades, "total": len(trades), "source": source}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch trading history: {str(e)}")
