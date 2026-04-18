@@ -141,6 +141,71 @@ async def fetch_xml_calendar() -> list[dict[str, Any]]:
     return events
 
 
+async def fetch_finnhub_calendar(days_ahead: int = 21) -> list[dict[str, Any]]:
+    """Fetch forward-looking US macro events from Finnhub.
+
+    Forex Factory's XML feed only exposes the current week. Finnhub has
+    a rolling calendar we can query for the next N days, so we use it to
+    keep the upcoming-events view populated when FF has nothing ahead.
+    """
+    api_key = os.getenv("FINNHUB_API_KEY")
+    if not api_key:
+        logger.info("FINNHUB_API_KEY not set; skipping Finnhub calendar")
+        return []
+
+    from datetime import date as _date, timedelta as _td
+    start = _date.today()
+    end = start + _td(days=days_ahead)
+
+    events: list[dict[str, Any]] = []
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.get(
+                "https://finnhub.io/api/v1/calendar/economic",
+                params={"from": start.isoformat(), "to": end.isoformat(), "token": api_key},
+            )
+            resp.raise_for_status()
+            payload = resp.json()
+    except Exception as e:
+        logger.warning("Finnhub calendar fetch failed: %s", e)
+        return []
+
+    raw = payload.get("economicCalendar") or []
+    for e in raw:
+        country = (e.get("country") or "").upper()
+        impact = (e.get("impact") or "").lower()
+        if country != "US" or impact not in KEEP_IMPACTS:
+            continue
+
+        # Finnhub time is UTC "YYYY-MM-DD HH:MM:SS"
+        raw_time = e.get("time") or ""
+        try:
+            utc_dt = datetime.fromisoformat(raw_time.replace(" ", "T")).replace(tzinfo=UTC)
+            et_dt = utc_dt.astimezone(ET)
+            event_date = et_dt.date()
+            event_time = et_dt.time()
+        except Exception:
+            continue
+
+        def _s(v: Any) -> str | None:
+            return str(v) if v is not None else None
+
+        events.append({
+            "event_name": e.get("event") or "Unknown",
+            "event_date": event_date,
+            "event_time": event_time,
+            "country": "US",
+            "actual": _s(e.get("actual")),
+            "forecast": _s(e.get("estimate")),
+            "previous": _s(e.get("prev")),
+            "impact": impact.upper(),
+            "source": "finnhub",
+        })
+
+    logger.info("Parsed %d USD high/medium-impact events from Finnhub", len(events))
+    return events
+
+
 async def upsert_events(events: list[dict]) -> int:
     """Insert or update events in database."""
     if not events:
@@ -183,18 +248,32 @@ async def upsert_events(events: list[dict]) -> int:
 
 
 async def run():
-    """Main pipeline entry point."""
+    """Main pipeline entry point.
+
+    Combines two sources:
+      - Forex Factory "this week" XML (detailed, narrated events for the
+        current week with actual/forecast/previous)
+      - Finnhub calendar (forward-looking, ~3 weeks ahead, so the UI
+        always has upcoming events to show)
+
+    The UPSERT's COALESCE on conflict keeps the richer source's fields
+    whenever the same event comes from both.
+    """
     logger.info("Fetching economic calendar from Forex Factory XML feed...")
+    ff_events = await fetch_xml_calendar()
+    logger.info("Found %d events from Forex Factory", len(ff_events))
 
-    events = await fetch_xml_calendar()
-    logger.info("Found %d events from XML feed", len(events))
+    logger.info("Fetching forward-looking calendar from Finnhub...")
+    fh_events = await fetch_finnhub_calendar(days_ahead=21)
+    logger.info("Found %d events from Finnhub", len(fh_events))
 
+    events = ff_events + fh_events
     if not events:
-        logger.warning("No events fetched; skipping update")
+        logger.warning("No events fetched from any source; skipping update")
         return
 
     inserted = await upsert_events(events)
-    logger.info("Upserted %d events", inserted)
+    logger.info("Upserted %d events (combined)", inserted)
 
     # Log upcoming events
     async with get_connection() as conn:
