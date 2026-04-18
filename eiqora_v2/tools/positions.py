@@ -151,30 +151,124 @@ async def _refresh_account_state(
     account_id: str = DEFAULT_ACCOUNT_ID,
     asof_time: datetime | None = None,
 ) -> None:
+    """
+    Refresh account_state and append a new row to account_snapshot.
+
+    Source-of-truth rules (in priority order):
+      1. Alpaca (when configured): cash, equity, positions_count, unrealized_pnl,
+         gross/net_exposure all come directly from the broker. The DB position
+         table is used only for trade-management metadata (stops, conviction),
+         not for accounting numbers.
+      2. DB fallback: sum the DB's active positions. Used only when Alpaca is
+         not configured or the broker call fails.
+
+    This prevents the equity chart from drifting when the DB and Alpaca
+    disagree about which positions are open (e.g. DB-only "ghost" rows or
+    Alpaca-only positions opened outside the system).
+    """
     asof_time = asof_time or datetime.now(timezone.utc)
     state = await _ensure_account_state(conn, account_id)
+    realized_pnl = state.get("realized_pnl") or 0.0
 
+    # --- Path 1: Alpaca is the source of truth ---------------------------
+    if _is_alpaca_configured():
+        try:
+            from eiqora_v2.tools.broker import get_alpaca_account, get_alpaca_positions
+
+            alpaca_account = await get_alpaca_account()
+            alpaca_positions = await get_alpaca_positions()
+        except Exception as exc:
+            logger.warning("Alpaca fetch for account refresh failed: %s", exc)
+            alpaca_account = None
+            alpaca_positions = None
+
+        if alpaca_account is not None and alpaca_positions is not None:
+            cash_balance = float(alpaca_account.get("cash", 0))
+            equity = float(alpaca_account.get("equity", 0))
+
+            unrealized_pnl = 0.0
+            gross_exposure = 0.0
+            net_exposure = 0.0
+            for p in alpaca_positions:
+                mv = float(p.get("market_value", 0))
+                pl = float(p.get("unrealized_pl", 0))
+                side = str(p.get("side", "long")).lower()
+                unrealized_pnl += pl
+                gross_exposure += abs(mv)
+                net_exposure += mv if side == "long" else -mv
+
+            positions_count = len(alpaca_positions)
+
+            await conn.execute(
+                """
+                UPDATE account_state
+                SET cash_balance = $2,
+                    equity = $3,
+                    realized_pnl = $4,
+                    unrealized_pnl = $5,
+                    gross_exposure = $6,
+                    net_exposure = $7,
+                    positions_count = $8,
+                    updated_at = NOW()
+                WHERE account_id = $1
+                """,
+                account_id,
+                cash_balance,
+                equity,
+                realized_pnl,
+                unrealized_pnl,
+                gross_exposure,
+                net_exposure,
+                positions_count,
+            )
+
+            await conn.execute(
+                """
+                INSERT INTO account_snapshot (
+                    account_id, asof_ts, cash_balance, equity, realized_pnl,
+                    unrealized_pnl, gross_exposure, net_exposure, positions_count
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                """,
+                account_id,
+                asof_time,
+                cash_balance,
+                equity,
+                realized_pnl,
+                unrealized_pnl,
+                gross_exposure,
+                net_exposure,
+                positions_count,
+            )
+
+            # Reconciliation log (non-mutating): warn when DB positions diverge
+            # from Alpaca. A dedicated reconciliation job can auto-close DB-only
+            # "ghost" rows later; for now we just surface the drift.
+            alpaca_symbols = {str(p.get("symbol", "")).upper() for p in alpaca_positions}
+            db_rows = await conn.fetch(
+                "SELECT symbol, alpaca_order_id FROM position WHERE status = 'ACTIVE'"
+            )
+            db_with_broker = {r["symbol"] for r in db_rows if r["alpaca_order_id"] is not None}
+            ghost_db = db_with_broker - alpaca_symbols
+            orphan_alpaca = alpaca_symbols - {r["symbol"] for r in db_rows}
+            if ghost_db:
+                logger.warning(
+                    "Position drift: %d symbol(s) ACTIVE in DB but missing from Alpaca: %s",
+                    len(ghost_db), sorted(ghost_db),
+                )
+            if orphan_alpaca:
+                logger.info(
+                    "Position drift: %d symbol(s) on Alpaca but not tracked in DB: %s",
+                    len(orphan_alpaca), sorted(orphan_alpaca),
+                )
+
+            return
+
+    # --- Path 2: DB fallback (no Alpaca) ---------------------------------
     cash_balance = state.get("cash_balance")
     if cash_balance is None:
         cash_balance = state.get("starting_equity", DEFAULT_STARTING_EQUITY)
 
     base_equity = state.get("starting_equity") or DEFAULT_STARTING_EQUITY
-
-    # Alpaca sync: if configured and ALL active positions are broker-managed,
-    # override cash_balance with Alpaca's actual cash.
-    if _is_alpaca_configured():
-        legacy_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM position WHERE status = 'ACTIVE' AND alpaca_order_id IS NULL"
-        )
-        if legacy_count == 0:
-            synced = await sync_account_from_alpaca(conn, account_id)
-            if synced:
-                refreshed = await conn.fetchrow(
-                    "SELECT cash_balance FROM account_state WHERE account_id = $1",
-                    account_id,
-                )
-                if refreshed:
-                    cash_balance = float(refreshed["cash_balance"])
 
     rows = await conn.fetch(
         """
@@ -200,32 +294,24 @@ async def _refresh_account_state(
         if notional_value is None or shares is None:
             continue
 
-        # Use the unrealized_pnl from the position table if available
-        # This is more accurate than recalculating since positions may have been
-        # refreshed with latest prices just before this function is called
         if row["unrealized_pnl"] is not None:
             position_pnl = float(row["unrealized_pnl"])
         else:
-            # Fallback: calculate from current_price
             current_price = row["current_price"]
             if current_price is None:
                 current_price = entry_price
             current_price = float(current_price)
-            
             direction = _normalize_direction(row["direction"])
             pnl_per_share, _ = _calculate_pnl(entry_price, current_price, direction)
             position_pnl = pnl_per_share * shares
-        
-        unrealized_pnl += position_pnl
 
+        unrealized_pnl += position_pnl
         current_value = notional_value + position_pnl
         current_value_total += current_value
-
         gross_exposure += abs(notional_value)
         net_exposure += notional_value if _normalize_direction(row["direction"]) != "SHORT" else -notional_value
 
     equity = float(cash_balance) + current_value_total
-    realized_pnl = state.get("realized_pnl") or 0.0
 
     await conn.execute(
         """
@@ -253,15 +339,8 @@ async def _refresh_account_state(
     await conn.execute(
         """
         INSERT INTO account_snapshot (
-            account_id,
-            asof_ts,
-            cash_balance,
-            equity,
-            realized_pnl,
-            unrealized_pnl,
-            gross_exposure,
-            net_exposure,
-            positions_count
+            account_id, asof_ts, cash_balance, equity, realized_pnl,
+            unrealized_pnl, gross_exposure, net_exposure, positions_count
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         """,
         account_id,
