@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 # Lazy import alpaca-py — not a hard dependency
 try:
     from alpaca.trading.client import TradingClient
-    from alpaca.trading.requests import MarketOrderRequest, ClosePositionRequest
+    from alpaca.trading.requests import MarketOrderRequest, ClosePositionRequest, GetOrdersRequest
     from alpaca.trading.enums import OrderSide, TimeInForce, OrderStatus
 
     _ALPACA_AVAILABLE = True
@@ -259,3 +259,137 @@ async def sync_account_from_alpaca(conn, account_id: str) -> bool:
     except Exception as exc:
         logger.warning("sync_account_from_alpaca failed: %s", exc)
         return False
+
+
+# ---------------------------------------------------------------------------
+# Closed orders / trades (for Trading History)
+# ---------------------------------------------------------------------------
+
+def _get_alpaca_closed_orders_sync(limit: int = 200) -> list[dict[str, Any]] | None:
+    client = get_alpaca_client()
+    if client is None:
+        return None
+    request = GetOrdersRequest(status="closed", limit=limit)
+    orders = client.get_orders(request)
+    logger.info("Alpaca returned %d closed orders", len(orders))
+    return [
+        {
+            "order_id": str(o.id),
+            "symbol": str(o.symbol),
+            "side": o.side.value,
+            "qty": float(o.filled_qty) if o.filled_qty else 0,
+            "filled_avg_price": float(o.filled_avg_price) if o.filled_avg_price else None,
+            "filled_at": o.filled_at.isoformat() if o.filled_at else None,
+            "status": o.status.value,
+        }
+        for o in orders
+        if o.status.value == "filled"
+    ]
+
+
+async def get_alpaca_closed_orders(limit: int = 200) -> list[dict[str, Any]] | None:
+    """Return filled orders from Alpaca."""
+    if not _is_alpaca_configured():
+        return None
+    try:
+        return await asyncio.to_thread(_get_alpaca_closed_orders_sync, limit)
+    except Exception as exc:
+        logger.warning("Alpaca get_closed_orders failed: %s", exc, exc_info=True)
+        return None
+
+
+async def get_alpaca_closed_trades() -> list[dict[str, Any]]:
+    """Match buy/sell order pairs into closed trade records."""
+    orders = await get_alpaca_closed_orders()
+    if not orders:
+        return []
+
+    buys: dict[str, list] = {}
+    sells: dict[str, list] = {}
+    for o in orders:
+        bucket = buys if o["side"] == "buy" else sells
+        bucket.setdefault(o["symbol"], []).append(o)
+
+    for sym in buys:
+        buys[sym].sort(key=lambda x: x["filled_at"] or "")
+    for sym in sells:
+        sells[sym].sort(key=lambda x: x["filled_at"] or "")
+
+    trades = []
+    for sym, sell_list in sells.items():
+        buy_list = buys.get(sym, [])
+        buy_idx = 0
+        for sell in sell_list:
+            if buy_idx >= len(buy_list):
+                break
+            buy = buy_list[buy_idx]
+            buy_idx += 1
+            entry_price = buy["filled_avg_price"] or 0
+            exit_price = sell["filled_avg_price"] or 0
+            qty = sell["qty"]
+            pnl = (exit_price - entry_price) * qty
+            pnl_pct = ((exit_price - entry_price) / entry_price * 100) if entry_price else 0
+            trades.append({
+                "symbol": sym,
+                "direction": "LONG",
+                "shares": qty,
+                "entry_price": entry_price,
+                "exit_price": exit_price,
+                "entry_date": buy["filled_at"],
+                "exit_date": sell["filled_at"],
+                "realized_pnl": round(pnl, 2),
+                "realized_pnl_pct": round(pnl_pct, 2),
+            })
+    trades.sort(key=lambda t: t["exit_date"] or "", reverse=True)
+    return trades
+
+
+# ---------------------------------------------------------------------------
+# Portfolio history (for equity chart)
+# ---------------------------------------------------------------------------
+
+def _get_alpaca_portfolio_history_sync(period: str = "1M", timeframe: str = "1D") -> list[dict[str, Any]] | None:
+    """Fetch Alpaca's native portfolio equity history."""
+    from eiqora_v2.config.settings import get_settings
+    import requests
+    from datetime import datetime as _dt, timezone as _tz
+
+    settings = get_settings()
+    if not (settings.ALPACA_API_KEY and settings.ALPACA_API_SECRET):
+        return None
+    base_url = settings.ALPACA_BASE_URL.rstrip("/")
+    url = f"{base_url}/v2/account/portfolio/history"
+    headers = {
+        "APCA-API-KEY-ID": settings.ALPACA_API_KEY,
+        "APCA-API-SECRET-KEY": settings.ALPACA_API_SECRET,
+    }
+    params = {"period": period, "timeframe": timeframe}
+    resp = requests.get(url, headers=headers, params=params, timeout=15)
+    resp.raise_for_status()
+    data = resp.json()
+
+    timestamps = data.get("timestamp", []) or []
+    equities = data.get("equity", []) or []
+    pls = data.get("profit_loss", []) or []
+    out: list[dict[str, Any]] = []
+    for i, ts in enumerate(timestamps):
+        if i >= len(equities) or equities[i] is None:
+            continue
+        dt = _dt.fromtimestamp(ts, tz=_tz.utc)
+        out.append({
+            "timestamp": dt.isoformat(),
+            "equity": float(equities[i]),
+            "profit_loss": float(pls[i]) if i < len(pls) and pls[i] is not None else 0.0,
+        })
+    return out
+
+
+async def get_alpaca_portfolio_history(period: str = "1M", timeframe: str = "1D") -> list[dict[str, Any]] | None:
+    """Return Alpaca's own daily equity history or None."""
+    if not _is_alpaca_configured():
+        return None
+    try:
+        return await asyncio.to_thread(_get_alpaca_portfolio_history_sync, period, timeframe)
+    except Exception as exc:
+        logger.warning("Alpaca portfolio_history failed: %s", exc)
+        return None

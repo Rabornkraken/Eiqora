@@ -301,23 +301,49 @@ class DashboardService:
 
     async def get_equity_history(self, days: int = 30) -> List[dict]:
         """
-        Get equity history for chart
+        Get equity history for chart.
 
-        Args:
-            days: Number of days of history to return
+        Source-of-truth is Alpaca's native portfolio_history endpoint.
+        The account_snapshot table is only used as a fallback when the
+        broker isn't configured or the API call fails.
 
-        Returns:
-            List of equity snapshots
+        Historical account_snapshot rows are unreliable because they were
+        computed from DB positions (which drift from Alpaca reality) and
+        previously included anomalous partial-view rows. Alpaca's own
+        daily equity series is the only consistent source.
         """
         try:
+            from eiqora_v2.tools.broker import _is_alpaca_configured, get_alpaca_portfolio_history
+
+            if _is_alpaca_configured():
+                # Map days to Alpaca period string (1D/1W/1M/3M/1A)
+                if days <= 7:
+                    period = "1W"
+                elif days <= 31:
+                    period = "1M"
+                elif days <= 93:
+                    period = "3M"
+                else:
+                    period = "1A"
+
+                history = await get_alpaca_portfolio_history(period=period, timeframe="1D")
+                if history:
+                    return [
+                        {
+                            "timestamp": h["timestamp"],
+                            "equity": h["equity"],
+                            "cash_balance": 0.0,
+                            "unrealized_pnl": 0.0,
+                            "realized_pnl": h.get("profit_loss", 0.0),
+                            "positions_count": 0,
+                        }
+                        for h in history
+                    ]
+
+            # Fallback: DB snapshots (legacy)
             from eiqora_v2.tools.db import get_connection
 
             async with get_connection() as conn:
-                # Query daily equity snapshots.
-                # Use the MAX equity per day to avoid anomalous low-equity
-                # snapshots that occur when a refresh transiently sees a
-                # partial position count (e.g. during a close transaction).
-                # This makes the equity curve continuous across days.
                 rows = await conn.fetch(
                     """
                     SELECT

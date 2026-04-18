@@ -22,12 +22,89 @@ class PositionsService:
 
     async def get_open_positions(self) -> PositionsResponse:
         """
-        Get all open positions
+        Get all open positions.
 
-        Returns:
-            PositionsResponse with list of open positions
+        Source-of-truth is Alpaca. When Alpaca is configured, positions
+        returned here are the actual broker holdings. DB trade metadata
+        (stop_loss, take_profit, conviction, reasoning) is joined in when
+        the DB has a matching ACTIVE row; otherwise defaults are used.
+
+        Falls back to DB positions only when Alpaca isn't configured or
+        the broker call fails.
         """
         try:
+            from eiqora_v2.tools.broker import _is_alpaca_configured, get_alpaca_positions
+
+            if _is_alpaca_configured():
+                alpaca_positions = await get_alpaca_positions()
+                if alpaca_positions is not None:
+                    # Load DB metadata for enrichment (take_profit, stop_loss, etc.)
+                    db_meta = {}
+                    try:
+                        from eiqora_v2.tools.db import get_connection
+
+                        async with get_connection() as conn:
+                            rows = await conn.fetch(
+                                """
+                                SELECT symbol, position_id, entry_date, take_profit, stop_loss,
+                                       time_stop_date, conviction, reasoning
+                                FROM position
+                                WHERE status = 'ACTIVE'
+                                """
+                            )
+                            for r in rows:
+                                db_meta[r["symbol"]] = r
+                    except Exception:
+                        pass
+
+                    positions = []
+                    for p in alpaca_positions:
+                        sym = p["symbol"]
+                        meta = db_meta.get(sym, {})
+                        entry_price = float(p["avg_entry_price"])
+                        current_price = float(p["current_price"])
+                        unrealized_pnl = float(p["unrealized_pl"])
+                        unrealized_pnl_pct = float(p["unrealized_plpc"]) * 100.0
+                        side = str(p.get("side", "long")).lower()
+                        direction = "SHORT" if side == "short" else "LONG"
+
+                        entry_date = meta.get("entry_date") if meta else None
+                        days_held = 0
+                        if entry_date:
+                            try:
+                                now = datetime.utcnow()
+                                ed = entry_date.replace(tzinfo=None) if hasattr(entry_date, "tzinfo") else entry_date
+                                days_held = max(0, (now - ed).days)
+                            except Exception:
+                                days_held = 0
+
+                        positions.append(
+                            Position(
+                                position_id=str(meta.get("position_id")) if meta.get("position_id") else sym,
+                                symbol=sym,
+                                direction=direction,
+                                entry_date=entry_date or datetime.utcnow(),
+                                entry_price=entry_price,
+                                current_price=current_price,
+                                unrealized_pnl_pct=unrealized_pnl_pct,
+                                unrealized_pnl=unrealized_pnl,
+                                take_profit=float(meta.get("take_profit") or 0),
+                                stop_loss=float(meta.get("stop_loss") or 0),
+                                time_stop_date=meta.get("time_stop_date") or datetime.utcnow(),
+                                days_held=days_held,
+                                status="ACTIVE",
+                                conviction=meta.get("conviction") or "MEDIUM",
+                                reasoning=meta.get("reasoning") or "",
+                            )
+                        )
+
+                    return PositionsResponse(
+                        positions=positions,
+                        total=len(positions),
+                        total_unrealized_pnl=float(sum(p.unrealized_pnl for p in positions)),
+                    )
+
+            # Fallback: DB path (original behavior)
             from eiqora_v2.tools.positions import get_open_positions as fetch_open_positions
 
             rows = await fetch_open_positions()
@@ -52,12 +129,10 @@ class PositionsService:
                 for row in rows
             ]
 
-            total_unrealized_pnl = sum(p.unrealized_pnl for p in positions)
-
             return PositionsResponse(
                 positions=positions,
                 total=len(positions),
-                total_unrealized_pnl=float(total_unrealized_pnl),
+                total_unrealized_pnl=float(sum(p.unrealized_pnl for p in positions)),
             )
 
         except Exception as e:
