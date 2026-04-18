@@ -908,12 +908,18 @@ async def get_open_positions(
                     "shares": float(row["shares"]) if row["shares"] is not None else None,
                 }
             positions.append(position)
-        
-        # Refresh account state after updating all positions to ensure
-        # account_state table and account_snapshot have current values
-        if refresh_prices and rows:
-            await _refresh_account_state(conn, asof_time=asof_time)
-        
+
+        # NOTE: do NOT call _refresh_account_state here. This function is called
+        # by the read-only API endpoint /api/v1/positions/open every ~30s from
+        # the frontend. Writing a snapshot every poll pollutes the equity
+        # time-series and, when the API container's view of positions diverges
+        # from the DB (e.g. asyncpg snapshot isolation holding an old visibility
+        # window), produces misleading account_snapshot rows (e.g. showing
+        # 14 positions / $102K alongside 9 positions / $63K within the same
+        # minute).
+        # Account_state + account_snapshot refreshes are owned by the live
+        # scheduler's run_account_refresh_loop + trigger_dispatcher, which
+        # refresh on a single cadence tied to market events.
         return positions
 
 

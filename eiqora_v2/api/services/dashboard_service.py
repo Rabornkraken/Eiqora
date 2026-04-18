@@ -313,19 +313,25 @@ class DashboardService:
             from eiqora_v2.tools.db import get_connection
 
             async with get_connection() as conn:
-                # Query daily equity snapshots
+                # Query daily equity snapshots.
+                # Use the MAX equity per day to avoid anomalous low-equity
+                # snapshots that occur when a refresh transiently sees a
+                # partial position count (e.g. during a close transaction).
+                # This makes the equity curve continuous across days.
                 rows = await conn.fetch(
                     """
-                    SELECT DISTINCT ON (DATE(asof_ts))
-                        asof_ts as timestamp,
-                        equity,
-                        cash_balance,
-                        unrealized_pnl,
-                        realized_pnl,
-                        positions_count
+                    SELECT
+                        DATE(asof_ts) AS day,
+                        MAX(asof_ts) AS timestamp,
+                        MAX(equity) AS equity,
+                        MAX(cash_balance) AS cash_balance,
+                        MAX(unrealized_pnl) AS unrealized_pnl,
+                        MAX(realized_pnl) AS realized_pnl,
+                        MAX(positions_count) AS positions_count
                     FROM account_snapshot
                     WHERE asof_ts >= NOW() - INTERVAL '%s days'
-                    ORDER BY DATE(asof_ts), asof_ts DESC
+                    GROUP BY DATE(asof_ts)
+                    ORDER BY DATE(asof_ts)
                     """ % days
                 )
 
