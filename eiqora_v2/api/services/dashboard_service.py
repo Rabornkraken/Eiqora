@@ -196,43 +196,63 @@ class DashboardService:
         """
         Get system statistics.
 
-        Uses Alpaca broker data (when configured) for live equity/P&L,
-        falls back to DB account_state otherwise.
+        Source-of-truth rules:
+        - total_trades + win_rate come from Alpaca's matched buy/sell pairs
+          (get_alpaca_closed_trades) — same set shown on the Trading History
+          tab, so header numbers match the table.
+        - equity, active_positions, unrealized_pnl come from Alpaca's live
+          account + positions.
+        - Falls back to DB when Alpaca isn't configured.
         """
         try:
             from eiqora_v2.tools.db import get_connection
-            from eiqora_v2.tools.broker import _is_alpaca_configured, get_alpaca_account, get_alpaca_positions
+            from eiqora_v2.tools.broker import (
+                _is_alpaca_configured,
+                get_alpaca_account,
+                get_alpaca_positions,
+                get_alpaca_closed_trades,
+            )
 
+            total_trades = 0
+            wins = 0
+            win_rate_str = None
+
+            # Closed trade stats — prefer Alpaca, fall back to DB
+            if _is_alpaca_configured():
+                try:
+                    closed = await get_alpaca_closed_trades()
+                except Exception:
+                    closed = []
+                if closed:
+                    total_trades = len(closed)
+                    wins = sum(1 for t in closed if (t.get("realized_pnl") or 0) > 0)
+                    win_rate_str = f"{(wins / total_trades) * 100:.1f}%"
+
+            if total_trades == 0:
+                async with get_connection() as conn:
+                    closed_stats = await conn.fetchrow(
+                        """
+                        SELECT
+                            COUNT(*) as total_closed,
+                            COUNT(CASE WHEN realized_pnl > 0 THEN 1 END) as wins
+                        FROM position
+                        WHERE status = 'CLOSED' AND alpaca_order_id IS NOT NULL
+                        """
+                    )
+                    if closed_stats:
+                        total_trades = closed_stats["total_closed"] or 0
+                        wins = closed_stats["wins"] or 0
+                        if total_trades > 0:
+                            win_rate_str = f"{(wins / total_trades) * 100:.1f}%"
+
+            # starting_equity for total_return
             async with get_connection() as conn:
-                # Only count Alpaca-managed closed trades (live system)
-                closed_stats = await conn.fetchrow(
-                    """
-                    SELECT
-                        COUNT(*) as total_closed,
-                        COUNT(CASE WHEN realized_pnl > 0 THEN 1 END) as wins,
-                        SUM(realized_pnl) as total_pnl
-                    FROM position
-                    WHERE status = 'CLOSED'
-                      AND alpaca_order_id IS NOT NULL
-                    """
-                )
-
-                total_trades = closed_stats["total_closed"] or 0
-                wins = closed_stats["wins"] or 0
-
-                # Calculate win rate
-                win_rate_str = None
-                if total_trades > 0:
-                    win_rate_pct = (wins / total_trades) * 100
-                    win_rate_str = f"{win_rate_pct:.1f}%"
-
-                # Get starting_equity from DB
                 account = await conn.fetchrow(
                     "SELECT starting_equity FROM account_state LIMIT 1"
                 )
-                starting = float(account["starting_equity"] or 100000) if account else 100000
+            starting = float(account["starting_equity"] or 100000) if account else 100000
 
-            # Prefer Alpaca for live data
+            # Live account values (equity / positions / unrealized)
             equity = 0.0
             unrealized = 0.0
             positions_count = 0
@@ -244,10 +264,9 @@ class DashboardService:
                         equity = float(alpaca_acct.get("equity", 0))
                 except Exception:
                     alpaca_acct = None
-
                 try:
                     alpaca_positions = await get_alpaca_positions()
-                    if alpaca_positions:
+                    if alpaca_positions is not None:
                         positions_count = len(alpaca_positions)
                         unrealized = sum(
                             float(p.get("unrealized_pl", 0)) for p in alpaca_positions
@@ -255,7 +274,6 @@ class DashboardService:
                 except Exception:
                     pass
 
-            # Fallback to DB if Alpaca not configured or failed
             if not equity:
                 async with get_connection() as conn:
                     db_acct = await conn.fetchrow(

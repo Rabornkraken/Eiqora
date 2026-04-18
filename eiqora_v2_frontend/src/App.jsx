@@ -9,7 +9,6 @@ import Watchlist from './components/Watchlist';
 import EconomicCalendar from './components/EconomicCalendar';
 import NewsFeed from './components/NewsFeed';
 import SymbolDetail from './components/SymbolDetail';
-import AlpacaPortfolio from './components/AlpacaPortfolio';
 
 function App() {
   // Initialize state from URL query params
@@ -105,14 +104,6 @@ function App() {
                 Tickers
               </button>
             </li>
-            <li>
-              <button
-                className={`tab-button ${activeTab === 'alpaca' ? 'active' : ''}`}
-                onClick={() => setActiveTab('alpaca')}
-              >
-                Alpaca
-              </button>
-            </li>
             <li className="tab-spacer"></li>
             <li>
               <button
@@ -186,11 +177,6 @@ function App() {
           </div>
         )}
 
-        {activeTab === 'alpaca' && (
-          <div className="tab-content">
-            <AlpacaPortfolio />
-          </div>
-        )}
       </main>
     </div>
   );

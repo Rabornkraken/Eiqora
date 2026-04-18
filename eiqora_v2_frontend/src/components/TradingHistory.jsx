@@ -90,11 +90,61 @@ function TradingHistory({ legacy = false }) {
         return 0;
     });
 
+    // Summary stats for the currently displayed source
+    const totalPnl = trades.reduce((sum, t) => sum + (t.realized_pnl ?? t.pnl ?? 0), 0);
+    const wins = trades.filter(t => (t.realized_pnl ?? t.pnl ?? 0) > 0).length;
+    const losses = trades.filter(t => (t.realized_pnl ?? t.pnl ?? 0) < 0).length;
+    const winRate = trades.length > 0 ? (wins / trades.length) * 100 : 0;
+    const title = legacy ? 'Legacy Trading History' : 'Trading History';
+
     return (
         <div className="border-box" style={{ marginTop: '24px' }}>
             <div className="chart-title" style={{ padding: '24px', borderBottom: '1px solid var(--border-light)' }}>
-                Trading History - {trades.length} Completed Trades
+                {title} - {trades.length} Completed Trades
             </div>
+            {trades.length > 0 && (
+                <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(4, 1fr)',
+                    gap: '16px',
+                    padding: '16px 24px',
+                    borderBottom: '1px solid var(--border-light)',
+                }}>
+                    <div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Total Trades</div>
+                        <div style={{ fontSize: '20px', fontWeight: 600 }}>{trades.length}</div>
+                    </div>
+                    <div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Win Rate</div>
+                        <div style={{ fontSize: '20px', fontWeight: 600 }}>
+                            {winRate.toFixed(1)}%
+                            <span style={{ fontSize: '12px', color: 'var(--text-secondary)', marginLeft: '6px', fontWeight: 400 }}>
+                                ({wins}W / {losses}L)
+                            </span>
+                        </div>
+                    </div>
+                    <div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Total P&amp;L</div>
+                        <div style={{
+                            fontSize: '20px',
+                            fontWeight: 600,
+                            color: totalPnl >= 0 ? 'var(--color-go)' : 'var(--color-no-go)',
+                        }}>
+                            {totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(2)}
+                        </div>
+                    </div>
+                    <div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Avg P&amp;L / Trade</div>
+                        <div style={{
+                            fontSize: '20px',
+                            fontWeight: 600,
+                            color: totalPnl >= 0 ? 'var(--color-go)' : 'var(--color-no-go)',
+                        }}>
+                            {totalPnl >= 0 ? '+' : ''}${(totalPnl / trades.length).toFixed(2)}
+                        </div>
+                    </div>
+                </div>
+            )}
             <div className="table-container">
                 <table>
                     <thead>
