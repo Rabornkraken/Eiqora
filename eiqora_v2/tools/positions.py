@@ -729,7 +729,10 @@ async def close_position(
         # If the broker rejects/errors, we must NOT mark the DB CLOSED —
         # that's how ghost positions were created. Only proceed with DB
         # bookkeeping after broker confirmation.
-        alpaca_order_id = row.get("alpaca_order_id") if isinstance(row, dict) else getattr(row, "alpaca_order_id", None)
+        # NOTE: asyncpg Records don't support .get() — use _row_value to
+        # handle both dicts and Records correctly. Previously this always
+        # returned None, silently skipping the broker close.
+        alpaca_order_id = _row_value(row, "alpaca_order_id")
         if alpaca_order_id and _is_alpaca_configured():
             # Reconciled synthetic ids are OK — they still correspond to a
             # real broker holding (the reconciler only assigns them when
@@ -1103,14 +1106,20 @@ async def refresh_account_state(
     if auto_exits:
         for symbol, exit_type, reason, exit_price in auto_exits:
             try:
-                await close_position(
+                result = await close_position(
                     symbol=symbol,
                     exit_price=exit_price,
                     exit_reason=reason,
                     exit_type=exit_type,
                     exit_time=asof_time,
                 )
-                logger.info("Auto-exit %s for %s at %.4f", exit_type, symbol, exit_price)
+                if result is None:
+                    logger.warning(
+                        "Auto-exit %s for %s at %.4f — broker close failed; will retry next refresh",
+                        exit_type, symbol, exit_price,
+                    )
+                else:
+                    logger.info("Auto-exit %s for %s at %.4f", exit_type, symbol, exit_price)
             except Exception as exc:
                 logger.warning("Auto-exit failed for %s: %s", symbol, exc)
 
@@ -1291,7 +1300,27 @@ async def reconcile_positions_with_alpaca(conn, *, asof_time: datetime | None = 
         )
 
     # --- 2. Reinstate Alpaca orphans ----------------------------------------
-    orphan_symbols = alpaca_symbols - db_active_symbols
+    # Skip symbols that were just CLOSED on our side — the corresponding
+    # Alpaca sell may still be pending fill, and we'd otherwise loop:
+    # close → broker pending → reinstate → close again. 5-minute window
+    # is generous enough for paper-account fills while still letting
+    # genuine drift heal on the next cycle.
+    recent_closed = await conn.fetch(
+        """
+        SELECT DISTINCT symbol
+        FROM position
+        WHERE status = 'CLOSED'
+          AND exit_date >= NOW() - INTERVAL '5 minutes'
+        """
+    )
+    recently_closed_symbols = {r["symbol"] for r in recent_closed}
+
+    orphan_symbols = alpaca_symbols - db_active_symbols - recently_closed_symbols
+    if recently_closed_symbols & alpaca_symbols:
+        logger.info(
+            "Reconciler: deferring reinstate for %s — recent close still pending broker fill",
+            sorted(recently_closed_symbols & alpaca_symbols),
+        )
     for sym in sorted(orphan_symbols):
         ap = alpaca_by_symbol[sym]
         qty = float(ap.get("qty", 0))
