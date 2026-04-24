@@ -170,6 +170,14 @@ async def _refresh_account_state(
     state = await _ensure_account_state(conn, account_id)
     realized_pnl = state.get("realized_pnl") or 0.0
 
+    # Self-heal DB/Alpaca drift before computing account state. This closes
+    # ghost DB rows and reinstates Alpaca-only positions so the monitoring
+    # loop's stop-loss/take-profit/time-stop checks operate on accurate data.
+    try:
+        await reconcile_positions_with_alpaca(conn, asof_time=asof_time)
+    except Exception as exc:
+        logger.warning("Position reconciliation failed (non-fatal): %s", exc)
+
     # --- Path 1: Alpaca is the source of truth ---------------------------
     if _is_alpaca_configured():
         try:
@@ -717,6 +725,28 @@ async def close_position(
             latest = await _get_latest_price(row["symbol"], exit_time)
             exit_price = latest if latest is not None else float(row["current_price"] or entry_price)
 
+        # --- Alpaca: close on broker FIRST (atomic close) ------------------
+        # If the broker rejects/errors, we must NOT mark the DB CLOSED —
+        # that's how ghost positions were created. Only proceed with DB
+        # bookkeeping after broker confirmation.
+        alpaca_order_id = row.get("alpaca_order_id") if isinstance(row, dict) else getattr(row, "alpaca_order_id", None)
+        if alpaca_order_id and _is_alpaca_configured():
+            # Reconciled synthetic ids are OK — they still correspond to a
+            # real broker holding (the reconciler only assigns them when
+            # Alpaca actually shows the symbol).
+            close_result = await close_alpaca_position(row["symbol"])
+            if not close_result:
+                logger.error(
+                    "Alpaca close FAILED for %s; leaving DB ACTIVE to avoid drift",
+                    row["symbol"],
+                )
+                return None
+            logger.info("Alpaca position closed for %s: %s", row["symbol"], close_result)
+            # Prefer Alpaca's fill price over computed exit_price when available
+            fill_price = close_result.get("filled_avg_price") if isinstance(close_result, dict) else None
+            if fill_price:
+                exit_price = float(fill_price)
+
         pnl_per_share, pnl_pct = _calculate_pnl(entry_price, float(exit_price), direction)
         if shares is None:
             realized_pnl = pnl_per_share
@@ -794,15 +824,6 @@ async def close_position(
                 realized_total,
             )
             await _refresh_account_state(conn, asof_time=exit_time)
-
-        # --- Alpaca: close position on broker (only for broker-managed positions) ---
-        alpaca_order_id = row.get("alpaca_order_id") if isinstance(row, dict) else getattr(row, "alpaca_order_id", None)
-        if alpaca_order_id and _is_alpaca_configured():
-            close_result = await close_alpaca_position(row["symbol"])
-            if close_result:
-                logger.info("Alpaca position closed for %s: %s", row["symbol"], close_result)
-            else:
-                logger.warning("Alpaca close failed for %s; DB close stands", row["symbol"])
 
         return {
             "position_id": str(row["position_id"]),
@@ -1158,3 +1179,211 @@ async def has_open_position(symbol: str) -> bool:
     """Return True if there is an active position for the symbol."""
     position = await get_position_by_symbol(symbol, refresh_prices=False)
     return position is not None
+
+
+# ---------------------------------------------------------------------------
+# Position <-> Alpaca reconciliation
+# ---------------------------------------------------------------------------
+
+async def reconcile_positions_with_alpaca(conn, *, asof_time: datetime | None = None) -> dict[str, int]:
+    """
+    Reconcile the DB position table against Alpaca's live positions.
+
+    Two kinds of drift are healed:
+
+    1. **Ghost DB positions** — ACTIVE in DB but missing from Alpaca. The
+       DB close never reached the broker (e.g. sell order rejected), or
+       the position was closed on Alpaca outside the system. We mark the
+       DB row CLOSED with exit_reason='ghost_reconciled' so the
+       monitoring and capacity counts stay consistent.
+
+    2. **Alpaca orphans** — held on Alpaca but NOT ACTIVE in DB. Could
+       be a prior DB-only close that didn't propagate, a trade opened
+       outside the system, or a broker-only position. We reinstate an
+       ACTIVE DB row mirroring Alpaca's (qty, avg_entry_price, current_price)
+       and — critically — preserve TP/SL/time-stop metadata from any
+       prior CLOSED row for the same symbol so the auto-exit loop works.
+
+    This runs on every ``_refresh_account_state`` call and makes the
+    system self-healing.
+
+    Returns a summary dict: {'ghosts_closed': N, 'orphans_reinstated': N}.
+    """
+    asof_time = asof_time or datetime.now(timezone.utc)
+    asof_naive = _to_naive_utc(asof_time)
+    summary = {"ghosts_closed": 0, "orphans_reinstated": 0}
+
+    if not _is_alpaca_configured():
+        return summary
+
+    try:
+        from eiqora_v2.tools.broker import get_alpaca_positions
+        alpaca_positions = await get_alpaca_positions()
+    except Exception as exc:
+        logger.warning("Reconciler: Alpaca fetch failed, skipping: %s", exc)
+        return summary
+
+    if alpaca_positions is None:
+        # Network/auth issue — don't touch DB
+        return summary
+
+    alpaca_by_symbol: dict[str, dict[str, Any]] = {
+        str(p["symbol"]).upper(): p for p in alpaca_positions
+    }
+    alpaca_symbols = set(alpaca_by_symbol.keys())
+
+    db_active = await conn.fetch(
+        """
+        SELECT position_id, symbol, alpaca_order_id
+        FROM position
+        WHERE status = 'ACTIVE'
+        """
+    )
+    db_active_symbols = {r["symbol"] for r in db_active}
+
+    # --- 1. Close ghost DB rows (ACTIVE in DB, not on Alpaca) ---------------
+    ghost_symbols = db_active_symbols - alpaca_symbols
+    for row in db_active:
+        sym = row["symbol"]
+        if sym not in ghost_symbols:
+            continue
+        # Safety: only auto-close rows that WERE broker-managed (have alpaca_order_id).
+        # Legacy manual positions (no alpaca_order_id) are left alone — the
+        # operator can reconcile them explicitly.
+        if not row["alpaca_order_id"]:
+            logger.info(
+                "Reconciler: leaving legacy ACTIVE %s untouched (no alpaca_order_id)",
+                sym,
+            )
+            continue
+        # Fetch entry_price / shares so exit math is clean
+        detail = await conn.fetchrow(
+            "SELECT entry_price, shares, direction FROM position WHERE position_id = $1",
+            row["position_id"],
+        )
+        if not detail:
+            continue
+        entry_price = float(detail["entry_price"] or 0)
+        shares = float(detail["shares"] or 0)
+        # We don't know the real exit price; use entry (zero P&L). Operator
+        # or Alpaca history can correct later.
+        await conn.execute(
+            """
+            UPDATE position
+            SET status = 'CLOSED',
+                exit_date = $2,
+                exit_price = $3,
+                realized_pnl = 0,
+                realized_pnl_pct = 0,
+                exit_reason = 'ghost_reconciled',
+                exit_type = 'RECONCILE',
+                last_updated = NOW()
+            WHERE position_id = $1
+            """,
+            row["position_id"],
+            asof_naive,
+            entry_price,
+        )
+        summary["ghosts_closed"] += 1
+        logger.warning(
+            "Reconciler: closed ghost DB position %s (broker no longer holds it)",
+            sym,
+        )
+
+    # --- 2. Reinstate Alpaca orphans ----------------------------------------
+    orphan_symbols = alpaca_symbols - db_active_symbols
+    for sym in sorted(orphan_symbols):
+        ap = alpaca_by_symbol[sym]
+        qty = float(ap.get("qty", 0))
+        avg_entry = float(ap.get("avg_entry_price", 0))
+        current_price = float(ap.get("current_price", avg_entry))
+        unrealized_pl = float(ap.get("unrealized_pl", 0))
+        side = str(ap.get("side", "long")).lower()
+        direction = "SHORT" if side == "short" else "LONG"
+        notional = qty * avg_entry if qty and avg_entry else None
+
+        if qty <= 0 or avg_entry <= 0:
+            continue
+
+        # Preserve TP / SL / time-stop from any prior CLOSED row so the
+        # monitoring loop's auto-exit rules can fire.
+        prior = await conn.fetchrow(
+            """
+            SELECT take_profit, stop_loss, time_stop_date,
+                   position_size_pct, conviction, reasoning, entry_date
+            FROM position
+            WHERE symbol = $1
+            ORDER BY entry_date DESC
+            LIMIT 1
+            """,
+            sym,
+        )
+        if prior:
+            take_profit = prior["take_profit"]
+            stop_loss = prior["stop_loss"]
+            time_stop_date = prior["time_stop_date"]
+            position_size_pct = prior["position_size_pct"]
+            conviction = prior["conviction"] or "MEDIUM"
+            reasoning = prior["reasoning"] or "Reinstated from Alpaca drift"
+            entry_date = prior["entry_date"] or asof_naive
+        else:
+            # Conservative fallback when there's no prior metadata.
+            # +15% TP, -10% SL, 30-day time stop. The operator can edit.
+            take_profit = avg_entry * 1.15
+            stop_loss = avg_entry * 0.90
+            time_stop_date = asof_naive + timedelta(days=30)
+            position_size_pct = None
+            conviction = "MEDIUM"
+            reasoning = "Reinstated from Alpaca drift (no prior metadata)"
+            entry_date = asof_naive
+
+        unrealized_pnl_pct = ((current_price - avg_entry) / avg_entry * 100.0) if avg_entry else 0.0
+
+        # Synthesize an alpaca_order_id so future reconcilers know this
+        # is broker-managed (and so ghost-close logic can still trigger
+        # if Alpaca drops the position later).
+        alpaca_order_id = f"reconciled:{sym}"
+
+        await conn.execute(
+            """
+            INSERT INTO position (
+                symbol, direction, entry_date, entry_price, shares, notional_value,
+                current_price, take_profit, stop_loss, time_stop_date, status,
+                conviction, reasoning, position_size_pct, unrealized_pnl,
+                unrealized_pnl_pct, alpaca_order_id, last_updated
+            ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'ACTIVE',
+                $11, $12, $13, $14, $15, $16, NOW()
+            )
+            """,
+            sym,
+            direction,
+            _to_naive_utc(entry_date) if isinstance(entry_date, datetime) else entry_date,
+            avg_entry,
+            qty,
+            notional,
+            current_price,
+            take_profit,
+            stop_loss,
+            _to_naive_utc(time_stop_date) if isinstance(time_stop_date, datetime) else time_stop_date,
+            conviction,
+            reasoning,
+            position_size_pct,
+            unrealized_pl,
+            unrealized_pnl_pct,
+            alpaca_order_id,
+        )
+        summary["orphans_reinstated"] += 1
+        logger.warning(
+            "Reconciler: reinstated Alpaca position %s qty=%s entry=%s tp=%s sl=%s",
+            sym, qty, avg_entry, take_profit, stop_loss,
+        )
+
+    if summary["ghosts_closed"] or summary["orphans_reinstated"]:
+        logger.info(
+            "Reconciler summary: %d ghosts closed, %d orphans reinstated",
+            summary["ghosts_closed"],
+            summary["orphans_reinstated"],
+        )
+
+    return summary

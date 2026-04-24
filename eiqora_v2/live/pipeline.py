@@ -115,14 +115,25 @@ class LiveTradingPipeline:
             return None
 
         # Skip analysis if portfolio is at or above max capacity.
-        # This avoids wasting the expensive 10-agent LLM pipeline when
-        # there's no room to open a new position anyway.
-        MAX_POSITIONS = 10  # MEGA_CORE default; multi-portfolio uses portfolio.max_positions
-        from eiqora_v2.tools.db import get_connection as _get_conn
-        async with _get_conn() as _conn:
-            active_count = await _conn.fetchval(
-                "SELECT COUNT(*) FROM position WHERE status = 'ACTIVE'"
-            )
+        # Uses Alpaca's position count (source of truth) rather than DB
+        # which can drift. Falls back to DB count when Alpaca isn't
+        # configured or reachable.
+        MAX_POSITIONS = 10
+        active_count = None
+        try:
+            from eiqora_v2.tools.broker import _is_alpaca_configured as _cfg, get_alpaca_positions as _ap
+            if _cfg():
+                alpaca_pos = await _ap()
+                if alpaca_pos is not None:
+                    active_count = len(alpaca_pos)
+        except Exception:
+            active_count = None
+        if active_count is None:
+            from eiqora_v2.tools.db import get_connection as _get_conn
+            async with _get_conn() as _conn:
+                active_count = await _conn.fetchval(
+                    "SELECT COUNT(*) FROM position WHERE status = 'ACTIVE'"
+                )
         if active_count >= MAX_POSITIONS:
             _logger.info(
                 "⏭️  Skipping %s — portfolio at capacity (%d/%d active positions)",
