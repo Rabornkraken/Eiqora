@@ -114,32 +114,12 @@ class LiveTradingPipeline:
             _logger.info(f"⏭️  Skipping already processed trigger: {trigger.symbol} {trigger.trigger_type}")
             return None
 
-        # Skip analysis if portfolio is at or above max capacity.
-        # Uses Alpaca's position count (source of truth) rather than DB
-        # which can drift. Falls back to DB count when Alpaca isn't
-        # configured or reachable.
-        MAX_POSITIONS = 10
-        active_count = None
-        try:
-            from eiqora_v2.tools.broker import _is_alpaca_configured as _cfg, get_alpaca_positions as _ap
-            if _cfg():
-                alpaca_pos = await _ap()
-                if alpaca_pos is not None:
-                    active_count = len(alpaca_pos)
-        except Exception:
-            active_count = None
-        if active_count is None:
-            from eiqora_v2.tools.db import get_connection as _get_conn
-            async with _get_conn() as _conn:
-                active_count = await _conn.fetchval(
-                    "SELECT COUNT(*) FROM position WHERE status = 'ACTIVE'"
-                )
-        if active_count >= MAX_POSITIONS:
-            _logger.info(
-                "⏭️  Skipping %s — portfolio at capacity (%d/%d active positions)",
-                trigger.symbol, active_count, MAX_POSITIONS,
-            )
-            return None
+        # No fixed position-count cap. Capacity is enforced naturally by
+        # the cash-availability gate further down + per-position size cap
+        # (MAX_POSITION_PCT in positions.py) + cluster limits in the
+        # Portfolio Coordinator agent. The 10-position numeric cap was a
+        # legacy guardrail that conflicted with the system's real risk
+        # controls and silently suppressed analysis visibility.
 
         # Skip analysis if we already have an active position (DB or Alpaca)
         if await has_open_position(trigger.symbol):
