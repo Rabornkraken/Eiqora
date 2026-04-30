@@ -25,7 +25,87 @@ _logger = logging.getLogger(__name__)
 ATOM_NS = {"a": "http://www.w3.org/2005/Atom"}
 SEC_RSS_URL = "https://www.sec.gov/cgi-bin/browse-edgar"
 SEC_DAILY_INDEX = "https://www.sec.gov/Archives/edgar/daily-index/{year}/QTR{quarter}/master.{datestr}.idx"
+SEC_SUBMISSIONS_URL = "https://data.sec.gov/submissions/CIK{cik}.json"
 NOTIFY_CHANNEL = os.getenv("EIQORA_INGEST_CHANNEL", "eiqora_ingest")
+
+
+def _normalize_accession(value: str | None) -> str | None:
+    """Return accession in canonical 18-7-3 form (0000000000-00-000000)."""
+    if not value:
+        return None
+    digits = "".join(ch for ch in value if ch.isdigit())
+    if len(digits) != 18:
+        return value
+    return f"{digits[:10]}-{digits[10:12]}-{digits[12:]}"
+
+
+def _parse_items_field(raw: str | None) -> list[str] | None:
+    """Parse the SEC submissions JSON ``items`` field into a clean list.
+
+    The field is a comma-separated string of Item codes (e.g. "2.02,9.01").
+    Some entries embed the human label after the code (e.g. "5.02 Departure
+    of Directors"); we keep only the dotted code.
+    """
+    if not raw:
+        return None
+    parts: list[str] = []
+    for chunk in raw.split(","):
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        match = re.match(r"(\d+\.\d+)", chunk)
+        if match:
+            parts.append(match.group(1))
+        else:
+            parts.append(chunk)
+    return parts or None
+
+
+def _fetch_filing_items(
+    session,
+    settings,
+    cik: str,
+    accession: str,
+    cache: dict[str, dict[str, list[str]]],
+) -> list[str] | None:
+    """Fetch 8-K Items for a single filing using SEC's per-CIK submissions JSON.
+
+    The submissions JSON exposes a parallel ``items`` array alongside
+    ``accessionNumber``; we walk it once per CIK per run and cache.
+    Returns ``None`` if the CIK or accession can't be resolved.
+    """
+    target = _normalize_accession(accession)
+    if not target:
+        return None
+
+    if cik not in cache:
+        url = SEC_SUBMISSIONS_URL.format(cik=cik)
+        try:
+            response = request_with_retries(session, "GET", url, settings=settings)
+        except Exception as exc:
+            _logger.info("sec_rss submissions fetch failed cik=%s err=%s", cik, exc)
+            cache[cik] = {}
+            return None
+        try:
+            payload = response.json()
+        except Exception:
+            cache[cik] = {}
+            return None
+
+        recent = (payload.get("filings") or {}).get("recent") or {}
+        accs = recent.get("accessionNumber") or []
+        items_raw = recent.get("items") or []
+
+        mapping: dict[str, list[str]] = {}
+        for idx, acc in enumerate(accs):
+            if idx >= len(items_raw):
+                break
+            parsed = _parse_items_field(items_raw[idx])
+            if parsed:
+                mapping[_normalize_accession(acc) or acc] = parsed
+        cache[cik] = mapping
+
+    return cache[cik].get(target)
 
 
 def _clean_cik(value: str | None) -> str | None:
@@ -78,6 +158,7 @@ def _insert_sec_filing(
     filed_at: str | None,
     primary_doc_url: str | None,
     description: str | None,
+    items: list[str] | None = None,
 ) -> bool:
     filed_date = datetime.strptime(filed_at, "%Y-%m-%d").date() if filed_at else None
     is_amendment = form_type.endswith("/A")
@@ -85,8 +166,9 @@ def _insert_sec_filing(
         cursor.execute(
             """
             INSERT INTO sec_filing
-                (accession, cik, form_type, filed_at, report_period, is_amendment, amends_accession, primary_doc_url, description)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                (accession, cik, form_type, filed_at, report_period, is_amendment,
+                 amends_accession, primary_doc_url, description, items)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (accession)
             DO UPDATE SET
                 cik = EXCLUDED.cik,
@@ -94,7 +176,8 @@ def _insert_sec_filing(
                 filed_at = EXCLUDED.filed_at,
                 is_amendment = EXCLUDED.is_amendment,
                 primary_doc_url = EXCLUDED.primary_doc_url,
-                description = EXCLUDED.description
+                description = EXCLUDED.description,
+                items = COALESCE(EXCLUDED.items, sec_filing.items)
             RETURNING (xmax = 0) AS inserted
             """,
             (
@@ -107,6 +190,7 @@ def _insert_sec_filing(
                 None,
                 primary_doc_url,
                 description,
+                items,
             ),
         )
         row = cursor.fetchone()
@@ -230,6 +314,7 @@ def run(forms: list[str] | None) -> None:
         total_processed = 0
         total_inserted = 0
         total_updated = 0
+        items_cache: dict[str, dict[str, list[str]]] = {}
         for form in forms:
             params = {
                 "action": "getcurrent",
@@ -273,6 +358,11 @@ def run(forms: list[str] | None) -> None:
                 form_type = item.get("form_type") or form
                 filed_at = _extract_filed_date(item.get("summary"), item.get("updated"))
                 link = item.get("link")
+                filing_items: list[str] | None = None
+                if form_type and form_type.startswith("8-K"):
+                    filing_items = _fetch_filing_items(
+                        session, common.http, cik, accession, items_cache
+                    )
 
                 if _insert_sec_filing(
                     conn,
@@ -282,6 +372,7 @@ def run(forms: list[str] | None) -> None:
                     filed_at=filed_at,
                     primary_doc_url=link,
                     description=item.get("title"),  # Use title as description
+                    items=filing_items,
                 ):
                     inserted += 1
                 else:
@@ -351,6 +442,11 @@ def run(forms: list[str] | None) -> None:
                         continue
                     primary_doc_url = f"https://www.sec.gov/Archives/{file_name}"
                     filed_at = record.get("filed_at")
+                    filing_items: list[str] | None = None
+                    if form_type.startswith("8-K"):
+                        filing_items = _fetch_filing_items(
+                            session, common.http, cik, accession, items_cache
+                        )
 
                     if _insert_sec_filing(
                         conn,
@@ -360,6 +456,7 @@ def run(forms: list[str] | None) -> None:
                         filed_at=filed_at,
                         primary_doc_url=primary_doc_url,
                         description=None,  # No description in daily index
+                        items=filing_items,
                     ):
                         inserted += 1
                     else:
