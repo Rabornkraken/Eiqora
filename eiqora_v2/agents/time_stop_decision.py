@@ -190,9 +190,17 @@ EXIT when:
 TRAIL_TIGHT when:
 - Position is comfortably profitable AND the trend is still intact
 - We want to lock in gains while leaving room to ride a continuation
-- Propose a NEW stop loss that locks in some profit (between current
-  stop and current price for LONG; inverse for SHORT). A breakeven stop
-  or one just below a recent swing low is typical.
+- Propose a NEW stop loss that locks in some profit AND has enough room
+  to absorb normal volatility — set it AT LEAST 1.5 × ATR(14) BELOW the
+  current price (above for SHORT). A trail tighter than 1.5×ATR will
+  almost always get whipsawed by intraday noise before the trend has a
+  chance to continue. Backtest data: trails set tighter than ~1.5×ATR
+  stopped out within days on MU, WMT, JNJ even though the underlying
+  thesis was still intact and the trade later reached TP.
+- If 1.5×ATR below current price would be BELOW the original stop_loss
+  (i.e. the trail wouldn't actually be tighter than what's already set),
+  prefer EXTEND_HOLD instead — there's no value in a "trail" that's
+  looser than the existing SL.
 
 EXTEND_HOLD when:
 - Position is making progress toward TP (closer to TP than to SL on a
