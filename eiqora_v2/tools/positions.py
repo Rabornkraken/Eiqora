@@ -1026,6 +1026,135 @@ async def get_open_positions(
         return positions
 
 
+async def _decide_time_stop_action(
+    position: dict[str, Any],
+    asof_time: datetime,
+    *,
+    current_price: float,
+    direction: str,
+) -> str:
+    """Run the LLM time-stop decision agent and apply any non-exit action.
+
+    Returns:
+        "EXIT" to signal the caller to close the position normally, or
+        "HELD" if the agent chose TRAIL_TIGHT / EXTEND_HOLD and the
+        position has been updated in place (no exit needed).
+
+    The LLM call is wrapped in a broad try/except: if anything fails
+    (network, schema, validation, LLM downtime), we fall back to EXIT —
+    the historical default — so a broken agent never traps a position
+    past its deadline.
+    """
+    symbol = position.get("symbol")
+    try:
+        # Lazy import: TimeStopDecisionAgent pulls the LLM client which
+        # transitively imports heavy modules; positions.py is loaded by
+        # almost everything in the codebase and we don't want every
+        # consumer (CLI tools, backtests) paying that cost.
+        from eiqora_v2.agents.time_stop_decision import TimeStopDecisionAgent
+
+        # Profile is best-effort; the agent works without it.
+        profile_dict: dict[str, Any] = {}
+        try:
+            from eiqora_v2.services.profile_generator import ProfileGenerator
+
+            profile = await ProfileGenerator().get_profile(symbol, allow_stale=True)
+            profile_dict = profile.model_dump() if profile else {}
+        except Exception as exc:  # noqa: BLE001
+            logger.info("time_stop %s: profile unavailable (%s); proceeding without", symbol, exc)
+
+        state = {
+            "symbol": symbol,
+            "asof_time": asof_time,
+            "position": position,
+            "profile": profile_dict,
+        }
+        result = await TimeStopDecisionAgent().run(state)
+        decision = (result or {}).get("time_stop_decision") or {}
+        action = str(decision.get("action") or "EXIT").upper()
+        reason = decision.get("reasoning") or "(no reason given)"
+
+        if action == "TRAIL_TIGHT":
+            new_sl = decision.get("new_stop_loss")
+            if new_sl is None:
+                logger.warning(
+                    "time_stop %s: TRAIL_TIGHT chosen without new_stop_loss; falling back to EXIT",
+                    symbol,
+                )
+                return "EXIT"
+            new_sl = float(new_sl)
+            current_sl = float(position.get("stop_loss") or 0)
+            # LONG: new SL must be tighter (higher) and below current price.
+            # SHORT: new SL must be tighter (lower) and above current price.
+            if direction == "LONG":
+                if not (current_sl < new_sl < current_price):
+                    logger.warning(
+                        "time_stop %s: invalid LONG new_sl=%.4f (need %.4f < x < %.4f); EXIT",
+                        symbol, new_sl, current_sl, current_price,
+                    )
+                    return "EXIT"
+            else:  # SHORT
+                if not (current_price < new_sl < current_sl):
+                    logger.warning(
+                        "time_stop %s: invalid SHORT new_sl=%.4f (need %.4f < x < %.4f); EXIT",
+                        symbol, new_sl, current_price, current_sl,
+                    )
+                    return "EXIT"
+            async with get_connection() as conn:
+                await conn.execute(
+                    """
+                    UPDATE position
+                       SET stop_loss = $1,
+                           time_stop_date = NULL
+                     WHERE symbol = $2 AND status = 'ACTIVE'
+                    """,
+                    new_sl, symbol,
+                )
+            logger.info(
+                "time_stop %s: TRAIL_TIGHT applied — SL %.4f → %.4f, time stop cleared. %s",
+                symbol, current_sl, new_sl, reason,
+            )
+            return "HELD"
+
+        if action == "EXTEND_HOLD":
+            ext = decision.get("extension_days")
+            try:
+                ext_int = int(ext) if ext is not None else 0
+            except (TypeError, ValueError):
+                ext_int = 0
+            if ext_int < 1 or ext_int > 30:
+                logger.warning(
+                    "time_stop %s: EXTEND_HOLD with invalid extension_days=%r; EXIT",
+                    symbol, ext,
+                )
+                return "EXIT"
+            async with get_connection() as conn:
+                await conn.execute(
+                    """
+                    UPDATE position
+                       SET time_stop_date = time_stop_date + ($1 || ' days')::interval
+                     WHERE symbol = $2 AND status = 'ACTIVE'
+                    """,
+                    str(ext_int), symbol,
+                )
+            logger.info(
+                "time_stop %s: EXTEND_HOLD applied — pushed deadline %d more days. %s",
+                symbol, ext_int, reason,
+            )
+            return "HELD"
+
+        # Default / explicit EXIT
+        logger.info("time_stop %s: EXIT — %s", symbol, reason)
+        return "EXIT"
+
+    except Exception as exc:  # noqa: BLE001 — never trap a position
+        logger.warning(
+            "time_stop %s: decision agent failed (%s); falling back to EXIT",
+            symbol, exc,
+        )
+        return "EXIT"
+
+
 async def refresh_account_state(
     asof_time: datetime | None = None,
     refresh_prices: bool = True,
@@ -1093,7 +1222,13 @@ async def refresh_account_state(
                 continue
 
         if time_stop_date and asof_time_db and asof_time_db >= time_stop_date:
-            auto_exits.append((symbol, "TIME_STOP", "time_stop_hit", current_price))
+            decision = await _decide_time_stop_action(
+                position, asof_time, current_price=current_price, direction=direction
+            )
+            if decision == "EXIT":
+                auto_exits.append((symbol, "TIME_STOP", "time_stop_hit", current_price))
+            # TRAIL_TIGHT and EXTEND_HOLD have already been applied to the
+            # database by _decide_time_stop_action — nothing to enqueue here.
 
     if auto_exits and not _is_market_open(asof_time):
         logger.info(
