@@ -263,7 +263,44 @@ class LiveTradingPipeline:
         veto = final_state.get("veto", {})
         if isinstance(veto, dict) and veto.get("veto"):
             action = "NO_GO"
-        
+
+        # Run risk-model sizing pre-log so analysis_log captures it. Previously
+        # this ran inside the GO branch *after* log_analysis(), which meant
+        # every row stored risk_model_output='{}' — even for GO trades — and
+        # later forensic review couldn't see what size the model proposed.
+        # Sizing is cheap and read-only; running it on every analysis (GO or
+        # NO_GO) is harmless and gives us the audit trail.
+        if "risk_model" not in final_state:
+            try:
+                from eiqora_v2.services.risk_model import size_position
+
+                ideas_pre = final_state.get("ideas", {}) or {}
+                primary_pre_id = ideas_pre.get("primary_idea_id")
+                pre_conviction = "MEDIUM"
+                if ideas_pre.get("ideas"):
+                    primary_pre = next(
+                        (i for i in ideas_pre["ideas"] if i.get("idea_id") == primary_pre_id),
+                        ideas_pre["ideas"][0],
+                    )
+                    pre_conviction = primary_pre.get("conviction", "MEDIUM")
+
+                pre_rule = decision.get("rule", {}) or {}
+                pre_bracket = (final_state.get("exit_policy", {}) or {}).get("bracket", {}) or {}
+                pre_entry = (
+                    pre_rule.get("entry_level")
+                    or (final_state.get("context", {}) or {}).get("current_price")
+                )
+                pre_sl = pre_bracket.get("sl_level") or pre_rule.get("sl_level")
+                if pre_entry and pre_sl:
+                    final_state["risk_model"] = await size_position(
+                        symbol=trigger.symbol,
+                        entry_price=pre_entry,
+                        stop_loss=pre_sl,
+                        conviction=pre_conviction,
+                    )
+            except Exception as exc:
+                _logger.debug("Pre-log risk sizing skipped for %s: %s", trigger.symbol, exc)
+
         # Log analysis regardless of outcome (GO or NO_GO)
         analysis_id = await log_analysis(
             symbol=trigger.symbol,
@@ -348,7 +385,14 @@ class LiveTradingPipeline:
             
             conviction_score = {"HIGH": 0.8, "MEDIUM": 0.6, "LOW": 0.4}.get(conviction, 0.5)
 
-            # Deterministic position sizing
+            # Deterministic position sizing.
+            # The pre-log block above may have already populated
+            # final_state["risk_model"] from intermediate values. We re-run
+            # here with the FINAL entry_price (post quote-substitution) and
+            # FINAL stop_loss (post ATR fallback) so the position is sized
+            # against the actual order parameters, then overwrite the audit
+            # field. The pre-log version still made it into analysis_log,
+            # which is what we want for the per-decision snapshot.
             position_size_pct = None
             try:
                 from eiqora_v2.services.risk_model import size_position
