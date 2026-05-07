@@ -445,7 +445,7 @@ class DashboardService:
                 return []
 
         # source == 'legacy': closed DB positions from BEFORE the Alpaca
-        # integration cutover (entry_date < 2026-02-01). After that date the
+        # integration cutover (entry_date < 2026-03-01). After that date the
         # canonical record lives on Alpaca and the source='alpaca' branch
         # surfaces it; a handful of post-cutover rows have a NULL
         # alpaca_order_id (broker fill confirmation never wrote back) and
@@ -462,7 +462,7 @@ class DashboardService:
                         realized_pnl, realized_pnl_pct, exit_reason, exit_type
                     FROM position
                     WHERE status = 'CLOSED'
-                      AND entry_date < '2026-02-01'
+                      AND entry_date < '2026-03-01'
                     ORDER BY exit_date DESC
                     LIMIT $1
                     """,
