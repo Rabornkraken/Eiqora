@@ -33,13 +33,23 @@ def _conviction_multiplier(conviction: str | None) -> float:
 
 
 async def _load_positions() -> list[dict[str, Any]]:
+    """Load active positions for portfolio-cap calculations.
+
+    Note: this used to JOIN ``ticker_info`` for a ``sector`` column, but
+    that table was never created in the live schema. The whole sector-cap
+    logic was therefore raising ``UndefinedTableError`` on every call,
+    which the caller in pipeline.py swallowed silently — leading to 423
+    consecutive analyses with risk_model_output='{}' until 2026-05-07.
+    Until we wire up a real sector source (yfinance.Ticker.info has it
+    but isn't currently ingested), positions return without a sector and
+    the sector cap below is a no-op.
+    """
     async with get_connection() as conn:
         rows = await conn.fetch(
             """
-            SELECT p.symbol, p.position_size_pct, ti.sector
-            FROM position p
-            LEFT JOIN ticker_info ti ON ti.symbol = p.symbol
-            WHERE p.status = 'ACTIVE'
+            SELECT symbol, position_size_pct
+            FROM position
+            WHERE status = 'ACTIVE'
             """
         )
     return [dict(r) for r in rows]
@@ -105,19 +115,17 @@ async def size_position(
         notes.append("max_positions_reached")
 
     # Sector cap.
+    #
+    # The original implementation queried ``ticker_info.sector``, which
+    # never existed in the live schema, so the entire sector check has
+    # been a silent no-op (and earlier was raising and bringing the whole
+    # sizer down). We do the bookkeeping here for the response shape, but
+    # without a sector source the caps don't engage. When we wire up a
+    # real sector table this block becomes active again unchanged.
     sector_exposure: dict[str, float] = {}
     sector_position_count: dict[str, int] = {}
     symbol_sector = None
-    
-    # Get sector for the new symbol
-    async with get_connection() as conn:
-        sector_row = await conn.fetchrow(
-            "SELECT sector FROM ticker_info WHERE symbol = $1",
-            symbol
-        )
-        if sector_row:
-            symbol_sector = sector_row["sector"]
-    
+
     for p in positions:
         sector = p.get("sector")
         if not sector:
@@ -135,7 +143,7 @@ async def size_position(
             notes.append("sector_cap_reached")
         else:
             size_pct = min(size_pct, remaining_sector)
-        
+
         # NEW: Check sector position count (max 2 positions per sector)
         max_positions_per_sector = 2
         current_sector_count = sector_position_count.get(symbol_sector, 0)
@@ -143,6 +151,8 @@ async def size_position(
             size_pct = 0.0
             notes.append(f"sector_position_limit_{current_sector_count}_of_{max_positions_per_sector}")
             logger.info(f"Rejecting {symbol}: Sector {symbol_sector} already has {current_sector_count} positions (max {max_positions_per_sector})")
+    else:
+        notes.append("sector_data_unavailable")
 
     if size_pct <= 0:
         notes.append("size_zero_after_caps")
