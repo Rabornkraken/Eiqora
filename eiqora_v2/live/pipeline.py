@@ -352,13 +352,14 @@ class LiveTradingPipeline:
             stop_loss = bracket.get("sl_level")
             take_profit = bracket.get("tp_level")
             
+            # Get multipliers and ATR up front — needed both for the
+            # missing-level fallback below AND the post-fill TP sanity gate.
+            sl_mult = bracket.get("sl_mult") or rule.get("sl_mult", 3.0)  # Wide catastrophic stop
+            tp_mult = bracket.get("tp_mult") or rule.get("tp_mult")  # Often null for decision-based
+            atr = context.get("atr14", entry_price * 0.02)  # Default to 2% if no ATR
+
             # Fallback to ATR-based if no explicit levels
             if stop_loss is None or take_profit is None:
-                # Get multipliers from exit policy or fallback defaults
-                sl_mult = bracket.get("sl_mult") or rule.get("sl_mult", 3.0)  # Wide catastrophic stop
-                tp_mult = bracket.get("tp_mult") or rule.get("tp_mult")  # Often null for decision-based
-                atr = context.get("atr14", entry_price * 0.02)  # Default to 2% if no ATR
-
                 if direction == "SHORT":
                     stop_loss = stop_loss or (entry_price + (atr * sl_mult))
                     if tp_mult:
@@ -367,7 +368,45 @@ class LiveTradingPipeline:
                     stop_loss = stop_loss or (entry_price - (atr * sl_mult))
                     if tp_mult:
                         take_profit = take_profit or (entry_price + (atr * tp_mult))
-            
+
+            # Post-fill TP sanity gate.
+            #
+            # The chart agent's "next resistance" often becomes the exit
+            # policy's tp_level. That works fine when the fill is below
+            # resistance, but on a BREAK_YDAY_HIGH or NEXT_OPEN gap the
+            # actual fill can land at or above that resistance. The TP is
+            # then degenerate — at or below entry on a LONG — and the
+            # auto-exit code (positions.py: current_price >= take_profit)
+            # triggers an instant TP_hit at a small loss, which is what
+            # caused the 2026-05-06 AMAT trade (entry $421.11, TP $420.50,
+            # closed in 4 minutes for −$2.94) and the same-day AAPL trade
+            # (entry $285.80, TP $287.22, R:R 0.08).
+            #
+            # Require TP at least 1× ATR away from entry in the trade
+            # direction; if the explicit level fails the gate, recompute
+            # using the bracket's tp_mult (or 3.0 as a safe default).
+            if take_profit is not None:
+                min_tp_distance = atr * 1.0
+                effective_tp_mult = tp_mult or 3.0
+                degenerate = (
+                    direction == "LONG" and take_profit < entry_price + min_tp_distance
+                ) or (
+                    direction == "SHORT" and take_profit > entry_price - min_tp_distance
+                )
+                if degenerate:
+                    original_tp = take_profit
+                    if direction == "LONG":
+                        take_profit = entry_price + atr * effective_tp_mult
+                    else:
+                        take_profit = entry_price - atr * effective_tp_mult
+                    _logger.warning(
+                        "%s: TP $%.2f failed sanity gate (entry=$%.2f, ATR=$%.2f, dir=%s); "
+                        "recomputed to $%.2f using %.2f×ATR. Original TP was at or past "
+                        "entry — would have triggered instant TP_hit on first tick.",
+                        trigger.symbol, original_tp, entry_price, atr, direction,
+                        take_profit, effective_tp_mult,
+                    )
+
             # Log the exit policy decision
             sl_rationale = bracket.get("sl_rationale", "ATR-based")
             tp_rationale = bracket.get("tp_rationale", "decision-based")
