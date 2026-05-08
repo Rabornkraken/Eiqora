@@ -32,10 +32,17 @@ export const getDashboardStats = async () => {
     };
 };
 
-// Equity history for chart
-export const getEquityHistory = async (days = 30) => {
+// Equity history for chart. ``benchmarks`` is an optional array like
+// ['SPY','QQQ','IWM','XLK'] — when provided, each row in the response is
+// enriched with a value-of-equivalent-investment per benchmark, anchored
+// at the starting equity.
+export const getEquityHistory = async (days = 30, benchmarks = null) => {
     if (isV1API) {
-        const response = await api.get('/api/v1/dashboard/equity-history', { params: { days } });
+        const params = { days };
+        if (Array.isArray(benchmarks) && benchmarks.length) {
+            params.benchmarks = benchmarks.join(',');
+        }
+        const response = await api.get('/api/v1/dashboard/equity-history', { params });
         // Map timestamp -> date for chart XAxis compatibility
         return (response.data.history || []).map(item => ({
             ...item,

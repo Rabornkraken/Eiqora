@@ -106,22 +106,27 @@ async def get_system_stats():
 
 @router.get("/equity-history")
 async def get_equity_history(
-    days: int = Query(30, ge=1, le=365, description="Number of days of history")
+    days: int = Query(30, ge=1, le=365, description="Number of days of history"),
+    benchmarks: str | None = Query(
+        None,
+        description=(
+            "Optional comma-separated list of benchmark tickers to overlay "
+            "(e.g. 'SPY,QQQ,IWM,XLK'). Each benchmark is rendered as the "
+            "value of an equivalent investment of the starting equity."
+        ),
+    ),
 ):
     """
-    Get equity history for chart
-
-    Retrieve daily equity snapshots for performance chart.
-
-    Args:
-        days: Number of days of history (1-365)
-
-    Returns:
-        List of equity snapshots with timestamp, equity, cash_balance, etc.
+    Get equity history for chart, optionally with benchmark overlays.
     """
     try:
-        history = await dashboard_service.get_equity_history(days=days)
-        return {"history": history, "total": len(history)}
+        bench_list = None
+        if benchmarks:
+            bench_list = [s.strip().upper() for s in benchmarks.split(",") if s.strip()]
+        history = await dashboard_service.get_equity_history(
+            days=days, benchmarks=bench_list
+        )
+        return {"history": history, "total": len(history), "benchmarks": bench_list or []}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch equity history: {str(e)}")

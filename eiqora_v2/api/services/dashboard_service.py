@@ -317,9 +317,13 @@ class DashboardService:
             )
 
 
-    async def get_equity_history(self, days: int = 30) -> List[dict]:
+    async def get_equity_history(
+        self,
+        days: int = 30,
+        benchmarks: Optional[List[str]] = None,
+    ) -> List[dict]:
         """
-        Get equity history for chart.
+        Get equity history for chart, optionally with benchmark overlays.
 
         Source-of-truth is Alpaca's native portfolio_history endpoint.
         The account_snapshot table is only used as a fallback when the
@@ -329,6 +333,12 @@ class DashboardService:
         computed from DB positions (which drift from Alpaca reality) and
         previously included anomalous partial-view rows. Alpaca's own
         daily equity series is the only consistent source.
+
+        When ``benchmarks`` is provided, each row in the response is enriched
+        with a key per symbol holding the value of an equivalent investment
+        of the starting equity in that benchmark on each day. This lets the
+        frontend render an apples-to-apples beta comparison line ("what
+        would $X in SPY/QQQ/IWM/XLK be worth right now?") on the same chart.
         """
         try:
             from eiqora_v2.tools.broker import _is_alpaca_configured, get_alpaca_portfolio_history
@@ -346,7 +356,7 @@ class DashboardService:
 
                 history = await get_alpaca_portfolio_history(period=period, timeframe="1D")
                 if history:
-                    return [
+                    series = [
                         {
                             "timestamp": h["timestamp"],
                             "equity": h["equity"],
@@ -357,6 +367,9 @@ class DashboardService:
                         }
                         for h in history
                     ]
+                    if benchmarks:
+                        await self._attach_benchmarks(series, benchmarks)
+                    return series
 
             # Fallback: DB snapshots (legacy)
             from eiqora_v2.tools.db import get_connection
@@ -379,7 +392,7 @@ class DashboardService:
                     """ % days
                 )
 
-                return [
+                series = [
                     {
                         "timestamp": row["timestamp"].isoformat(),
                         "equity": float(row["equity"] or 0),
@@ -390,10 +403,119 @@ class DashboardService:
                     }
                     for row in rows
                 ]
+                if benchmarks:
+                    await self._attach_benchmarks(series, benchmarks)
+                return series
 
         except Exception as e:
             print(f"Error fetching equity history: {e}")
             return []
+
+    async def _attach_benchmarks(
+        self,
+        series: List[dict],
+        benchmarks: List[str],
+    ) -> None:
+        """Enrich each row of ``series`` with a value-of-equivalent-investment
+        per benchmark symbol, anchored at the first row's equity.
+
+        The benchmark closes come from ``market_bar_daily``. When a row's
+        date is not a trading day, we use the most recent close on or
+        before that date so the curve doesn't get holes on weekends/holidays.
+        """
+        if not series or not benchmarks:
+            return
+
+        from datetime import datetime as _dt
+        from eiqora_v2.tools.db import get_connection
+
+        # Anchor: starting equity from first point.
+        try:
+            start_equity = float(series[0]["equity"])
+        except (KeyError, TypeError, ValueError):
+            return
+        if start_equity <= 0:
+            return
+
+        def _row_date(row: dict):
+            ts = row.get("timestamp")
+            if not ts:
+                return None
+            if isinstance(ts, str):
+                try:
+                    return _dt.fromisoformat(ts.replace("Z", "+00:00")).date()
+                except ValueError:
+                    return None
+            return ts.date() if hasattr(ts, "date") else None
+
+        first_date = _row_date(series[0])
+        last_date = _row_date(series[-1])
+        if not first_date or not last_date:
+            return
+
+        # Validate benchmark symbol list — only allow safe upper-cased
+        # alphanumerics so the symbol can be used in the IN clause via
+        # parameter binding (asyncpg uses positional params, no SQL
+        # injection risk, but we still cap the set).
+        clean: List[str] = []
+        for b in benchmarks:
+            if not isinstance(b, str):
+                continue
+            sym = b.strip().upper()
+            if 1 <= len(sym) <= 10 and all(c.isalnum() or c in "-." for c in sym):
+                clean.append(sym)
+        if not clean:
+            return
+
+        try:
+            async with get_connection() as conn:
+                rows = await conn.fetch(
+                    """
+                    SELECT symbol, date, close
+                    FROM market_bar_daily
+                    WHERE symbol = ANY($1::text[])
+                      AND date BETWEEN $2 AND $3
+                    ORDER BY symbol, date
+                    """,
+                    clean, first_date, last_date,
+                )
+        except Exception as exc:
+            print(f"Benchmark fetch failed: {exc}")
+            return
+
+        # Group closes by symbol, sorted by date.
+        by_symbol: dict[str, list[tuple]] = {}
+        for r in rows:
+            by_symbol.setdefault(r["symbol"], []).append((r["date"], float(r["close"])))
+
+        # For each symbol, the anchor close is the first close on or after
+        # ``first_date`` (handles when first_date itself is a non-trading day).
+        anchors: dict[str, float] = {}
+        for sym, closes in by_symbol.items():
+            for d, c in closes:
+                if d >= first_date and c > 0:
+                    anchors[sym] = c
+                    break
+
+        # For each row, attach scaled benchmark value.
+        for row in series:
+            d = _row_date(row)
+            if not d:
+                continue
+            for sym, closes in by_symbol.items():
+                if sym not in anchors:
+                    continue
+                # Most recent close on or before the row's date.
+                last_close = None
+                for cd, cc in closes:
+                    if cd <= d:
+                        last_close = cc
+                    else:
+                        break
+                if last_close is None:
+                    row[sym] = None
+                else:
+                    row[sym] = round(start_equity * (last_close / anchors[sym]), 2)
 
     async def get_trading_history(self, limit: int = 50, source: str = "alpaca") -> List[dict]:
         """
