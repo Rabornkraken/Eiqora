@@ -15,9 +15,6 @@ import { getEquityHistory } from '../services/api';
 
 const BENCHMARKS = [
     { symbol: 'SPY', label: 'SPY (S&P 500)', color: '#FFA726' },
-    { symbol: 'QQQ', label: 'QQQ (Nasdaq 100)', color: '#AB47BC' },
-    { symbol: 'IWM', label: 'IWM (Russell 2000)', color: '#26A69A' },
-    { symbol: 'XLK', label: 'XLK (Tech Sector)', color: '#EF5350' },
 ];
 
 const TIMEFRAMES = [
