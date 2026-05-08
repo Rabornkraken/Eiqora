@@ -21,7 +21,6 @@ const TIMEFRAMES = [
     { id: '1W', label: '1W', days: 7 },
     { id: '1M', label: '1M', days: 31 },
     { id: '3M', label: '3M', days: 93 },
-    { id: 'ALL', label: 'All', days: 365 },
 ];
 
 function EquityChart() {
