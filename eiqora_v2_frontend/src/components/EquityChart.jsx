@@ -21,15 +21,8 @@ const TIMEFRAMES = [
     { id: '1W', label: '1W', days: 7 },
     { id: '1M', label: '1M', days: 31 },
     { id: '3M', label: '3M', days: 93 },
-    { id: 'YTD', label: 'YTD', days: null }, // computed below
     { id: 'ALL', label: 'All', days: 365 },
 ];
-
-function ytdDays() {
-    const now = new Date();
-    const jan1 = new Date(now.getFullYear(), 0, 1);
-    return Math.max(1, Math.ceil((now - jan1) / (1000 * 60 * 60 * 24)));
-}
 
 function EquityChart() {
     const [data, setData] = useState([]);
@@ -39,7 +32,7 @@ function EquityChart() {
 
     const days = useMemo(() => {
         const tf = TIMEFRAMES.find(t => t.id === timeframe) || TIMEFRAMES[1];
-        return tf.id === 'YTD' ? ytdDays() : tf.days;
+        return tf.days;
     }, [timeframe]);
 
     useEffect(() => {
