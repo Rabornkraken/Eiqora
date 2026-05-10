@@ -70,21 +70,6 @@ function EquityChart() {
     // starting balance the account actually had — 10K, 100K, anything).
     const startingBalance = data.length > 0 ? data[0].equity : null;
 
-    // Header stats
-    const stats = useMemo(() => {
-        if (!data.length || !startingBalance) return null;
-        const last = data[data.length - 1];
-        const ret = last.equity - startingBalance;
-        const retPct = (ret / startingBalance) * 100;
-        const benchSummary = BENCHMARKS.map(b => {
-            const lastVal = last[b.symbol];
-            if (typeof lastVal !== 'number') return null;
-            const bRet = ((lastVal - startingBalance) / startingBalance) * 100;
-            return { symbol: b.symbol, color: b.color, ret: bRet, delta: retPct - bRet };
-        }).filter(Boolean);
-        return { ret, retPct, benchSummary };
-    }, [data, startingBalance]);
-
     return (
         <div className="chart-box">
             <div
@@ -120,36 +105,6 @@ function EquityChart() {
                     ))}
                 </div>
             </div>
-
-            {stats && (
-                <div
-                    style={{
-                        display: 'flex',
-                        alignItems: 'baseline',
-                        gap: '16px',
-                        padding: '8px 16px',
-                        flexWrap: 'wrap',
-                        fontFamily: "'JetBrains Mono', monospace",
-                        fontSize: 12,
-                        borderBottom: '1px solid var(--border-light)',
-                    }}
-                >
-                    {stats.benchSummary.map(b => (
-                        <span key={b.symbol} style={{ color: 'var(--text-secondary)' }}>
-                            vs <span style={{ color: b.color, fontWeight: 600 }}>{b.symbol}</span>:
-                            <span
-                                style={{
-                                    color: b.delta >= 0 ? 'var(--color-go)' : 'var(--color-no-go)',
-                                    fontWeight: 600,
-                                    marginLeft: '6px',
-                                }}
-                            >
-                                {b.delta >= 0 ? '+' : ''}{b.delta.toFixed(2)}%
-                            </span>
-                        </span>
-                    ))}
-                </div>
-            )}
 
             {loading && data.length === 0 ? (
                 <div className="loading">Loading chart data...</div>
