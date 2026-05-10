@@ -134,18 +134,6 @@ function EquityChart() {
                         borderBottom: '1px solid var(--border-light)',
                     }}
                 >
-                    <span style={{ color: 'var(--text-secondary)' }}>
-                        Return:
-                        <span
-                            style={{
-                                color: stats.ret >= 0 ? 'var(--color-go)' : 'var(--color-no-go)',
-                                fontWeight: 600,
-                                marginLeft: '6px',
-                            }}
-                        >
-                            {stats.ret >= 0 ? '+' : ''}${stats.ret.toFixed(2)} ({stats.retPct >= 0 ? '+' : ''}{stats.retPct.toFixed(2)}%)
-                        </span>
-                    </span>
                     {stats.benchSummary.map(b => (
                         <span key={b.symbol} style={{ color: 'var(--text-secondary)' }}>
                             vs <span style={{ color: b.color, fontWeight: 600 }}>{b.symbol}</span>:
