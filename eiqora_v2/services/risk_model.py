@@ -15,12 +15,16 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class RiskConfig:
-    risk_per_trade_pct: float = 0.035  # 3.5% of equity risk per trade
-    max_position_pct: float = 0.22     # 22% max position size
-    portfolio_heat_cap: float = 0.90   # 90% max total exposure
-    max_positions: int = 8
-    sector_cap: float = 0.35           # 35% max exposure per sector
-    default_position_pct: float = 0.12
+    # 2026-05-16: aggressive retune — the prior values were silently
+    # blocking ~all new entries (max_positions=8 vs 11 open positions,
+    # 90% heat cap with sector_cap=35% in a tech-heavy book). See the
+    # NVDA/AAPL/MU NO_GO chain in analysis_log around that date.
+    risk_per_trade_pct: float = 0.05   # 5% of equity risk per trade
+    max_position_pct: float = 0.30     # 30% max position size
+    portfolio_heat_cap: float = 1.00   # 100% fully invested allowed
+    max_positions: int = 25
+    sector_cap: float = 0.50           # 50% max exposure per sector
+    default_position_pct: float = 0.15
 
 
 def _conviction_multiplier(conviction: str | None) -> float:
@@ -144,8 +148,11 @@ async def size_position(
         else:
             size_pct = min(size_pct, remaining_sector)
 
-        # NEW: Check sector position count (max 2 positions per sector)
-        max_positions_per_sector = 2
+        # Per-sector position count cap. Raised from 2 -> 5 on 2026-05-16
+        # as part of the aggressive retune so the tech-heavy universe
+        # isn't permanently single-sector-blocked once we hold a few
+        # semis/software names.
+        max_positions_per_sector = 5
         current_sector_count = sector_position_count.get(symbol_sector, 0)
         if current_sector_count >= max_positions_per_sector:
             size_pct = 0.0
